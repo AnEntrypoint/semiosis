@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*"]
+
+[tool.setuptools.package-data]
+core = ["py.typed"]
+
+[project]
+name = "semantic-cones"
+version = "0.1.0"
+description = "Mature hyperbolic-cone semantic structure over Matryoshka octaves"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+]
+
+[project.optional-dependencies]
+hyperbolic = ["torch>=2.2", "geoopt>=0.5"]
+store = ["hnswlib>=0.7", "qdrant-client>=1.9"]
+encoder = ["sentence-transformers>=2.7", "scipy>=1.12"]
+serving = ["fastapi>=0.110", "uvicorn>=0.29"]
+orchestration = ["dagster>=1.7"]
+eval = ["mlflow>=2.12", "scikit-learn>=1.4"]
+labels = ["anthropic>=0.25"]          # optional NLA labeler
+dev = ["mypy>=1.9", "pytest>=8.1", "hypothesis>=6.100", "ruff>=0.3"]
+all = ["semantic-cones[hyperbolic,store,encoder,serving,eval]"]
+
+[tool.mypy]
+strict = true
+warn_unreachable = true
+disallow_any_generics = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["core"]

@@ -1,0 +1,12 @@
+core/settings.py:15:25 EncoderSettings
+class EncoderSettings(BaseModel):
+    model: str = "text-embedding-3-large"      # a real Matryoshka model
+    octaves: tuple[int, ...] = (64, 128, 256, 512, 1024)
+    batch_size: int = 128
+
+    @field_validator("octaves")
+    @classmethod
+    def _ascending_and_nested(cls, v: tuple[int, ...]) -> tuple[int, ...]:
+        if list(v) != sorted(v):
+            raise ValueError("octaves must be ascending (nested prefixes)")
+        return v

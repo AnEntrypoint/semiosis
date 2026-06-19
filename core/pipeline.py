@@ -1,0 +1,74 @@
+"""End-to-end knowledge pipeline: encode -> cluster -> fit cones -> store -> query."""
+from __future__ import annotations
+
+import uuid
+from typing import Sequence
+
+from .cone_engine import ConeFitConfig, HyperbolicConeEngine
+from .encoder import AgglomerativeClusterer, RandomEncoder
+from .interfaces import CommitId, Prefix
+from .settings import Settings
+from .store import InMemoryQuery, InMemoryStore
+
+
+class KnowledgePipeline:
+    """Encode texts -> cluster per octave -> fit cones -> store; exposes a Query."""
+
+    def __init__(
+        self,
+        texts: Sequence[str],
+        settings: Settings | None = None,
+    ) -> None:
+        cfg = settings or Settings()
+        try:
+            from .encoder import SentenceTransformerEncoder
+            self._encoder = SentenceTransformerEncoder(
+                model_name=cfg.encoder.model,
+                octaves=cfg.encoder.octaves,
+            )
+        except RuntimeError:
+            self._encoder = RandomEncoder(octaves=cfg.encoder.octaves)
+
+        n = max(1, len(texts))
+        self._clusterer = AgglomerativeClusterer(n_clusters=min(n, 16))
+        cone_cfg = ConeFitConfig(
+            curvature=cfg.cone.curvature,
+            dim=cfg.cone.dim,
+            epochs=cfg.cone.epochs,
+            lr=cfg.cone.lr,
+            margin=cfg.cone.margin,
+            neg_samples=cfg.cone.neg_samples,
+            seed=cfg.cone.seed,
+        )
+        self._engine = HyperbolicConeEngine(cone_cfg)
+        self._store = InMemoryStore()
+        self._query = InMemoryQuery(self._store, self._engine)
+
+        if texts:
+            self._ingest(list(texts))
+
+    def _ingest(self, texts: list[str]) -> CommitId:
+        vecs = self._encoder.encode(texts)
+        commit_id = CommitId(str(uuid.uuid4()))
+        all_nodes: list = []
+        for prefix in self._encoder.dims:
+            tree = self._clusterer.fit(vecs, Prefix(prefix))
+            nodes = self._engine.fit(tree)
+            all_nodes.extend(nodes)
+        return self._store.write(all_nodes, commit_id)
+
+    def ingest(self, texts: Sequence[str]) -> CommitId:
+        """Add more texts; rebuilds all octave clusters."""
+        return self._ingest(list(texts))
+
+    @property
+    def query(self) -> InMemoryQuery:
+        return self._query
+
+    @property
+    def store(self) -> InMemoryStore:
+        return self._store
+
+    @property
+    def engine(self) -> HyperbolicConeEngine:
+        return self._engine

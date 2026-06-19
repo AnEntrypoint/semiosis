@@ -1,0 +1,1 @@
+{"key":"semiosis-stability-invariants","value":"semiosis cone_engine stability invariants: _EPS=1e-7 arccos clamp (prevents NaN at boundary), _MIN_APERTURE=0.1 rad floor (cone cannot collapse to a ray), _MAX_GRAD_NORM=1.0 tangent-space gradient clip (RiemannianAdam stabilize=10). Manifold is Lorentz/hyperboloid, NOT Poincare ball (no boundary blowup). geoopt.Lorentz backend."}

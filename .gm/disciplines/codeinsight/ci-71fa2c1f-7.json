@@ -1,0 +1,13 @@
+core/interfaces.py:27:38 ConeNode
+class ConeNode:
+    """A node embedded as a hyperbolic entailment cone.
+
+    Cone = apex (point on Lorentz manifold) + half-aperture. Parent-contains-child
+    IS the hierarchy; cone intersection IS overlap/Venn (Ganea 2018; HypCBM 2026).
+    """
+    id: NodeId
+    apex: LorentzVec
+    aperture: float
+    prefix: Prefix
+    members: tuple[PhraseId, ...]
+    label: str | None = None

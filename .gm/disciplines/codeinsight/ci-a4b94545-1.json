@@ -1,0 +1,6 @@
+core/settings.py:36:40 StoreSettings
+class StoreSettings(BaseModel):
+    backend: str = "qdrant"                    # or "pgvector"
+    hnsw_m: int = 16
+    hnsw_ef_construct: int = 200
+    lakefs_repo: str = "semantic-cones"

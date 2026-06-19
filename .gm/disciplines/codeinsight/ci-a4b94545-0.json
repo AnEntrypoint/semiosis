@@ -1,0 +1,8 @@
+core/settings.py:43:49 Settings
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="SC_", env_nested_delimiter="__")
+    env: Env = Env.dev
+    encoder: EncoderSettings = EncoderSettings()
+    cone: ConeSettings = ConeSettings()
+    store: StoreSettings = StoreSettings()
+    enable_nla_labels: bool = False            # optional, decoupled

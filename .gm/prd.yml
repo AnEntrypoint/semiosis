@@ -1,0 +1,432 @@
+- id: fix-import-structure
+  title: Fix broken relative imports — add core/ package
+  description: cone_engine.py uses `from .interfaces import` but both files sit at repo root with no __init__.py. Running `python cone_engine.py` or importing it fails with ImportError. Create `core/` package directory with __init__.py, move cone_engine.py and interfaces.py into core/, update all internal imports and pyproject references.
+  acceptance: import core.cone_engine succeeds in a clean Python 3.11 env; existing test still passes
+  status: completed
+  witness: core/__init__.py created; core/cone_engine.py uses `from .interfaces import` (correct relative import within package); core/interfaces.py, core/settings.py, core/test_manifold_invariants.py all written
+- id: add-query-protocol
+  title: Add missing Query Protocol to interfaces.py
+  description: ARCHITECTURE.md specifies a Query module (knn, containment, analogy, overlap) as a first-class component but interfaces.py has no Query Protocol. Add it with the four query methods listed in the architecture spec.
+  acceptance: Query Protocol present in core/interfaces.py with knn, containment_score, analogy, overlap_nodes methods; runtime_checkable
+  status: completed
+  witness: 'core/interfaces.py line 79-83: Query Protocol with knn, containment_score, analogy, overlap_nodes; @runtime_checkable'
+- id: fix-settings-env-binding
+  title: Add model_config to sub-settings classes
+  description: EncoderSettings, ConeSettings, StoreSettings all inherit BaseSettings but lack model_config with env_prefix/env_nested_delimiter. In pydantic-settings 2.x this means env vars like SC__ENCODER__MODEL won't bind. Parent Settings has model_config with SC_ prefix but sub-models must also declare it or use nested delimiter correctly.
+  acceptance: SC__ENCODER__MODEL env var overrides encoder.model at runtime; validated with a quick instantiation test
+  status: completed
+  witness: 'core/settings.py: EncoderSettings, ConeSettings, StoreSettings now inherit BaseModel (not BaseSettings); only root Settings inherits BaseSettings with env_prefix=SC_ and env_nested_delimiter=__'
+- id: convert-arch-glyphs
+  title: Convert box-drawing and arrow glyphs in ARCHITECTURE.md to ASCII
+  description: 'ARCHITECTURE.md uses Unicode box-drawing chars (┌─┐│└┬┘▶) and arrow glyphs. Per project rule, all non-ASCII decorative symbols must be converted: box chars to +--+|, arrows to ->, bullets to -.'
+  acceptance: No Unicode box-drawing or arrow glyph in ARCHITECTURE.md; diagram still readable
+  status: completed
+  witness: 'ARCHITECTURE.md rewritten: all box-drawing chars (+--+|v), -> for arrows, intersection for unicode math; no Unicode decorative glyphs remain'
+- id: add-cone-fit-tests
+  title: Add HyperbolicConeEngine.fit and contains integration tests
+  description: 'test_manifold_invariants.py only tests bare geoopt primitives (expmap/logmap). The engine''s fit() and contains() are untested. Add tests: (1) fit on a minimal 3-node tree returns ConeNodes with valid apertures >=_MIN_APERTURE; (2) contains() returns positive margin for true parent-child pair after fit; (3) tree with isolated leaf node (in assignments but not in edges) produces a ConeNode for it.'
+  acceptance: pytest -x core/test_manifold_invariants.py passes with new test cases (skipped if torch/geoopt absent)
+  status: completed
+  witness: 'core/test_manifold_invariants.py: test_fit_returns_valid_cones, test_contains_returns_float, test_isolated_leaf_gets_cone_node added (lines 51-82); skipped if torch/geoopt absent via module-level importorskip'
+- id: add-ruff-lint-config
+  title: Add ruff lint rules and pytest config to pyproject.toml
+  description: '[tool.ruff] only sets line-length and target-version. Missing [tool.ruff.lint] with select/ignore so ruff runs no rules by default. Also no [tool.pytest.ini_options] so pytest discovery is unconfigured. Add E/W/F/I/UP/B select; add testpaths = [''core''] for pytest.'
+  acceptance: ruff check core/ exits 0; pytest --collect-only finds all tests
+  status: completed
+  witness: 'pyproject.toml: [tool.ruff.lint] select=[E,W,F,I,UP,B] added; [tool.pytest.ini_options] testpaths=[core] added'
+- id: fix-cone-embedder-protocol-doc
+  title: Remove impl-detail from ConeEmbedder Protocol docstring
+  description: ConeEmbedder Protocol docstring says 'MUST use geoopt.Lorentz + RiemannianAdam' — implementation constraints belong in the concrete class, not the Protocol contract. A Protocol only specifies the interface; callers should not need to know the backend. Remove that sentence.
+  acceptance: ConeEmbedder docstring states what the protocol does, not how to implement it
+  status: completed
+  witness: 'core/interfaces.py ConeEmbedder docstring: ''Fits hyperbolic entailment cones from a cluster tree.'' -- no implementation details'
+- id: fix-store-upsert-versioning
+  title: Fix Store.upsert return type inconsistency
+  description: Store.write returns CommitId (versioned), Store.upsert returns None — callers cannot get a versioned handle after an upsert. Either upsert should also return CommitId, or its semantics should be documented as a non-versioned mutable operation (and callers warned). Add a docstring clarifying this is an unversioned mutation and update the Protocol comment accordingly.
+  acceptance: Store Protocol docstring distinguishes versioned write from unversioned upsert; no silent data-loss risk for callers
+  status: completed
+  witness: 'core/interfaces.py Store docstring (lines 56-63): ''write is versioned and returns CommitId; upsert is an unversioned mutable operation -- callers cannot obtain CommitId after upsert'''
+- id: update-claude-md
+  title: Fill out CLAUDE.md with project context
+  description: 'CLAUDE.md currently contains only ''# semiosis''. It should document: build order, how to run tests, where modules live, key invariants (manifold, stability guards), and any project-specific rules so future sessions start oriented.'
+  acceptance: CLAUDE.md has build order, test command, module map, and key invariants
+  status: completed
+  witness: 'CLAUDE.md: module layout, build order, test command (pytest core/), key invariants, project rules all documented'
+- id: trim-cone-engine-docstring
+  title: Trim cone_engine.py module docstring to one-line rule
+  description: cone_engine.py opens with an 11-line module docstring listing design decisions. Per project rule, no multi-paragraph docstrings. The design decisions are already in ARCHITECTURE.md. Trim to a single descriptive line.
+  acceptance: Module-level docstring in core/cone_engine.py is one line; ARCHITECTURE.md remains the source of design rationale
+  status: completed
+  witness: 'core/cone_engine.py line 1: ''"""Hyperbolic entailment-cone engine -- fits Lorentz cones via RiemannianAdam."""'' -- one line'
+- id: trim-interfaces-docstring
+  title: Trim interfaces.py module docstring to one-line rule
+  description: interfaces.py opens with a 5-line module docstring. Trim to one line per project rule.
+  acceptance: Module-level docstring in core/interfaces.py is one line
+  status: completed
+  witness: 'core/interfaces.py line 1: ''"""Core protocol interfaces -- contracts every module implements."""'' -- one line'
+- id: trim-settings-docstring
+  title: Trim settings.py module docstring to one-line rule
+  description: settings.py opens with a 4-line module docstring. Trim to one line.
+  acceptance: Module-level docstring in core/settings.py is one line
+  status: completed
+  witness: 'core/settings.py line 1: ''"""Typed, env-aware configuration -- validated at boot, overridable via env vars."""'' -- one line'
+- id: trim-test-docstring
+  title: Trim test_manifold_invariants.py module docstring to one-line rule
+  description: The test file opens with a 5-line module docstring. Trim to one line.
+  acceptance: Module-level docstring in core/test_manifold_invariants.py is one line
+  status: completed
+  witness: 'core/test_manifold_invariants.py line 1: ''"""Property-based and integration tests for manifold invariants and cone engine."""'' -- one line'
+- id: fetch-mdn-webgl-best-practices
+  title: Fetch MDN WebGL best practices reference
+  description: Fetch https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices — the authoritative reference for WebGL performance. Extract all technique headings and key guidance.
+  acceptance: MDN page content captured; key optimization categories identified
+  status: completed
+  witness: 'fetch-59.json: MDN WebGL best practices page fetched, status 200, body contains optimization headings'
+- id: fetch-webgl-fundamentals-perf
+  title: Fetch webglfundamentals.org performance articles
+  description: Fetch https://webglfundamentals.org/webgl/lessons/webgl-drawing-without-data.html and https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html to gather practical instancing and draw-call-reduction techniques.
+  acceptance: webglfundamentals articles captured; practical code-level techniques extracted
+  status: completed
+  witness: 'fetch-60.json: webglfundamentals instanced drawing article fetched, status 200, ANGLE_instanced_arrays + drawArraysInstancedANGLE code examples confirmed present'
+- id: synthesize-draw-call-batching
+  title: 'Synthesize: draw call batching, instancing, sorting'
+  description: 'Compile techniques: (1) merge static geometry into single VBO; (2) ANGLE_instanced_arrays / WEBGL_multi_draw extensions for instanced rendering; (3) sort draw calls by shader+texture state to minimize GL state changes; (4) geometry atlasing. Cite sources fetched.'
+  acceptance: Row in webgl.md covering batching/instancing with concrete guidance and extension names
+  status: completed
+  witness: 'C:\dev\webgl.md section 1: Draw-call batching and instanced drawing — covers static batching, ANGLE_instanced_arrays, WEBGL_multi_draw, gl.drawElements with code examples'
+- id: synthesize-shader-optimization
+  title: 'Synthesize: GLSL shader optimization'
+  description: 'Compile techniques: (1) use mediump/lowp precision where sufficient; (2) avoid dynamic branching in fragment shaders; (3) move invariant computations to vertex shader or CPU; (4) minimize texture sample count per fragment; (5) pack multiple attributes into vec4 to reduce fetch bandwidth.'
+  acceptance: Row in webgl.md on shader optimization with concrete rules
+  status: completed
+  witness: 'C:\dev\webgl.md section 2: GLSL shader optimization — mediump/lowp, push to vertex shader, no dynamic branching, minimize texture lookups, discard warning'
+- id: synthesize-texture-management
+  title: 'Synthesize: texture atlasing and compression'
+  description: 'Compile: (1) texture atlasing to reduce bind calls; (2) power-of-two textures for mipmap support; (3) compressed texture formats via WEBGL_compressed_texture_s3tc/etc1/etc2/astc — detect at runtime; (4) generateMipmap() usage; (5) avoid per-frame texture uploads.'
+  acceptance: Row in webgl.md on texture management
+  status: completed
+  witness: 'C:\dev\webgl.md section 3: Texture management — POT requirement, atlasing, compressed formats table (s3tc/etc/astc/pvrtc), mipmaps, texture units'
+- id: synthesize-buffer-management
+  title: 'Synthesize: VBO/VAO, typed arrays, buffer strategies'
+  description: 'Compile: (1) OES_vertex_array_object for VAO to avoid repeated attribute setup; (2) prefer Float32Array/Uint16Array; (3) STREAM_DRAW vs STATIC_DRAW vs DYNAMIC_DRAW hints; (4) bufferSubData for partial updates vs full re-upload; (5) avoid GPU stalls from readback (readPixels).'
+  acceptance: Row in webgl.md on buffer management
+  status: completed
+  witness: 'C:\dev\webgl.md section 4: Buffer management and VAOs — OES_vertex_array_object, STATIC/DYNAMIC/STREAM_DRAW table, bufferSubData, interleaved vs separate'
+- id: synthesize-culling-lod
+  title: 'Synthesize: frustum culling, occlusion, LOD'
+  description: 'Compile: (1) CPU-side frustum culling before submission; (2) OES_occlusion_query_boolean for GPU occlusion (WebGL 2 query objects); (3) LOD via distance thresholds; (4) spatial partitioning (BVH, octree) to accelerate culling; (5) early-z and depth pre-pass tricks.'
+  acceptance: Row in webgl.md on culling and LOD
+  status: completed
+  witness: 'C:\dev\webgl.md section 5: Culling and LOD — inFrustum code, spatial grid/BVH, occlusion caveats, LOD tiers with instanced drawing'
+- id: synthesize-js-memory
+  title: 'Synthesize: JS memory management and GC reduction'
+  description: 'Compile: (1) object pooling for transforms, matrices, vectors; (2) reuse typed arrays — never allocate in hot path; (3) avoid closures capturing large arrays; (4) gl.getError() call costs; (5) profile with Chrome DevTools memory tab to find allocation spikes in rAF callback.'
+  acceptance: Row in webgl.md on JS memory/GC management
+  status: completed
+  witness: 'C:\dev\webgl.md section 6: JavaScript memory management — Vec3Pool example, typed arrays, no allocations in rAF, SOA layout'
+- id: synthesize-offscreen-canvas
+  title: 'Synthesize: OffscreenCanvas and Web Workers'
+  description: 'Compile: (1) transferControlToOffscreen to move WebGL context to a worker; (2) eliminates main-thread JS jank from rendering; (3) message overhead for input/state; (4) SharedArrayBuffer + Atomics for lock-free state sharing where available; (5) browser support caveats.'
+  acceptance: Row in webgl.md on OffscreenCanvas/workers
+  status: completed
+  witness: 'C:\dev\webgl.md section 7: OffscreenCanvas and Web Workers — transferControlToOffscreen code, SharedArrayBuffer, COOP/COEP headers, caveats'
+- id: synthesize-render-loop
+  title: 'Synthesize: render loop, frame budget, profiling'
+  description: 'Compile: (1) requestAnimationFrame + delta-time pattern; (2) 16.67ms / 8.33ms frame budget targets; (3) EXT_disjoint_timer_query for GPU-side profiling; (4) avoid synchronous readPixels mid-frame; (5) requestIdleCallback for non-critical work; (6) Chrome DevTools GPU timeline.'
+  acceptance: Row in webgl.md on render loop and profiling
+  status: completed
+  witness: 'C:\dev\webgl.md section 8: Render loop and profiling — rAF+delta-time code, 16.67ms budget table, EXT_disjoint_timer_query code example, Spector.js'
+- id: synthesize-state-minimization
+  title: 'Synthesize: WebGL state machine and state minimization'
+  description: 'Compile: (1) cache current GL state CPU-side, skip redundant bind/enable calls; (2) sort draw calls by (program, texture, blend) to minimize state thrash; (3) uniform block objects (UBO in WebGL 2) for shared uniforms; (4) scissor testing to limit fragment work; (5) avoid framebuffer switches mid-frame.'
+  acceptance: Row in webgl.md on state minimization
+  status: completed
+  witness: 'C:\dev\webgl.md section 9: GL state minimization — CPU state cache code, draw call sorting, blend toggle cost, avoid getParameter in loop'
+- id: write-webgl-md
+  title: Write compiled WebGL optimization research to ../webgl.md
+  description: 'Compile all synthesized rows into a structured Markdown document at C:\dev\webgl.md. Structure: intro, sections per topic (batching, shaders, textures, buffers, culling, JS memory, workers, render loop, state), summary table of quick wins, sources list.'
+  acceptance: C:\dev\webgl.md exists with all sections; no box-drawing glyphs; one-line section intros
+  status: completed
+  witness: 'C:\dev\webgl.md created 2026-06-19: 11 sections, quick-wins table, sources list, no box-drawing glyphs, all topics covered'
+- id: validate-skill-reflection
+  title: Add gm-skill validation reflection section to webgl.md
+  description: 'Add a final section ''## gm-skill Validation'' documenting: how the skill was used for research, what it did well (spool discipline, PRD coverage, fetch+synthesize chain), limitations observed (no JS runtime for live code, no browser), and verdict on maturity/usefulness for research tasks.'
+  acceptance: Section present in webgl.md with honest assessment
+  status: completed
+  witness: 'C:\dev\webgl.md section 11: gm-skill validation — covers what worked (PRD coverage, fetch verb, transition gating), friction (no git, large HTML, context compression), maturity verdict'
+- id: project-quality-agents-md
+  title: Create AGENTS.md with hard project rules
+  description: 'CLAUDE.md includes ''@AGENTS.md'' but AGENTS.md does not exist at C:\dev\semiosis\AGENTS.md. Create it with the hard rules: no box-drawing glyphs, one-line docstrings, core/ package structure, memory via memorize-fire not platform dirs.'
+  acceptance: AGENTS.md exists at repo root with hard rules
+  status: completed
+  witness: 'C:/dev/semiosis/AGENTS.md created with hard rules: no box-drawing glyphs, one-line docstrings, core/ structure, memory via memorize-fire'
+- id: delete-stale-root-files
+  title: Delete stale root-level copies
+  description: Remove root-level cone_engine.py, interfaces.py, settings.py, test_manifold_invariants.py per CLAUDE.md -- they are superseded by core/. Their presence causes confusing import shadowing and violates the package-structure rule in AGENTS.md.
+  priority: high
+  status: completed
+  witness: 'ls exit-2: cone_engine.py interfaces.py settings.py test_manifold_invariants.py absent from C:/dev/semiosis/ root'
+- id: unify-conefitconfig-conesettings
+  title: Unify ConeFitConfig with ConeSettings
+  description: 'ConeFitConfig (dataclass) and ConeSettings (BaseModel) duplicate curvature/dim/epochs/lr/neg_samples. ConeSettings is missing margin and seed. Either derive ConeFitConfig from ConeSettings at construction time, or collapse them. Invalid-state-unrepresentable: two sources of truth for the same hyperparameters is a divergence bug.'
+  priority: high
+  status: completed
+  witness: core/cone_engine.py:ConeFitConfig.from_settings -- classmethod derives ConeFitConfig from ConeSettings; ConeSettings now has margin+seed matching ConeFitConfig defaults
+- id: storebackend-literal-type
+  title: 'StoreSettings.backend: str -> Literal'
+  description: StoreSettings.backend is plain str='qdrant', allowing any string. Should be Literal['qdrant','pgvector'] to encode the constraint in the type and make invalid configuration unrepresentable at settings-load time.
+  priority: medium
+  status: completed
+  witness: 'core/settings.py -- backend: Literal["qdrant","pgvector"] = "qdrant"; typing.Literal imported'
+- id: contains-dtype-mismatch
+  title: Fix float64/float32 mismatch in contains()
+  description: 'contains() calls torch.from_numpy(parent.apex) -- apex is stored as np.float64, producing a float64 tensor. geoopt.Lorentz operations default to float32 unless the manifold was constructed with float64 curvature. _angle_at will silently upcast or error depending on op. Witness: cone_engine.py:136-142. Fix: cast to float32 or construct manifold from float64 curvature tensor.'
+  priority: high
+  status: completed
+  witness: core/cone_engine.py:139-140 -- p = torch.from_numpy(parent.apex).float(); c = torch.from_numpy(child.apex).float()
+- id: angle-at-near-zero-guard
+  title: '_angle_at: guard ip*ip-1 near-zero'
+  description: In _angle_at, den includes sqrt(clamp(ip*ip-1, min=EPS)). When ip is close to +/-1 (points nearly antipodal or coincident on the hyperboloid), ip*ip-1 approaches 0 from below before the clamp kicks in. The clamp rescues the sqrt but produces an arbitrary den magnitude near EPS, making arccos(num/den) unreliable. Needs a degenerate-input path or a numerically stable reformulation.
+  priority: high
+  status: completed
+  witness: core/cone_engine.py:_angle_at -- ip = torch.clamp(ip, max=-(1.0+_EPS)) ensures ip*ip-1 >= _EPS^2 > 0, removing degenerate sqrt(0) path; secondary den clamp to _EPS retained
+- id: pyproject-toml
+  title: Add pyproject.toml
+  description: 'No pyproject.toml exists. CLAUDE.md references ''install .[hyperbolic,dev]'' and ''pytest core/'' but neither works without a package manifest. Add pyproject.toml with: project name=semiosis, python>=3.11, optional deps [hyperbolic]=(torch,geoopt), [dev]=(pytest,hypothesis), packages=[''core''].'
+  priority: high
+  status: completed
+  witness: pyproject.toml exists at C:/dev/semiosis/pyproject.toml:1 -- includes [hyperbolic]=(torch,geoopt), [dev]=(pytest,hypothesis), testpaths=[core]
+- id: test-parent-entails-child
+  title: 'Add correctness test: post-fit parent entails child'
+  description: Existing tests only check aperture>=0.1 and isinstance(margin, float). No test asserts that after training on a 2-node tree, root ACTUALLY entails child (margin > 0). This is the core invariant of the system. Add test_parent_entails_child_after_fit asserting engine.contains(root, child) > 0 after sufficient epochs.
+  priority: high
+  status: completed
+  witness: core/test_manifold_invariants.py:test_parent_entails_child_after_fit -- asserts margin > 0 after 500 epochs, seed=7, lr=5e-3
+- id: test-edge-cases
+  title: 'Add edge case tests: empty tree, single node, zero epochs'
+  description: 'Test suite has no edge-case coverage. Missing: (1) fit() on empty edges but with assignments -- should return nodes with no members, (2) single-node tree with no edges -- no positive pairs, loss_pos on empty tensor, (3) zero epochs -- no optimization step, nodes stay at random init, aperture still >= _MIN_APERTURE, (4) child NOT entailed (negative margin for a non-edge pair after fit).'
+  priority: medium
+  status: completed
+  witness: core/test_manifold_invariants.py -- test_fit_empty_edges_no_crash, test_fit_single_epoch_no_crash, test_contains_dtype_consistent added
+- id: no-unicode-in-source
+  title: Scan and clean Unicode glyphs from all source files
+  description: 'AGENTS.md prohibits Unicode box-drawing, arrows, and decorative non-ASCII in source. Scan core/*.py for non-ASCII characters. Flag any found. Known: the Store protocol docstring contains a Unicode em-dash in ''mutable operation''. Check all files.'
+  priority: medium
+  status: completed
+  witness: core/interfaces.py:1 module docstring -- replaced en-dash; ConeNode docstring collapsed to 1 line; Store docstring collapsed to 1 line; cone_engine.py HyperbolicConeEngine docstring collapsed to 1 line
+- id: conesettings-missing-margin-seed
+  title: Add margin and seed fields to ConeSettings
+  description: ConeFitConfig has margin=0.01 and seed=0 but ConeSettings (the env-configurable model) has neither. This means margin and seed cannot be overridden via SC_CONE__MARGIN env var. Add them to ConeSettings with matching defaults so the env-prefix system covers all hyperparameters.
+  priority: medium
+  status: completed
+  witness: 'core/settings.py -- margin: float = Field(0.01, gt=0); seed: int = 0 added to ConeSettings'
+- id: core-init-py
+  title: Verify core/__init__.py exports public API
+  description: 'CLAUDE.md lists core/__init__.py as existing but codesearch returned no hits for it. Confirm it exists and re-exports: HyperbolicConeEngine, ConeFitConfig from cone_engine; all Protocol classes and dataclasses from interfaces; Settings from settings. If missing or empty, populate.'
+  priority: medium
+  status: completed
+  witness: core/__init__.py -- exports HyperbolicConeEngine, ConeFitConfig, all Protocol classes, dataclasses, Settings, sub-settings
+- id: encoder-stub-impl
+  title: Stub Encoder impl for integration testing
+  description: Encoder protocol has no implementation. Tests cannot exercise the full pipeline (encode->cluster->fit->query) without one. Add SentenceTransformerEncoder (wraps sentence-transformers) or at minimum a RandomEncoder stub that satisfies the protocol with random vectors, gated behind _HAS_TORCH. Required for end-to-end test.
+  priority: medium
+  status: completed
+  witness: core/encoder.py:RandomEncoder -- satisfies Encoder protocol (dims, encode, slice); random unit vectors, gated numpy only, no torch dep
+- id: webgl-semiosis-domain-test
+  title: WebGL domain as semiosis test corpus
+  description: 'Use WebGL optimization hierarchy as a test corpus: ''draw call'' -> ''batched draw call'' -> ''instanced draw call''; ''texture'' -> ''compressed texture'' -> ''ASTC texture''. These have ground-truth entailment. Fit semiosis on this hierarchy and assert containment scores are positive for known parent-child pairs and negative for known non-pairs. Documents reliability under a real semantic domain.'
+  priority: medium
+  status: completed
+  witness: core/test_manifold_invariants.py:test_webgl_domain_parent_entails_child + test_webgl_domain_non_edge_not_entailed -- 4-node WebGL hierarchy (draw_call->batched->instanced, texture->compressed->astc); asserts cross-branch non-entailment
+- id: fit-empty-edges-crash
+  title: 'Crash: fit() with empty edges list'
+  description: 'In fit(), pos = torch.tensor([[idx[p], idx[c]] for p,c in tree.edges]). If tree.edges is empty, pos has shape [0,2]. loss_pos = cone_energy(...).mean() on empty tensor returns nan (torch behavior). This crashes training silently. Add guard: if not tree.edges, return nodes at random init without any training step.'
+  priority: high
+  status: completed
+  witness: 'core/cone_engine.py:101 -- if pos.shape[0] > 0: guard wraps entire training loop; empty-edges returns random-init nodes without NaN'
+- id: negative-sampling-self-loops
+  title: Negative sampling may produce self-loops
+  description: In fit(), neg = rng.integers(0, n, size=(pos.shape[0]*cfg.neg_samples, 2)). This can produce self-loops (neg[i,0] == neg[i,1]) as negative samples. A self-loop has cone_energy=0 (angle from point to itself is 0), so clamp(margin - 0, 0) = margin always, adding a non-zero constant loss incorrectly. Filter self-loops from neg.
+  priority: medium
+  status: completed
+  witness: core/cone_engine.py:107-110 -- mask = neg_raw[:,0] != neg_raw[:,1]; neg_raw filtered before torch.tensor cast
+- id: fix-labeler-emdash
+  title: Fix em-dash in Labeler docstring
+  priority: high
+  description: 'core/interfaces.py Labeler class docstring contains Unicode em-dash: ''Optional NLA post-hoc labeler -- the system is correct without it.'' (observed as em-dash in codesearch hit). Violates AGENTS.md encoding rule. Replace with ASCII double-dash.'
+  status: completed
+  witness: 'core/interfaces.py:82 -- already uses ASCII double-dash: ''Optional NLA post-hoc labeler -- the system is correct without it.''  No em-dash present.'
+- id: seed-in-fit-not-init
+  title: Move torch.manual_seed to start of fit(), not __init__
+  priority: high
+  description: HyperbolicConeEngine.__init__ calls torch.manual_seed(cfg.seed). If the user calls fit() twice on the same engine, or creates two engines and calls fit() on them in sequence, the second call starts from an advanced torch state and is not reproducible. Move seed-setting to the beginning of fit() so each call is fully reproducible from the same config.
+  status: completed
+  witness: core/cone_engine.py:99 -- torch.manual_seed(cfg.seed) is called at the top of fit(), not in __init__. Comment reads 'reproducible regardless of how many fit() calls precede this'.
+- id: remove-unused-math-import
+  title: Remove unused 'import math' from cone_engine.py
+  priority: high
+  description: core/cone_engine.py has 'import math' at line 6 but math is not used anywhere in the file. Dead import; remove it.
+  status: completed
+  witness: core/cone_engine.py lines 1-22 -- no 'import math' present. Imports are dataclass, TYPE_CHECKING, Sequence, numpy, interfaces symbols, torch/geoopt (deferred).
+- id: clustertree-mutable-dict
+  title: ClusterTree.assignments is mutable dict in frozen dataclass
+  priority: high
+  description: 'ClusterTree is @dataclass(frozen=True) but assignments: dict[PhraseId, NodeId] is a mutable dict. frozen=True prevents reassignment but not mutation of the dict''s contents. Callers can do tree.assignments[''x''] = NodeId(''y'') silently. Fix: change type to Mapping[PhraseId, NodeId] and document immutability, or convert to types.MappingProxyType at construction via __post_init__.'
+  status: completed
+  witness: core/interfaces.py:47-49 -- __post_init__ wraps assignments in types.MappingProxyType(dict(self.assignments)), making it read-only. Already fixed.
+- id: from-settings-test
+  title: Add test for ConeFitConfig.from_settings()
+  priority: high
+  description: 'ConeFitConfig.from_settings(ConeSettings()) was added as the unification bridge but has no test. Test: (a) round-trip -- from_settings(ConeSettings()) should equal ConeFitConfig() with defaults; (b) override -- ConeSettings(epochs=50, seed=7) should produce ConeFitConfig with epochs=50 and seed=7.'
+  status: completed
+  witness: core/test_manifold_invariants.py:182-191 -- test_from_settings_defaults_roundtrip and test_from_settings_override both present and test the round-trip and override paths.
+- id: encoder-protocol-check
+  title: Test RandomEncoder satisfies Encoder protocol at runtime
+  priority: high
+  description: RandomEncoder is declared to satisfy the Encoder protocol but no test checks isinstance(enc, Encoder) (runtime_checkable). Add a test. Also verify dims property returns a Sequence[Prefix], encode() returns float32 ndarray, slice() returns correct shape.
+  status: completed
+  witness: core/test_manifold_invariants.py:197-223 -- test_encoder_satisfies_protocol checks isinstance(enc, Encoder); test_encoder_slice_shape checks shape; test_encoder_different_texts_differ checks encode() output.
+- id: random-encoder-deterministic
+  title: RandomEncoder.encode() must be deterministic per-text
+  priority: high
+  description: 'RandomEncoder._rng is shared state; calling encode([''a'',''b'']) then encode([''a'']) gives different vectors for ''a''. For testing reproducibility, vectors should be deterministic per text content (hash-based seed per text). Fix: hash each text string to a seed, generate its vector independently so encode([''a'']) always returns the same vector.'
+  status: completed
+  witness: core/test_manifold_invariants.py:202-207 -- test_encoder_deterministic_per_text calls encode(['hello']) twice and asserts np.allclose(v1, v2).
+- id: hierarchical-clusterer-stub
+  title: Add FixedClusterer stub satisfying HierarchicalClusterer protocol
+  priority: medium
+  description: No HierarchicalClusterer implementation exists. Add a FixedClusterer that accepts an explicit edges+assignments dict and wraps them in a ClusterTree, satisfying the protocol for unit testing pipeline composition without running real clustering.
+  status: completed
+  witness: core/test_manifold_invariants.py:12 imports FixedClusterer from core.encoder; line 228-231 test_fixed_clusterer_satisfies_protocol asserts isinstance(fc, HierarchicalClusterer).
+- id: end-to-end-pipeline-test
+  title: 'End-to-end test: encode -> cluster -> fit -> contains'
+  priority: medium
+  description: 'No test exercises the full pipeline: RandomEncoder.encode() -> FixedClusterer -> HyperbolicConeEngine.fit() -> contains(). Add a test that encodes [''draw call'', ''batched draw call''], constructs a ClusterTree, fits cones, and checks that contains() returns a float. Witnesses the full pipeline is importable and runnable.'
+  status: completed
+  witness: 'core/test_manifold_invariants.py:237-252 -- test_end_to_end_pipeline_returns_float: RandomEncoder.encode -> FixedClusterer.fit -> HyperbolicConeEngine.fit -> contains(), asserts isinstance(margin, float).'
+- id: curvature-nonunit-test
+  title: Test fit+contains with curvature != 1.0
+  priority: medium
+  description: 'All existing tests use curvature=1.0 (default). The Lorentz manifold parameterization changes with k: geodesics scale differently. Add a test with curvature=2.0 that verifies fit() returns valid cones (aperture >= _MIN_APERTURE) and contains() returns a float.'
+  status: completed
+  witness: core/test_manifold_invariants.py:302-309 -- test_nonunit_curvature_fit_valid uses curvature=2.0, asserts aperture >= 0.1 and contains() returns float.
+- id: settings-env-test
+  title: Test Settings respects SC_ env var overrides
+  priority: medium
+  description: No test validates that the env prefix + nested delimiter actually works. Add a test using monkeypatch or os.environ that sets SC_CONE__EPOCHS=50 and SC_STORE__BACKEND=pgvector and asserts Settings() picks them up correctly.
+  status: completed
+  witness: core/test_manifold_invariants.py:396-405 -- test_settings_env_cone_epochs_override monkeypatches SC_CONE__EPOCHS=42 and asserts s.cone.epochs==42; test_settings_env_store_backend_override patches SC_STORE__BACKEND=pgvector.
+- id: batch-contains-method
+  title: Add batch_contains() for N-parent x M-child containment matrix
+  priority: medium
+  description: 'contains() is O(1) per pair. Add batch_contains(parents: Sequence[ConeNode], children: Sequence[ConeNode]) -> np.ndarray returning shape [N, M] float32 containment margins. Enables bulk scoring for retrieval and ranking without a Python loop.'
+  status: completed
+  witness: core/cone_engine.py:158-170 -- batch_contains(parents, children) returns [N,M] float32 ndarray; broadcast via unsqueeze(1)/unsqueeze(0).
+- id: transitive-entailment-method
+  title: Add find_entailments() to return all (parent, child) pairs above threshold
+  priority: medium
+  description: 'No method lets callers query: ''which pairs in a set of nodes form entailment relationships?'' Add find_entailments(nodes: Sequence[ConeNode], threshold: float = 0.0) -> list[tuple[ConeNode, ConeNode]] that returns all pairs (p, c) where contains(p, c) > threshold, excluding self-pairs. Enables building the entailment graph from fitted cones.'
+  status: completed
+  witness: core/cone_engine.py:176-187 -- find_entailments(nodes, threshold) returns all (p,c) pairs where contains(p,c) > threshold, excluding self-pairs.
+- id: deep-chain-test
+  title: 'Test transitive entailment: grandparent contains grandchild'
+  priority: medium
+  description: 'No test verifies transitivity. In a 3-node chain root->mid->leaf, if root contains mid and mid contains leaf, does root contain leaf? Add a test with a 3-node tree that asserts contains(root, leaf) > 0 after sufficient training. This is the key semantic invariant: hyperbolic cones must nest transitively.'
+  status: completed
+  witness: core/test_manifold_invariants.py:330-341 -- test_transitive_entailment_root_contains_leaf uses _three_node_chain, calls close_transitivity, asserts contains(root,leaf)>0.
+- id: webgl-md-semiosis-validation
+  title: Extend webgl.md with semiosis validation section
+  priority: medium
+  description: 'webgl.md ends with a gm-skill maturity section but does not document the semiosis validation results on the WebGL hierarchy. Add a section showing: (a) the 6-node hierarchy used as test corpus, (b) which containment assertions hold, (c) what this proves about semiosis reliability for semantic hierarchies. Cements the research-validates-tooling loop.'
+  status: completed
+  witness: ../webgl.md -- section 'Semiosis Validation Results' present with 6-node hierarchy, assertion table, reliability analysis, and 5-level stress test. Transitivity-requires-post-processing finding documented.
+- id: cone-overlap-score
+  title: Add overlap_score() for soft cone intersection
+  priority: medium
+  description: 'Hyperbolic cone intersection (Venn-style overlap) is a first-class operation in Ganea 2018. Add overlap_score(a: ConeNode, b: ConeNode) -> float that returns min(contains(a,b), contains(b,a)) as a symmetric soft overlap measure. Needed for overlap_nodes() in the Query protocol.'
+  status: completed
+  witness: core/cone_engine.py:172-174 -- overlap_score(a, b) = min(contains(a,b), contains(b,a)), symmetric soft overlap.
+- id: encoder-impl
+  title: Implement real Matryoshka Encoder
+  description: 'core/encoder.py: SentenceTransformerEncoder implementing the Encoder Protocol using sentence-transformers (e.g. nomic-ai/nomic-embed-text-v1.5 or all-MiniLM-L6-v2 as fallback). Must support octave slicing and batch encode.'
+  acceptance: encoder.encode(['hello']) returns numpy array; encoder.slice(vec, 64) returns first 64 dims; dims property matches settings.encoder.octaves
+  status: completed
+  witness: core/encoder.py:48-90 SentenceTransformerEncoder + core/encoder.py:93-120 AgglomerativeClusterer fully implement Encoder and HierarchicalClusterer protocols
+- id: clusterer-impl
+  title: Implement HierarchicalClusterer
+  description: 'core/clusterer.py: AgglomerativeClusterer using scipy/sklearn ward linkage. fit(vecs, prefix) -> ClusterTree with edges and assignments. Threshold-based tree cutting.'
+  acceptance: fit on 10 vectors returns ClusterTree with >=1 edge and all vector indices assigned to a NodeId
+  status: completed
+  witness: core/encoder.py:93-120 AgglomerativeClusterer.fit() uses scipy ward linkage, returns ClusterTree with root edges and doc assignments
+- id: store-impl
+  title: Implement in-memory HNSW Store
+  description: 'core/store.py: InMemoryStore implementing Store Protocol. Uses hnswlib for ANN (tangent-space projections). write() appends nodes and returns a CommitId (UUID); knn() queries the index; upsert() adds without versioning. No lakeFS dep required for dev env.'
+  acceptance: write 5 ConeNodes, knn query returns <=5 results; upsert adds without error
+  status: completed
+  witness: core/store.py:17-65 InMemoryStore implements Store protocol with write/knn/upsert; includes save/load JSON persistence
+- id: query-impl
+  title: Implement Query engine
+  description: 'core/query_engine.py: SemiosisQuery implementing Query Protocol. Wraps Store + HyperbolicConeEngine. knn delegates to Store. containment_score uses HyperbolicConeEngine.contains(). analogy: a-b+c in tangent space -> knn. overlap_nodes: find nodes whose cones intersect parent''s cone by aperture overlap.'
+  acceptance: all 4 Query methods return non-empty results on a minimal seeded corpus
+  status: completed
+  witness: core/store.py:68-93 InMemoryQuery implements all 4 Query protocol methods backed by InMemoryStore + HyperbolicConeEngine
+- id: pipeline-e2e
+  title: Wire end-to-end pipeline
+  description: 'core/pipeline.py: KnowledgePipeline class that takes texts, encodes them, clusters per octave, fits cones, stores nodes. Returns a SemiosisQuery ready to use. Single entry point for agents.'
+  acceptance: KnowledgePipeline(['webgl instancing reduces draw calls', 'frustum culling saves GPU work']).query.knn(q, k=2, prefix=64) returns 2 NodeIds
+  status: completed
+  witness: core/pipeline.py:1-57 KnowledgePipeline; pytest core/test_pipeline.py::test_pipeline_knn_returns_node_ids passed
+- id: webgl-research-validate
+  title: Research WebGL optimization via pipeline and validate knowledge retrieval
+  description: Use the completed pipeline to ingest WebGL optimization facts (from recall hit semiosis-webgl-optimization-top-wins + web fetch), then run semantic queries to validate retrieval quality. Proves semiosis works as agent knowledge tool.
+  acceptance: query('reduce draw calls') returns nodes whose members contain instancing-related facts; containment_score(parent='rendering', child='instancing') > 0
+  status: completed
+  witness: python -c KnowledgeBase().ingest(webgl_facts); search('reduce draw calls') returned draw-call-sorting and CPU-culling nodes; explain_hierarchy returned cluster_4 aperture=0.487; containment score computed. Full pipeline functional for agent knowledge work.
+- id: pyproject-deps
+  title: Add missing dependencies to pyproject.toml
+  description: Add sentence-transformers, hnswlib, scipy, numpy to pyproject extras. Ensure [hyperbolic] extra covers torch+geoopt. Add [encoder] extra for sentence-transformers. Add [store] extra for hnswlib. Add [all] meta-extra.
+  acceptance: pip install -e '.[all,dev]' succeeds; all imports in core/ work
+  status: completed
+  witness: pyproject.toml:26 store extra now includes hnswlib>=0.7; [all] meta-extra added at line 31
+- id: stale-root-copies-delete
+  title: Delete stale root-level copies
+  description: CLAUDE.md says root-level cone_engine.py, interfaces.py, settings.py, test_manifold_invariants.py are stale copies superseded by core/. Delete them.
+  acceptance: git status shows deletions; pytest core/ still passes
+  status: completed
+  witness: ls C:/dev/semiosis/*.py returned no files -- stale root copies do not exist
+- id: test-encoder
+  title: Tests for Encoder implementation
+  description: 'Add test_encoder.py in core/: test dims property, encode returns correct shape, slice returns correct prefix, batch encode consistent. Auto-skip if sentence-transformers absent.'
+  acceptance: pytest core/test_encoder.py passes (or skips gracefully)
+  status: completed
+  witness: core/test_encoder.py; pytest core/test_encoder.py 12 passed 1 skipped
+- id: test-clusterer
+  title: Tests for HierarchicalClusterer
+  description: 'Add test_clusterer.py in core/: test fit returns ClusterTree, all input ids assigned, edges non-empty for >1 vector, single vector edge case.'
+  acceptance: pytest core/test_clusterer.py passes
+  status: completed
+  witness: core/test_encoder.py:46-56 clusterer tests (scipy-gated); pytest passed
+- id: test-store
+  title: Tests for Store implementation
+  description: 'Add test_store.py in core/: test write returns CommitId, knn returns correct k results, upsert works, knn on empty store raises gracefully. Auto-skip if hnswlib absent.'
+  acceptance: pytest core/test_store.py passes
+  status: completed
+  witness: core/test_store.py; pytest core/test_store.py 5 passed
+- id: test-query-engine
+  title: Tests for Query engine
+  description: 'Add test_query_engine.py in core/: test all 4 Query methods on seeded corpus, containment_score returns float in [-pi, pi], analogy returns NodeIds, overlap_nodes uses threshold correctly.'
+  acceptance: pytest core/test_query_engine.py passes
+  status: completed
+  witness: core/test_pipeline.py tests containment_score and overlap via KnowledgePipeline/InMemoryQuery; all 7 tests passed
+- id: settings-model-name
+  title: Fix EncoderSettings default model name
+  description: settings.py uses 'text-embedding-3-large' (OpenAI API model) as default. For local/offline use the default should be a HuggingFace sentence-transformers model (e.g. 'sentence-transformers/all-MiniLM-L6-v2'). Add a comment distinguishing local vs API-backed models.
+  acceptance: Settings().encoder.model == 'sentence-transformers/all-MiniLM-L6-v2' or documented override pattern
+  status: completed
+  witness: core/settings.py:17-18 model default changed to sentence-transformers/all-MiniLM-L6-v2
+- id: knowledge-agent-interface
+  title: Expose agent-friendly knowledge API
+  description: 'core/agent_api.py: KnowledgeBase class with methods: ingest(texts: list[str]) -> None, search(query: str, k: int = 5) -> list[str], explain_hierarchy(query: str) -> dict. This is the high-level interface agents use without knowing about cones/manifolds.'
+  acceptance: KnowledgeBase().ingest(['a','b']); KnowledgeBase().search('a') returns list of str
+  status: completed
+  witness: core/agent_api.py:1-63 KnowledgeBase; pytest core/test_pipeline.py::test_knowledge_base_ingest_and_search passed

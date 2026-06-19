@@ -1,0 +1,12 @@
+.gm/pw-sock-*/
+# >>> plugkit managed
+.gm/exec-spool/
+.gm/turn-state.json
+.gm/rs-learn.db
+# <<< plugkit managed
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.mypy_cache/
+.claude/

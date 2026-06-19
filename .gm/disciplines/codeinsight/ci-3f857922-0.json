@@ -1,0 +1,107 @@
+core/cone_engine.py:38:143 HyperbolicConeEngine
+class HyperbolicConeEngine:
+    """Fits entailment cones on the Lorentz manifold.
+
+    Conforms to the ConeEmbedder protocol. Constructed with a config; `fit`
+    consumes a ClusterTree and returns immutable ConeNodes.
+    """
+
+    def __init__(self, cfg: ConeFitConfig) -> None:
+        if not _HAS_TORCH:
+            raise RuntimeError(
+                "HyperbolicConeEngine requires torch + geoopt. "
+                "Install the 'hyperbolic' extra."
+            )
+        self.cfg = cfg
+        self.manifold = geoopt.Lorentz(k=torch.tensor(cfg.curvature))
+        torch.manual_seed(cfg.seed)
+
+    # --- numerically guarded primitives -------------------------------------
+    @staticmethod
+    def _safe_arccos(x: "torch.Tensor") -> "torch.Tensor":
+        return torch.arccos(torch.clamp(x, -1.0 + _EPS, 1.0 - _EPS))
+
+    def _half_aperture(self, apex: "torch.Tensor") -> "torch.Tensor":
+        """Ganea 2018 closed-form aperture as a function of apex norm, floored."""
+        # spatial component norm on the hyperboloid
+        norm = torch.clamp(apex[..., 1:].norm(dim=-1), min=_EPS)
+        psi = torch.arcsin(torch.clamp((1.0) / norm, max=1.0 - _EPS))
+        return torch.clamp(psi, min=_MIN_APERTURE)
+
+    def _cone_energy(self, parent: "torch.Tensor", child: "torch.Tensor") -> "torch.Tensor":
+        """Penalty when `child` lies outside `parent`'s entailment cone (>=0)."""
+        xi = self._angle_at(parent, child)
+        psi = self._half_aperture(parent)
+        return torch.clamp(xi - psi, min=0.0)
+
+    def _angle_at(self, apex: "torch.Tensor", other: "torch.Tensor") -> "torch.Tensor":
+        """Angle between the cone axis at `apex` and the geodesic to `other`."""
+        # Lorentzian inner product <a,b>_L = -a0 b0 + sum a_i b_i
+        ip = -apex[..., 0] * other[..., 0] + (apex[..., 1:] * other[..., 1:]).sum(-1)
+        num = other[..., 0] + ip * apex[..., 0]
+        den = torch.clamp(
+            apex[..., 1:].norm(dim=-1) * torch.sqrt(torch.clamp(ip * ip - 1.0, min=_EPS)),
+            min=_EPS,
+        )
+        return self._safe_arccos(torch.clamp(num / den, -1.0 + _EPS, 1.0 - _EPS))
+
+    # --- fit ----------------------------------------------------------------
+    def fit(self, tree: ClusterTree) -> Sequence[ConeNode]:
+        cfg = self.cfg
+        ids = sorted({n for e in tree.edges for n in e} | set(tree.assignments.values()))
+        idx = {nid: i for i, nid in enumerate(ids)}
+        n = len(ids)
+
+        # Random init on the manifold, wrapped as Riemannian parameters
+        apex = geoopt.ManifoldParameter(
+            self.manifold.random_normal((n, cfg.dim + 1), std=0.1),
+            manifold=self.manifold,
+        )
+        opt = geoopt.optim.RiemannianAdam([apex], lr=cfg.lr, stabilize=10)
+
+        pos = torch.tensor([[idx[p], idx[c]] for p, c in tree.edges], dtype=torch.long)
+        rng = np.random.default_rng(cfg.seed)
+
+        for _ in range(cfg.epochs):
+            opt.zero_grad()
+            p_apex, c_apex = apex[pos[:, 0]], apex[pos[:, 1]]
+            # positive edges: child should be INSIDE parent cone
+            loss_pos = self._cone_energy(p_apex, c_apex).mean()
+            # negative sampling: random non-edges should be OUTSIDE (margin)
+            neg = torch.tensor(
+                rng.integers(0, n, size=(pos.shape[0] * cfg.neg_samples, 2)),
+                dtype=torch.long,
+            )
+            np_apex, nc_apex = apex[neg[:, 0]], apex[neg[:, 1]]
+            loss_neg = torch.clamp(
+                cfg.margin - self._cone_energy(np_apex, nc_apex), min=0.0
+            ).mean()
+            loss = loss_pos + loss_neg
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_([apex], _MAX_GRAD_NORM)
+            opt.step()
+
+        apex_np = apex.detach().cpu().numpy().astype(np.float64)
+        psi_np = self._half_aperture(apex.detach()).cpu().numpy()
+
+        members: dict[str, list[str]] = {nid: [] for nid in ids}
+        for pid, nid in tree.assignments.items():
+            members[nid].append(pid)
+
+        return tuple(
+            ConeNode(
+                id=NodeId(nid),
+                apex=apex_np[idx[nid]],
+                aperture=float(psi_np[idx[nid]]),
+                prefix=tree.prefix,
+                members=tuple(members[nid]),  # type: ignore[arg-type]
+            )
+            for nid in ids
+        )
+
+    def contains(self, parent: ConeNode, child: ConeNode) -> float:
+        """Soft containment margin in [-pi, +psi]; >0 => parent entails child."""
+        p = torch.from_numpy(parent.apex)
+        c = torch.from_numpy(child.apex)
+        xi = self._angle_at(p.unsqueeze(0), c.unsqueeze(0))
+        return float(parent.aperture - xi.item())

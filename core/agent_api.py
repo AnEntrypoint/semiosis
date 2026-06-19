@@ -1,0 +1,74 @@
+"""High-level KnowledgeBase API for agents -- hides cone/manifold internals."""
+from __future__ import annotations
+
+from typing import Any
+
+from .interfaces import Prefix
+from .pipeline import KnowledgePipeline
+from .settings import Settings
+
+
+class KnowledgeBase:
+    """Ingest texts, search semantically, explain hierarchy -- no manifold knowledge required."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        self._settings = settings or Settings()
+        self._pipeline: KnowledgePipeline | None = None
+        self._texts: list[str] = []
+
+    def ingest(self, texts: list[str]) -> None:
+        """Add texts and rebuild the semantic cone structure."""
+        self._texts.extend(texts)
+        self._pipeline = KnowledgePipeline(self._texts, self._settings)
+
+    def search(self, query: str, k: int = 5) -> list[str]:
+        """Return up to k texts closest to query by hyperbolic cone proximity."""
+        if self._pipeline is None:
+            return []
+        enc = self._pipeline._encoder
+        q_vec = enc.encode([query])[0]
+        prefix = Prefix(enc.dims[0])
+        node_ids = self._pipeline.query.knn(q_vec[:prefix], k=k, prefix=prefix)
+        results: list[str] = []
+        for nid in node_ids:
+            node = self._pipeline.store.get(nid)
+            for phrase_id in node.members:
+                idx_str = str(phrase_id).rsplit("_", 1)[-1]
+                if idx_str.isdigit():
+                    idx = int(idx_str)
+                    if idx < len(self._texts):
+                        results.append(self._texts[idx])
+                        break
+        return results
+
+    def explain_hierarchy(self, query: str) -> dict[str, Any]:
+        """Return cone hierarchy info for the top node matching query."""
+        if self._pipeline is None:
+            return {}
+        enc = self._pipeline._encoder
+        q_vec = enc.encode([query])[0]
+        prefix = Prefix(enc.dims[0])
+        node_ids = self._pipeline.query.knn(q_vec[:prefix], k=1, prefix=prefix)
+        if not node_ids:
+            return {}
+        node = self._pipeline.store.get(node_ids[0])
+        return {
+            "node_id": str(node.id),
+            "aperture": node.aperture,
+            "members": [str(m) for m in node.members],
+            "label": node.label,
+        }
+
+    def containment(self, parent_query: str, child_query: str) -> float:
+        """Soft containment score >0 means parent entails child in hyperbolic space."""
+        if self._pipeline is None:
+            return 0.0
+        enc = self._pipeline._encoder
+        prefix = Prefix(enc.dims[0])
+        def _top(q: str) -> str | None:
+            ids = self._pipeline.query.knn(enc.encode([q])[0][:prefix], k=1, prefix=prefix)  # type: ignore[union-attr]
+            return ids[0] if ids else None
+        pid, cid = _top(parent_query), _top(child_query)
+        if pid is None or cid is None:
+            return 0.0
+        return self._pipeline.query.containment_score(pid, cid)

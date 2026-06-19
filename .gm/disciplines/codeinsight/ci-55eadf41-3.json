@@ -1,0 +1,10 @@
+core/test_manifold_invariants.py:47:55 _two_node_tree
+def _two_node_tree() -> ClusterTree:
+    return ClusterTree(
+        edges=((NodeId("root"), NodeId("child")),),
+        assignments={
+            PhraseId("p1"): NodeId("root"),
+            PhraseId("p2"): NodeId("child"),
+        },
+        prefix=Prefix(64),
+    )
