@@ -3,6 +3,12 @@
 .gm/exec-spool/
 .gm/turn-state.json
 .gm/rs-learn.db
+.gm/last-dispatch-ts
+.gm/last-instruction-ts
+.gm/last-prompt.txt
+.gm/long-gap-retry-state
+.gm/residual-check-fired
+.gm/witness/
 # <<< plugkit managed
 __pycache__/
 *.pyc
