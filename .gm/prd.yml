@@ -580,7 +580,8 @@
   witness: memorize-fire semiosis-agent-facing-optimizations
 - id: git-finalize-session
   task: git_finalize after pytest core/ passes -- commit + push all new/changed modules, tests, docs; porcelain clean, residual scan, push is the validation
-  status: pending
+  status: completed
+  witness: git_finalize committed 5cd2bcf + pushed to origin/master; 144 passed 1 skipped
 - id: retr-octave-distinct-ids
   task: 'core/encoder.py AgglomerativeClusterer: node ids (root, cluster_N) are identical across octaves, so InMemoryStore (keyed by NodeId) overwrites every octave with the last -- the Matryoshka octave structure collapses to a single octave in the store. Namespace ids by prefix (e.g. root@64, cluster_3@128) so all octaves coexist; enables real octave fusion and recursive descent. Witness: store.nodes_at(prefix) currently empty for all but the last octave.'
   status: completed
