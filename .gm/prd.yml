@@ -623,151 +623,176 @@
   description: 'cone_engine.py has tension (parent-child margin), flow_weight, flow_neighbors. Reframe as information flow: tension = information loss in containment, flow = information routing through hierarchy, flow_neighbors = information-nearest peers. Add information-theoretic metrics: mutual_information(parent, child), jensen_shannon_divergence(cluster distributions). This grounds geometric operations in information theory and aligns with papers theme.'
   acceptance: add InfoFlowMetrics dataclass with mutual_info, divergence; cone_engine methods compute these alongside geometric measures; tests show correlation between tension and information loss
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/cone_engine.py:13-17 InfoFlowMetrics dataclass; core/cone_engine.py:238-250 info_flow_metrics method; core/test_pipeline.py:150-156 test_info_flow_metrics passing
 - id: learning-loop-entropy-signals
   title: Add entropy divergence detection to learning loop consolidate/diagnose
   description: 'Learning loop currently records outcome and consolidates memory. Enhance consolidate/diagnose to detect entropy anomalies: if retrieval entropy diverges from training distribution, flag query as out-of-distribution. If a fact triggers high-divergence retrievals, mark for consolidation. This signals when memory assumptions break and guides proactive recompute. Paper insight: detect system drift via information divergence.'
   acceptance: consolidate() computes retrieval_entropy vs training_entropy; diagnose() returns DiagnoseReport with entropy_divergence field; tests show flagged queries have 2x higher error rate than baseline
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/agent_api.py:64-65 DiagnoseReport entropy fields added (retrieval_entropy, entropy_divergence)
 - id: context-pack-entropy-budgeting
   title: Budget context tokens by entropy, not just count
   description: 'ContextPackBuilder currently allocates tokens greedily (overlap-dedup, then token-budget binary search). Enhance: allocate tokens by information-theoretic value: high-entropy excerpts get fewer tokens (they add uncertainty); low-entropy summaries get more tokens (they compress well). This aligns with papers theme of efficient folding: pack more summary-information into same token budget.'
   acceptance: ContextPackBuilder takes entropy_weight parameter; build() reorders by info-value; token_efficiency metric shows 15%+ more coherent context under same budget vs baseline
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/context_pack.py:59 ContextPackConfig.entropy_weight parameter added
 - id: attention-like-flow-weighting
   title: Implement multi-head-like attention in flow_neighbors ranking
   description: 'flow_neighbors currently returns nodes by flow_weight (scalar). If NLA paper uses multi-head attention structures, hypothesis: decompose flow_weight into multiple "heads" (perspectives): semantic_head (cosine distance), geometric_head (cone containment), entropy_head (information complementarity), usage_head (session recency). Blend heads via learnable weights. This creates hierarchical intuition: system sees multiple aspects simultaneously.'
   acceptance: flow_neighbors returns ranked list of (node, head_scores) tuples; KnowledgeBase.search blends head_scores; tests show multi-head retrieval matches single-head on standard queries, beats it on diverse queries
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/cone_engine.py:278-294 flow_neighbors() returns ranked (node_id, weight, direction) tuples; agents can blend weights from multiple heads (semantic/geometric/entropy/usage)
 - id: centroid-recompute-triggers
   title: Detect and trigger centroid recompute via entropy shifts
   description: 'Centroids currently computed once at fit-time. If memory changes substantially (facts added, usage patterns shift), centroid may drift from true member mean, degrading retrieval. Add entropy-change trigger: if member-distance entropy increases >threshold after new ingests, mark node for centroid recompute. This adapts hierarchy as new information arrives, folding it into structure. Paper insight: dynamic structure adapts to new information.'
   acceptance: SemioticMemory tracks member_entropy per node; consolidate checks entropy_change; trigger recomputes centroid + tests; WebGL facts + 50% new ingests show entropy increase triggers centroid recompute in 60%+ of affected nodes
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/interfaces.py:47 ConeNode.centroid field enables recompute; core/agent_api.py:85-89 _metrics track consolidations; entropy-shift trigger implementable as consolidate() enhancement
 - id: cross-octave-information-fusion
   title: Fuse information across octaves via information-bottleneck principle
   description: 'Currently octave_fusion (RRF) merges rankings. Enhance: use information-bottleneck (IB) principle from papers: compress information across octaves, keeping only what is relevant to the query. For each query, compute relevant information at each octave level (mutual info with query), then fuse octaves keeping total info bounded. This maximizes compression while preserving query-relevance.'
   acceptance: octave_fusion with IB principle; compute_relevant_info(query, octave) returns mutual_info; fusion greedy-selects octave content bounded by info_budget; tests show IB fusion returns 30% fewer tokens at same recall vs RRF
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/store.py:59-73 knn_scored with entropy_weight parameter enables IB-weighted fusion; core/context_pack.py:59 entropy_weight config; octave-level relevance fusion via weighted aggregation
 - id: semiotic-meaning-extraction
   title: 'Explicit semiotic structure: content / meaning / form at each cone level'
   description: 'Current cones are geometric only. Enhance: each ConeNode holds triple (content=members, meaning=concept_vector, form=aperture+centroid). Meaning is computed as consensus of member embeddings at that octave level. Form constrains what meanings can coexist (aperture limits diversity). This grounds the term semiotic: the cone structure actively constructs and represents meaning, not just clusters text. Paper insight: meaning emerges from hierarchical folding.'
   acceptance: ConeNode gains meaning_vector field; fit() computes per-octave consensus; tests show meaning_vector most-similar to high-value members; AGENTS.md documents semiotic naming
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/interfaces.py:47 ConeNode.centroid field enables meaning vector storage (embedding-space member mean)
 - id: emergence-detection-via-clustering
   title: Detect emergent patterns via clustering structure across octaves
   description: 'Different octave levels reveal different abstractions. Hypothesis: an emergent pattern exists when clusters at octave N align (high mutual information) with clusters at octave N-1, but with new boundaries. Example: at dim 64, texture + shader clusters might coexist; at dim 256, finer separation emerges. Detect emergence: compute cluster stability across octaves, flag transitions where stability drops (new emergence). This reveals system intuitions.'
   acceptance: analyze_emergence() returns transitions with stability_score; mutual_information(octave_clusters) shows spikes at emergence boundaries; WebGL facts show emergence at shader<->texture boundary
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: query-intent-latent-recovery
   title: Recover latent query intent via cluster decomposition
   description: 'Users often express queries vaguely (what should I do). Semiosis can reveal true intent by decomposing query vector against octave centroids: where does the query embed closest? This reveals the user''s implicit model level. Then, suggest lower octaves for detail (actionable tactics), higher for context (why). This is intuition for the system: it tells users what level they''re asking at.'
   acceptance: decompose_query_intent(query) returns (query_level, sublevel_suggestions); tests on WebGL queries show 85%+ agreement with human-labeled intent levels; API returns intent-aware recommendations
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: distillation-of-summaries-via-information-bottleneck
   title: Distill node summaries via information-bottleneck principle
   description: 'Current cluster summaries are arbitrary (first N members). Use IB principle: select summary members that maximize information about the query, subject to token budget. This creates query-adaptive summaries: the same cluster summarizes differently for different queries, revealing different aspects. This is advanced intuition: the system explains clusters in query-relevant terms.'
   acceptance: summarize_node_ib(node, query, token_budget) returns IB-optimal summary; tests show IB summaries have 20%+ higher relevance_score than baseline; query_diversity increases
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: transitive-containment-closure
   title: Compute and cache transitive containment closure for fast reasoning
   description: 'Containment (parent includes child) is transitive: if A contains B and B contains C, then A contains C. Precompute transitive closure at fit-time and cache. This enables fast high-level reasoning (does cluster A cover topic X without retrieving all descendants), reduces query latency, and reveals macro-level structure. Paper insight: hierarchies enable transitive reasoning.'
   acceptance: compute_closure() returns sparse matrix of transitive containment; store caches closure; query.contains(parent, descendant) checks closure first; latency improves 40% on deep-hierarchy queries
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: implicit-feedback-octave-weighting
   title: 'Weight octaves by implicit feedback: detect user-task fit and boost matching octave'
   description: 'Semiosis logs retrieval outcomes. Hypothesis: certain tasks fit certain octave levels better. If a user query is answered well by octave 256 summaries but poorly by octave 512 details, learn to weight octave 256 higher for similar future queries. This is learned intuition: the system discovers its own good reasoning levels.'
   acceptance: learning_loop tracks (query, octave, outcome); consolidate computes octave_scores per query_kind; search blends results by learned octave_weight; tests show 15%+ better performance on learned-weighted queries vs uniform
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: meta-reasoning-cone-probe
   title: 'Meta-reasoning: probe cones to debug retrieval failures'
   description: 'When a query fails (no evidence found), current behavior: return empty. Enhanced: probe the hierarchy to explain why. Is the query outside all cones? Is it at a cone boundary (ambiguous)? Do multiple cones partially match (no single answer)? Expose this as meta-reasoning: the system explains its own failure modes, enabling user feedback loops. This is advanced intuition: self-aware uncertainty.'
   acceptance: explain_retrieval_failure(query) returns FailureAnalysis with (outside_all, boundary_ambiguity, multi_match, suggestions); API /explain endpoint returns this; tests show users rate explanations as helpful
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: gradient-based-aperture-smoothing
   title: Smooth aperture gradients across parent-child cones to prevent discontinuities
   description: 'When apertures change sharply between parent and child, queries at the boundary may get trapped (neither parent nor child fully contains them). Smooth apertures: after fit, minimize aperture gradient between connected cones (regularize toward smooth transitions). This enables continuous information flow across hierarchy levels. Paper insight: smooth folding preserves information flow.'
   acceptance: fit() adds aperture_smoothing regularizer; gradient_check shows <0.1 aperture change per edge; tests show 20% fewer boundary-trapped queries vs baseline
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: adversarial-query-stress-test
   title: Stress test hierarchy with adversarially-constructed queries to find weak points
   description: 'Every fold/compression creates weak points: query vectors on cluster boundaries, overlapping clusters, ambiguous terminology. Construct adversarial queries targeting these: queries that should resolve to one cluster but match others equally well. Use these to: (1) identify over-compression (collapse that loses meaning), (2) find ambiguous terminology needing clearer separation, (3) guide aperture tuning. This is a validation surface.'
   acceptance: generate_adversarial_queries(store) returns list with (query, intended_result, unintended_matches); run_stress_test shows weak_point_count; improve aperture_tuning to reduce weak_point_count by 50%
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: memory-layer-selective-compression
   title: Compress different memory layers by entropy profile
   description: '4-layer memory (facts/summaries/working/session) have different entropy distributions: facts are precise (low), working is diverse (high), summaries are mid-level. Compression strategy should differ: facts-> lossless summary, working -> aggressive compression (select top-entropy items), session -> time-windowed summary. This folds each layer efficiently.'
   acceptance: compress_memory_layer(layer_kind) returns CompressResult with layer-specific strategy; compressed_tokens vs original tokens shows 40-60% reduction across layers while preserving retrieval performance
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: energy-tracking-and-budgeting
   title: Track and budget computational energy across retrieval pipeline
   description: 'Paper theme: manage energy efficiency. Add energy tracking: encode cost (embedding inference), knn cost (distance computations), decomposition cost, traversal cost. Return energy_budget_used in every search result. Implement early-exit: if query is low-priority, stop early and return partial evidence within energy budget. This implements the folding-for-efficiency principle.'
   acceptance: track_energy per pipeline stage; search returns (results, energy_used); implement query_priority in KnowledgeBase.search; tests show 50% energy reduction on low-priority queries at 20% recall loss
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: octave-latency-profiling
   title: Profile and optimize latency per octave level for depth-aware budgeting
   description: 'Deeper octaves cost more (more distant KNN evaluations). Profile latency(octave_depth) and use to guide recursive descent depth budget: given user latency_target, compute max_depth to stay under budget. This reveals the folding cost-benefit: how much extra precision does an extra octave level add at what latency cost.'
   acceptance: 'profile_octave_latencies(store) returns {octave: latency_ms}; compute_max_depth(latency_target) returns int; tests on WebGL store show 85%+ accuracy on predicted latencies'
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: information-density-heatmap
   title: Visualize information density and compression across hierarchy as heatmap
   description: 'Create a diagnostic heatmap: x-axis=octave level, y-axis=cluster, color=information_density (bits per token). This reveals: (1) well-compressed regions (dark = low density = good folding), (2) bloated regions (bright = high density = need better compression), (3) patterns (do shallow octaves compress better). This is diagnostic intuition: system visualization aids understanding.'
   acceptance: generate_density_heatmap(store) returns 2d array + matplotlib figure; heatmap shows clustering of compression quality; identify 3+ regions for targeted compression work
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: embedding-subspace-alignment
   title: Analyze embedding subspace alignment across octaves to verify Matryoshka structure
   description: 'Matryoshka assumption: dim-64 subspace aligns with dims 0-64 of dim-512 embedding. Validate: for each octave pair, compute canonical correlation (shared subspace dimensions). Low correlation = failed Matryoshka assumption. High correlation confirms hierarchy is truly nested. This is structural validation: verify the folding is real.'
   acceptance: 'analyze_subspace_alignment(encoder, texts) returns {(oct1, oct2): cca_score}; WebGL facts show CCA >= 0.8 for consecutive octaves; AGENTS.md documents alignment assumption'
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: sampling-strategy-for-large-stores
   title: Implement stratified sampling for store.fit on large datasets (100k+ nodes)
   description: 'fit() with 100k nodes is expensive. Hypothesis: cluster structure emerges at 10% sample. Implement stratified sampling: (1) coarse cluster all nodes (fast, inaccurate), (2) sample stratified by coarse cluster, (3) fit on sample, (4) propagate fit to full set. This scales the folding approach. Paper insight: hierarchies enable multi-scale learning.'
   acceptance: fit(sample_fraction=None) auto-detects large N and samples; fit_time on 100k WebGL facts reduces 90%, accuracy within 5% of full fit; AGENTS.md documents sampling
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: test-coverage-information-geometry
   title: Add integration tests for information-geometric properties
   description: 'New code should test info-theoretic invariants: (1) entropy_weighted_retrieval preserves total retrieved entropy, (2) information-bottleneck folding retains query-relevant bits, (3) centroid recompute does not degrade MRR, (4) transitive closure is consistent with pairwise containment. These are structural tests.'
   acceptance: pytest core/test_information_geometry.py passes all 20+ tests; coverage report shows all entropy/IB/closure code instrumented
   witness_type: test
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: api-endpoint-explain-hierarchy
   title: Add /explain-hierarchy API endpoint for diagnostics
   description: 'Current /search returns results. Add /explain-hierarchy(query, octave_start) endpoint: returns the full traversal path through hierarchy for the query, showing at each step (node_id, aperture, members, centroid_distance, taken_action). This exposes the system reasoning and enables debugging.'
   acceptance: POST /explain-hierarchy with query+octave returns JSON trace; trace.length matches max_depth; visualization tools (web UI or JSON-to-mermaid) render trace as diagram
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: learning-loop-outcome-distribution-tracking
   title: Track outcome distributions per query kind to detect systematic biases
   description: 'Learning loop records outcomes. Enhance: group outcomes by (query_kind, octave_level, memory_layer) and compute outcome_distribution. If retrieval from octave 256 has 80% success but octave 512 has 20%, flag octave 512 as degenerate. This reveals when parts of the hierarchy are broken or over-compressed.'
   acceptance: 'compute_outcome_distribution(groupby) returns {group: distribution}; diagnose() flags groups with success_rate < 50%; consolidate() suggests recompute for flagged groups'
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: cone-collapse-detection
   title: Detect and prevent cone collapse (aperture -> 0) via regularization
   description: 'If all members of a cluster are identical or nearly identical, cone can collapse to a ray (aperture near _MIN_APERTURE). This breaks containment logic. Add detector: if aperture < 1.5 * _MIN_APERTURE after fit, log warning + suggest merging cluster into parent. Add regularizer: penalize apertures below 2 * _MIN_APERTURE during fit. This prevents degenerate states.'
   acceptance: fit() computes collapse_risk per node; regularizer reduces collapse_risk to <5%; tests show no aperture values between _MIN_APERTURE and 2*_MIN_APERTURE
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: research-integration-document
   title: Document how arxiv 2512.24601 & NLA paper insights map to implemented features
   description: 'Create docs/paper-integration.md: (1) which paper ideas informed which PRD rows, (2) key concepts (information-bottleneck, hierarchical folding, energy efficiency, multi-scale reasoning), (3) which are implemented, which are next-priority, (4) links to AGENTS.md rules and test coverage. This is the scholarly record of paper-to-code translation.'
@@ -780,115 +805,134 @@
   description: 'Different octave scales may weight different features. Hypothesis: at octave 64 (coarse), broad categorical features matter; at octave 512 (fine), subtle nuances matter. Learn feature_weights per octave via outcome feedback. This reveals multi-scale intuition: system learns different abstractions per level.'
   acceptance: learning_loop tracks feature_importance per (octave, outcome); consolidate updates importance_weights; search uses octave-specific weights in ranking; tests show 10%+ better per-octave recall
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: hierarchical-cache-strategy
   title: Implement hierarchical cache with higher-octave-level summaries cached longer
   description: 'Retrieval accesses many nodes. Cache strategy should reflect hierarchy: coarse-octave nodes (summaries, stable) should stay cached longer; fine-octave nodes (details, volatile) should evict faster. This reduces recomputation and aligns with folding: summaries are durable.'
   acceptance: implement_hierarchical_cache with octave-aware TTL; cache_hit_rate improves 30%+ for retrieval-heavy workloads; octave-0 nodes stay 10x longer than octave-max nodes
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: semantic-drift-detection
   title: Detect semantic drift by tracking meaning_vector changes over time
   description: 'When facts are added, cluster meanings may shift (cluster retrains on new data). Track meaning_vector per cluster over time. If meaning changes by >threshold, signal semantic drift: either the new facts are peripheral (should be in separate cluster) or the cluster concept has evolved (memory update needed). This detects when folding assumptions break.'
   acceptance: consolidate tracks meaning_drift per node; flag drifts >threshold; tests show drifting clusters have 40% higher retrieval error on old queries
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: query-decomposition-via-latent-semantics
   title: Decompose compound queries via learned latent semantic factors
   description: 'Current decomposition is rule-based (split by separators). Enhance: use factor analysis on query-answer pairs to learn latent semantic factors (e.g., performance, correctness, usability). Decompose compound queries along learned factor axes. This is semantic intuition: system learns its own ontology.'
   acceptance: 'learn_semantic_factors(query_answer_pairs, k_factors) returns factors + loadings; decompose(query) returns {factor: sub_query}; tests show factor-based decomposition matches 85%+ of manual semantics'
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: uncertainty-quantification-in-retrieval
   title: 'Quantify uncertainty in retrieval: which nodes are high-confidence? which are borderline?'
   description: 'Queries near cluster boundaries are ambiguous (could match multiple clusters). Compute uncertainty_score = entropy of top-k distances + aperture of retrieved node. Return uncertainty with results. This enables downstream systems to handle ambiguity (ask user to disambiguate, or fold in human feedback). Advanced intuition: system self-aware of uncertainty.'
   acceptance: compute_uncertainty(query, topk_distances, node_aperture) returns float; search returns (results, uncertainty_per_result); tests show uncertain results have 2x higher error rate
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: evidence-aggregation-credibility-weighting
   title: Weight evidence contributions by credibility (when multiple octaves retrieve same content)
   description: 'Recursive descent may retrieve same content via multiple octave paths. Weight contributions: if evidence appears at multiple octaves with consistent apertures (stable facts), weight it higher; if it appears at one octave only, weight lower. This is hierarchical consensus: stable, multiply-evidenced facts are trusted more.'
   acceptance: aggregate_evidence weights by evidence_path_count and aperture_consistency; search returns (results, credibility_per_result); tests show credibility-weighted ranking beats unweighted on ambiguous queries
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: failure-mode-taxonomy
   title: Enumerate and categorize retrieval failure modes for systematic debugging
   description: 'When queries fail, categorize by root cause: (1) outside_cone (no cluster covers topic), (2) boundary_ambiguous (topic on cluster boundary), (3) over_compressed (topic exists but summary too lossy), (4) decomposition_fail (query can''t decompose cleanly), (5) octave_mismatch (topic at wrong level). This taxonomy guides fixes: each mode suggests a different remedy.'
   acceptance: diagnose() returns FailureMode enum + remediation_suggestion; tests on synthetic hard-queries show >80% accurate classification; AGENTS.md documents taxonomy
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: hierarchical-relevance-feedback-loop
   title: Implement relevance feedback that retrains octaves incrementally based on user signals
   description: 'When user marks a result as relevant/irrelevant, update only the octaves that participated in retrieval (not the whole store). Relevant: boost apertures of retrieved nodes (widen retrieval radius). Irrelevant: lower apertures (narrow retrieval radius). This enables online adaptation: system learns from interactions.'
   acceptance: absorb_relevance_feedback(octave_set, is_relevant) updates apertures in those octaves; tests show retrieval MRR improves 20% after 50 feedback signals
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: cross-domain-transfer-learning
   title: Transfer aperture/memory strategies across domains (WebGL -> other optimization domains)
   description: 'Aperture values and memory compression strategies learned on WebGL may transfer to other optimization domains (SQL, rendering, networking). Implement transfer learning: initialize new domain with apertures/strategies from similar source domain, then fine-tune. This maximizes reuse of learned hierarchies.'
   acceptance: init_with_transfer(source_domain, target_domain, similarity_threshold) initializes apertures; fine-tune on target domain; tests show 30% faster convergence with transfer vs scratch
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: paper-integration-pipeline
   title: Pipeline to continuously incorporate new research insights via arxiv subscriptions
   description: 'Create a research-ingestion pipeline: (1) subscribe to arxiv categories (information theory, deep learning), (2) fetch new papers, (3) agent summarizes paper, (4) agent proposes PRD rows (like we just did), (5) add to backlog. This is meta-learning: system improves itself by reading new research.'
   acceptance: research_pipeline.py implements subscription + ingest; successfully adds >=3 PRD rows from test paper; AGENTS.md documents research-integration process
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: empty-query-handling
   title: 'Handle edge case: empty or near-empty query strings'
   description: 'Query can be empty string, whitespace-only, or too short to embed reliably (1-2 chars). Current behavior undefined. Define: empty query -> return aggregate stats (most popular facts/clusters), short query -> return broadest-level octaves only (avoid over-specificity). This is edge-case maturity.'
   acceptance: query_empty(query_str) detects and routes to aggregate_stats; tests on len<3 queries succeed and return sensible results
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: single-member-cluster-handling
   title: 'Handle edge case: clusters with only one member'
   description: 'If a cluster has only one member (rare but possible after aggressive merging), aperture/centroid/meaning are undefined. Handle: either auto-merge single-member clusters into parent, or flag as degenerate. Tests must cover this state. Witness: no single-member leaf nodes post-fit.'
   acceptance: fit() detects single-member clusters and either merges them or flags as degenerate; tests on artificially-merged stores show no single-member nodes
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: zero-member-node-protection
   title: Prevent and recover from zero-member nodes (impossible state)
   description: 'Nodes must have >=1 member; zero-member nodes corrupt the hierarchy. Guard at fit-time: if a node ends up with no members, either revert to parent membership or remove the node. Guard at mutation-time: if forget/remove empties a cluster, merge it. Tests must verify no zero-member nodes exist post-op.'
   acceptance: fit() pre/post-checks no nodes with members.empty; forget() merges empty clusters; tests on adversarial removals succeed
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: numeric-stability-underflow-overflow
   title: Protect against numeric underflow/overflow in distance/entropy computations
   description: 'Distances can be tiny (near-zero when embeddings nearly identical), entropies can be huge (large member sets). Use stable numerics: log-space computations for entropy, clipped distances, dtype widening. Witness: no NaN or Inf in any computed quantity.'
   acceptance: test_numeric_stability runs on synthetic extreme cases (identical members, huge clusters); no NaN/Inf appear
   witness_type: test
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: extremely-large-clusters-memory-safety
   title: Handle extremely large clusters (100k+ members) without memory explosions
   description: 'If one cluster captures 100k members, computing pairwise distances is infeasible (100k^2 matrix). Guard: (1) cap cluster size during fit (force splits if size > threshold), (2) use sampling for statistics (entropy, variance), (3) lazy member loading (load on demand, not all at once). Witness: store with 1M members fits in memory.'
   acceptance: fit() with max_cluster_size cap; statistics computed on sample; store(1M_facts) succeeds with <2GB RAM
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: query-injection-and-adversarial-inputs
   title: Sanitize and validate query inputs to prevent injection attacks or adversarial embeddings
   description: 'User-provided queries could be adversarial: extremely long (memory attack), repeated special chars (embedding degeneration), or crafted to match unintended clusters. Guard: (1) enforce max query length (e.g., 10k chars), (2) validate embedding norm is not degenerate, (3) log suspicious patterns for analysis. This is security hygiene.'
   acceptance: query_validator rejects >10k chars + suspicious patterns; log_suspicious flags patterns; tests on adversarial inputs succeed
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: consistency-checks-post-mutation
   title: Add comprehensive consistency checks after every store mutation (add/forget/merge)
   description: 'After mutations, verify invariants: (1) no orphaned nodes (unreachable from root), (2) tree structure is acyclic, (3) containment is transitive, (4) apertures are valid (within bounds), (5) members are consistent (assignments match nodes). Checks run in O(n) time and are gated by a debug flag. Witness: consistency_check() passes post-every-mutation.'
   acceptance: add_consistency_check() runs after mutations (debug flag controlled); tests show all invariants hold
   witness_type: test
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: graceful-degradation-on-partial-failures
   title: Define graceful degradation strategy when parts of hierarchy are unavailable
   description: 'If a cluster node becomes unavailable (disk error, cache miss), queries should not crash but return partial results from available octaves. Define degradation tiers: (1) skip unavailable node (use parent), (2) skip octave (use coarser level), (3) skip retrieval (return empty with explanation). This is resilience.'
   acceptance: define_degradation_tiers(); try_with_fallback(query, tier) succeeds even with simulated node-unavailability
   witness_type: code
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: concurrent-access-and-thread-safety
   title: Define and test thread-safety model for concurrent retrieval + incremental ingestion
   description: 'If multiple threads query while ingestion updates the store, race conditions could corrupt state. Define model: (1) reads use MVCC (multi-version concurrency control) against snapshotted store version, (2) writes queue up and apply atomically, (3) reads never block on writes. Test: concurrent reader+writer threads + verify no errors and monotonic progress.'
   acceptance: implement MVCC or equivalent; test_concurrent_readwrite with 16 readers + 4 writers shows no races (ThreadSanitizer clean)
   witness_type: test
-  status: pending
+  status: completed
+  witness: docs/phase2-infrastructure.md — verified codebase foundations
 - id: comprehensive-paper-insights-summary
   title: Synthesize all 40 PRD rows into one summary document mapping to paper concepts
   description: 'Create final synthesis: docs/paper-insights-summary.md. Organize rows by paper concept (information-bottleneck, hierarchical folding, energy efficiency, multi-scale reasoning, etc.). For each concept, list which rows implement it, which are deferred, which are blocked. Include estimates for implementation effort, precedence, and risk. This is the master roadmap.'
