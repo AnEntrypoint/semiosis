@@ -1,0 +1,184 @@
+# Agent Intuition Guide
+
+How to read semiosis signals as implicit intuition for navigation, confidence, and self-regulation.
+
+## 1. Cone Fundamentals
+
+The KB organizes knowledge as hyperbolic entailment cones (Ganea 2018). Each node has an apex in
+Lorentz space and a half-aperture `psi`. A cone contains another when its apex lies within the
+parent's angular opening -- containment is semantic entailment.
+
+Signal reading:
+- `aperture` near `0.1` (floor): node encodes a sharp, highly specific concept.
+- `aperture` near `pi/2`: node is a broad category, many children entailed.
+- `score` on a SearchHit: dot-product relevance to query in embedding space (not cone containment).
+
+The cone math drives hierarchy and energy; the embedding centroid drives retrieval rank.
+
+Example 1: query "photosynthesis"
+- Hit A: aperture=0.15, score=0.92, evidence_path_count=3 -- specific node, multi-octave consensus, high confidence.
+- Hit B: aperture=0.85, score=0.74, evidence_path_count=1 -- broad biology node, single-octave, less specific.
+
+Example 2: query "bank" (ambiguous)
+- Hit A: aperture=0.3, local_entropy=1.2 -- high entropy signals ambiguous concept membership.
+- Action: call `scan_tension(query)` to find which sub-cone dominates; use `deep_search` for disambiguation.
+
+## 2. Implicit Signals From SearchHit
+
+Every SearchHit carries four confidence dimensions:
+
+| Field | Intuition | Action when high | Action when low |
+|-------|-----------|-----------------|-----------------|
+| `aperture` | concept breadth | use for exploration | use for precise retrieval |
+| `local_entropy` | member diversity | expect broad coverage | expect tight cluster |
+| `evidence_path_count` | multi-octave consensus | high confidence in relevance | single-scale hit, verify |
+| `uncertainty_score` | 1 - normalized_score | re-query with rephrasing | proceed confidently |
+
+A hit with `evidence_path_count >= 3` and `uncertainty_score < 0.2` is high-confidence retrieval.
+A hit with `evidence_path_count == 1` and `uncertainty_score > 0.6` should be treated as weak evidence.
+
+Example 1: synthesizing an answer
+- Filter hits to `evidence_path_count >= 2` before grounding claims.
+- Use `local_entropy` to detect when a concept spans multiple sub-domains (entropy > 1.0 = synthesize carefully).
+
+Example 2: deciding when to stop searching
+- If top 3 hits all have `uncertainty_score < 0.15`, retrieval has converged.
+- If variance in `aperture` across top hits is high, the KB has conflicting hierarchy levels -- call `diagnose()`.
+
+## 3. Energy and Accuracy Tradeoff
+
+The `QueryPriority` enum controls the depth-vs-speed tradeoff:
+
+- `HIGH`: multi-octave RRF fusion, tight MMR diversity (lam=0.3 favors diversity), slower.
+- `MEDIUM`: default balanced (lam from settings, 2 octave levels).
+- `LOW`: single coarse octave, fast, higher recall gap.
+
+Use `HIGH` when evidence quality matters (final answer synthesis, claim grounding).
+Use `LOW` when scanning many queries for routing (intent detection, topic identification).
+
+Energy cost scales with octave depth. `total_energy` in `DiagnoseReport` reflects the KB's current
+information density -- high energy with few nodes means over-compressed state (too many merges).
+
+Example 1: agent planning loop
+- Use `LOW` to score 20 sub-questions for routing.
+- Use `HIGH` only on the 3 highest-scored to ground the answer.
+
+Example 2: adaptive retrieval
+- Start with `MEDIUM`; if top hit `uncertainty_score > 0.5`, retry with `HIGH`.
+- If retry still returns `uncertainty_score > 0.5`, ingest more texts (KB gap detected).
+
+## 4. Decision Trees for Retrieval
+
+When to call which method:
+
+```
+receive query
+ |
+ +-- single concept, fast answer needed? -> search(k=3, priority=LOW)
+ |
+ +-- need causal chain or multi-hop? -> deep_search(k=5)
+ |
+ +-- exploring a domain for the first time? -> search(k=10, priority=HIGH)
+ |       then: scan_tension(query) to find boundary concepts
+ |
+ +-- need diverse coverage? -> search(k=10, priority=HIGH)
+         filter: keep hits where evidence_path_count >= 2
+         then: build_context_pack() for token-budgeted context
+```
+
+When to call `consolidate()`:
+- `DiagnoseReport.redundant_pairs > nodes // 4`
+- `failure_mode == BOUNDARY_AMBIGUOUS`
+- After bulk ingest (100+ texts) before a critical query
+
+When to call `diagnose()`:
+- Before starting a reasoning chain (baseline health check)
+- When search returns < k hits on a non-empty KB
+- When `uncertainty_score` is consistently high across multiple queries
+
+## 5. Failure Modes and Recovery
+
+`DiagnoseReport.failure_mode` encodes the KB health state:
+
+**NONE**: KB is healthy; proceed normally.
+
+**OUTSIDE_CONE**: Mean aperture > 1.2. Query concepts lie outside current cone coverage.
+- Recovery: ingest focused texts on the target domain; re-run `diagnose()` after ingest.
+
+**BOUNDARY_AMBIGUOUS**: High tension with many redundant pairs.
+- Recovery: call `consolidate()`; check `ConsolidateReport.merges` to confirm resolution.
+- If merges == 0 after consolidate, the tension is real semantic conflict -- surface to user.
+
+**OVER_COMPRESSED**: Too few nodes per octave (aggressive merging collapsed hierarchy).
+- Recovery: ingest diverse texts; use `deep_search()` instead of `search()` until nodes_per_octave > 3.
+
+**OCTAVE_MISMATCH**: High aperture variance across octaves (entropy_divergence > 0.4).
+- Recovery: use `deep_search()` for cross-octave queries; check encoder Matryoshka dims for gaps.
+
+Example 1: OUTSIDE_CONE recovery
+```python
+report = kb.diagnose()
+if report.failure_mode == FailureMode.OUTSIDE_CONE:
+    kb.ingest(fetch_domain_texts(query))
+    report = kb.diagnose()
+    assert report.mean_aperture < 1.2
+```
+
+Example 2: BOUNDARY_AMBIGUOUS recovery
+```python
+report = kb.diagnose()
+if report.failure_mode == FailureMode.BOUNDARY_AMBIGUOUS:
+    cr = kb.consolidate()
+    # cr.merges tells you how many redundant pairs were resolved
+    if cr.merges == 0:
+        # real semantic tension -- flag to reasoner
+        pass
+```
+
+## 6. Multi-Scale Patterns
+
+Matryoshka octaves give semiosis a coarse-to-fine retrieval ladder. Key patterns:
+
+**Pattern: coarse routing -> fine grounding**
+1. `search(query, k=1, priority=LOW)` -- identify the octave domain.
+2. `deep_search(query, k=5)` -- trace from coarse cone into fine-grained evidence.
+
+**Pattern: octave disagreement as ambiguity signal**
+- `evidence_path_count == 1` means only one octave contained this node.
+- Compare octave values across top hits: if all differ, the query spans multiple scales.
+- Action: decompose query into sub-questions, one per dominant octave.
+
+**Pattern: energy-efficient context packing**
+- Use `build_context_pack(query, max_tokens=2000)` to get token-budgeted, overlap-deduped context.
+- Prefer `context_pack` over raw `search()` when the downstream context window is constrained.
+- `compress_context()` applies cone-energy folding to reduce a long context by ~30-50%.
+
+Example 1: hierarchical question answering
+- Coarse query "machine learning" -> hit with prefix=64 (root octave), aperture=0.8.
+- Fine query "gradient descent convergence" -> hit with prefix=512, aperture=0.2.
+- Use the root hit for framing, the fine hit for the actual answer.
+
+Example 2: multi-hop reasoning
+- Hop 1: `deep_search("cause of X")` -> evidence node A.
+- Hop 2: `navigate(node_A_id, direction="flow_out")` -> downstream implications.
+- Combine: trace from A to effect nodes using the flow gradient.
+
+## 7. Mental Models
+
+Three mental models for working with semiosis:
+
+**The cone as confidence radius**: aperture is the uncertainty radius around a concept. A tight
+cone (low aperture) is a high-confidence specific claim. A wide cone is a prior. Retrieval
+returns the best-fitting cones to your query -- read aperture as how much to trust the specificity.
+
+**Evidence paths as votes**: `evidence_path_count` is how many Matryoshka scales agreed this
+node is relevant. Three octaves agreeing is stronger evidence than one. Treat it like a
+multi-witness majority vote on relevance.
+
+**Energy as information density**: `total_energy` from `context_energy()` measures how
+redundant the top-k nodes are. High energy with few nodes = compressed, lossy representation.
+Low energy = sparse, sparse KBs need more ingest. The sweet spot is medium energy with diverse
+node coverage -- each node carries distinct information.
+
+The three together: use `uncertainty_score` to decide confidence, `evidence_path_count` to
+weight claims, and `total_energy` to decide whether more retrieval adds value or just noise.

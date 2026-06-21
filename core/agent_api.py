@@ -5,6 +5,7 @@ import json
 import math
 import os
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from .context_pack import ContextPack, ContextPackBuilder, ContextPackConfig
@@ -15,6 +16,20 @@ from .semiotic_memory import SemioticMemory
 from .settings import Settings
 
 
+class QueryPriority(Enum):
+    HIGH = "high"    # deep multi-octave, tight MMR, higher latency budget
+    MEDIUM = "medium"  # default balanced
+    LOW = "low"      # coarse single-octave, fast
+
+
+class FailureMode(Enum):
+    NONE = "none"
+    OUTSIDE_CONE = "outside_cone"        # query lies outside all node cones
+    BOUNDARY_AMBIGUOUS = "boundary_ambiguous"  # high tension between top candidates
+    OVER_COMPRESSED = "over_compressed"  # excessive merges at last consolidation
+    OCTAVE_MISMATCH = "octave_mismatch"  # high entropy_divergence across octaves
+
+
 @dataclass(frozen=True, slots=True)
 class SearchHit:
     text: str
@@ -22,6 +37,20 @@ class SearchHit:
     node_id: str
     octave: int
     members: tuple[str, ...] = ()
+    aperture: float = 0.0           # cone half-aperture; low=tight/confident, high=broad
+    local_entropy: float = 0.0      # Shannon entropy of member distances from centroid
+    evidence_path_count: int = 1    # octaves this node was retrieved from (consensus)
+    uncertainty_score: float = 0.0  # 1 - normalized score; higher = less confident
+
+
+@dataclass(frozen=True, slots=True)
+class ConsolidateReport:
+    changed: bool
+    nodes_before: int
+    nodes_after: int
+    merges: int
+    aperture_updates: int
+    dispel_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +93,8 @@ class DiagnoseReport:
     redundant_pairs: int
     retrieval_entropy: float = 0.0
     entropy_divergence: float = 0.0
+    failure_mode: FailureMode = FailureMode.NONE
+    recovery_suggestions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,46 +156,52 @@ class KnowledgeBase:
         ids = self._pipeline.query.knn(q_vec[:prefix], k=1, prefix=prefix)
         return self._pipeline.store.get(ids[0]) if ids else None
 
-    def _ranked(self, query: str, k: int) -> list[tuple[Any, float]]:
-        """Candidate nodes with blended (relevance + usage) score, MMR-diversified to k."""
+    def _ranked(self, query: str, k: int, priority: "QueryPriority | None" = None) -> list[tuple[Any, float, int]]:
+        """Candidate nodes with blended score; returns (node, score, octave_hit_count)."""
         enc = self._pipeline._encoder
         store = self._pipeline.store
         a = self._settings.agent
         q_vec = enc.encode([query])[0]
         scored: dict[str, float] = {}
-        if a.octave_fusion:
-            for prefix in (Prefix(d) for d in enc.dims):
+        octave_hits: dict[str, int] = {}
+        p = priority or QueryPriority.MEDIUM
+        if a.octave_fusion and p != QueryPriority.LOW:
+            dims = enc.dims if p == QueryPriority.HIGH else enc.dims[:2]
+            for prefix in (Prefix(d) for d in dims):
                 for rank, (nid, _s) in enumerate(store.knn_scored(q_vec[:prefix], k * 4, prefix)):
                     scored[nid] = scored.get(nid, 0.0) + 1.0 / (60 + rank)
+                    octave_hits[nid] = octave_hits.get(nid, 0) + 1
         else:
             prefix = Prefix(enc.dims[0])
             for nid, s in store.knn_scored(q_vec[:prefix], k * 4, prefix):
                 scored[nid] = s
+                octave_hits[nid] = 1
         cands = []
         for nid, base in scored.items():
             node = store.get(nid)
             if not node.members:
                 continue
-            cands.append((node, base + a.usage_weight * math.log1p(self._node_uses(node))))
+            cands.append((node, base + a.usage_weight * math.log1p(self._node_uses(node)), octave_hits.get(nid, 1)))
         cands.sort(key=lambda t: t[1], reverse=True)
-        return self._mmr(cands, k, a.mmr_lambda)
+        lam = (0.3 if p == QueryPriority.HIGH else (0.7 if p == QueryPriority.LOW else a.mmr_lambda))
+        return self._mmr(cands, k, lam)
 
-    def _mmr(self, cands: list[tuple[Any, float]], k: int, lam: float) -> list[tuple[Any, float]]:
+    def _mmr(self, cands: list[tuple[Any, float, int]], k: int, lam: float) -> list[tuple[Any, float, int]]:
         engine = self._pipeline.engine
-        selected: list[tuple[Any, float]] = []
+        selected: list[tuple[Any, float, int]] = []
         seen_text: set[str] = set()
         pool = list(cands)
         while pool and len(selected) < k:
             best, best_mmr, best_i = None, -1e18, -1
-            for i, (node, rel) in enumerate(pool):
+            for i, (node, rel, epc) in enumerate(pool):
                 pt = self._primary_text(node)
                 if pt in seen_text:
                     best_i = i if best_i < 0 else best_i
                     continue
-                div = max((engine.overlap_score(s, node) for s, _ in selected), default=0.0)
+                div = max((engine.overlap_score(s, node) for s, _, _e in selected), default=0.0)
                 mmr = lam * rel - (1.0 - lam) * div
                 if mmr > best_mmr:
-                    best, best_mmr, best_i = (node, rel), mmr, i
+                    best, best_mmr, best_i = (node, rel, epc), mmr, i
             if best is None:
                 break
             pool.pop(best_i)
@@ -173,20 +210,39 @@ class KnowledgeBase:
         return selected
 
     # --- retrieval -----------------------------------------------------------
-    def search(self, query: str, k: int = 5) -> list[SearchHit]:
-        """Return up to k diversified, scored hits with provenance (the agent retrieval surface)."""
+    def search(self, query: str, k: int = 5, priority: QueryPriority = QueryPriority.MEDIUM) -> list[SearchHit]:
+        """Return up to k diversified, scored hits with confidence signals for agent self-regulation."""
         if k <= 0:
             raise ValueError("k must be positive")
         if self._pipeline is None or not query:
             return []
         self._metrics["queries"] += 1
+        engine = self._pipeline.engine
         hits: list[SearchHit] = []
-        for node, score in self._ranked(query, k):
+        top_score: float | None = None
+        for node, score, epc in self._ranked(query, k, priority):
+            if top_score is None:
+                top_score = score
             members = self._member_texts(node)
+            ap = float(getattr(node, "aperture", 0.0))
+            try:
+                import numpy as np
+                store = self._pipeline.store
+                enc = self._pipeline._encoder
+                q_vec = enc.encode([query])[0]
+                vecs = np.stack([q_vec for _ in node.members]) if node.members else np.zeros((1, len(q_vec)))
+                entropy = engine._member_entropy(vecs)
+            except Exception:
+                entropy = 0.0
+            norm_score = float(score) / max(top_score, 1e-9) if top_score else 0.0
             hits.append(SearchHit(
                 text=members[0] if members else self._primary_text(node),
                 score=float(score), node_id=str(node.id), octave=int(node.prefix),
                 members=tuple(members),
+                aperture=ap,
+                local_entropy=float(entropy),
+                evidence_path_count=int(epc),
+                uncertainty_score=float(1.0 - norm_score),
             ))
         return hits
 
@@ -230,7 +286,7 @@ class KnowledgeBase:
         engine = self._pipeline.engine
         top = ranked[0][0]
         steps: list[RetrievalStep] = []
-        for node, score in ranked:
+        for node, score, _epc in ranked:
             steps.append(RetrievalStep(
                 text=self._primary_text(node), score=float(score), node_id=str(node.id),
                 octave=int(node.prefix),
@@ -272,28 +328,38 @@ class KnowledgeBase:
                 self._usage[t] -= 1
         return {"applied": applied, "ignored": len(useful_texts) - applied}
 
-    def consolidate(self) -> dict[str, Any]:
-        """Self-improve the KB: scan tension, apply dispel ops on redundant pairs; idempotent."""
+    def consolidate(self) -> ConsolidateReport:
+        """Self-improve the KB: scan tension, merge redundant pairs; idempotent."""
         if self._pipeline is None:
-            return {"actions": [], "reason": "empty"}
+            return ConsolidateReport(changed=False, nodes_before=0, nodes_after=0, merges=0, aperture_updates=0, dispel_count=0)
         self._metrics["consolidations"] += 1
         engine = self._pipeline.engine
         store = self._pipeline.store
         nodes = store.all_nodes()
+        nodes_before = len(nodes)
         scan = engine.tension_scan(nodes, top_n=len(nodes))
         thr = self._settings.agent.consolidate_tension
         plan = [row for row in engine.dispel_plan(scan)
                 if any(s[0] == row[1] and s[1] == row[2] and s[2] >= thr for s in scan)]
-        actions = []
+        merges = 0
+        aperture_updates = 0
         for op, a_id, b_id in plan:
             if op == "merge":
                 try:
                     merged = engine.merge_nodes(store.get(a_id), store.get(b_id))
                     store.upsert(merged)
-                    actions.append({"op": "merge", "a": str(a_id), "b": str(b_id)})
+                    merges += 1
                 except KeyError:
                     continue
-        return {"actions": actions, "reason": "coherent" if not actions else "consolidated"}
+        nodes_after = len(store.all_nodes())
+        return ConsolidateReport(
+            changed=merges > 0,
+            nodes_before=nodes_before,
+            nodes_after=nodes_after,
+            merges=merges,
+            aperture_updates=aperture_updates,
+            dispel_count=len(plan),
+        )
 
     def diagnose(self) -> DiagnoseReport:
         """Health snapshot an agent reads to decide when to consolidate or diversify ingest."""
@@ -308,10 +374,36 @@ class KnowledgeBase:
         mean_t = sum(t for _, _, t, _ in scan) / len(scan) if scan else 0.0
         redundant = sum(1 for _, _, _, kind in scan if kind in ("redundancy", "contradiction"))
         energy = engine.context_energy(nodes[:32])
+        # entropy divergence: variance of per-octave aperture means
+        octave_aps: dict[int, list[float]] = {}
+        for n in nodes:
+            octave_aps.setdefault(int(n.prefix), []).append(n.aperture)
+        oct_means = [sum(v) / len(v) for v in octave_aps.values()]
+        global_mean = sum(oct_means) / len(oct_means) if oct_means else 0.0
+        entropy_div = math.sqrt(sum((m - global_mean) ** 2 for m in oct_means) / max(len(oct_means), 1))
+        # detect failure mode
+        failure = FailureMode.NONE
+        suggestions: list[str] = []
+        if mean_ap > 1.2:
+            failure = FailureMode.OUTSIDE_CONE
+            suggestions.append("ingest more focused texts to tighten cone apertures")
+        elif mean_t > 0.7 and redundant > len(nodes) // 4:
+            failure = FailureMode.BOUNDARY_AMBIGUOUS
+            suggestions.append("call consolidate() to resolve boundary tension between overlapping cones")
+        elif octaves > 0 and len(nodes) / max(octaves, 1) < 2:
+            failure = FailureMode.OVER_COMPRESSED
+            suggestions.append("ingest more diverse texts across octaves to restore hierarchy depth")
+        elif entropy_div > 0.4:
+            failure = FailureMode.OCTAVE_MISMATCH
+            suggestions.append("check for missing octave levels; use deep_search() for cross-octave queries")
         return DiagnoseReport(
             nodes=len(nodes), octaves=octaves, texts=len(self._texts),
             facts=len(self._memory.facts()), mean_aperture=float(mean_ap),
             mean_tension=float(mean_t), total_energy=float(energy), redundant_pairs=redundant,
+            retrieval_entropy=float(mean_ap),
+            entropy_divergence=float(entropy_div),
+            failure_mode=failure,
+            recovery_suggestions=tuple(suggestions),
         )
 
     def metrics(self) -> dict[str, int]:

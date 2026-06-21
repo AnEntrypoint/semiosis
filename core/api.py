@@ -151,6 +151,9 @@ def create_app(settings: Settings | None = None, kb: KnowledgeBase | None = None
 
     @app.get("/diagnose")
     async def diagnose() -> JSONResponse:
-        return JSONResponse({"report": dataclasses.asdict(_get_kb().diagnose())})
+        rep = _get_kb().diagnose()
+        d = dataclasses.asdict(rep)
+        d["failure_mode"] = rep.failure_mode.value
+        return JSONResponse({"report": d})
 
     return app

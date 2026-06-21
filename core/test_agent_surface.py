@@ -68,7 +68,7 @@ def test_consolidate_idempotent() -> None:
     kb = _kb()
     r1 = kb.consolidate()
     r2 = kb.consolidate()
-    assert "actions" in r1 and "actions" in r2
+    assert not r1.changed and not r2.changed
 
 
 def test_diagnose_shape() -> None:
@@ -108,4 +108,4 @@ def test_empty_kb_surface_safe() -> None:
     kb = KnowledgeBase()
     assert kb.search("x") == []
     assert kb.diagnose().nodes == 0
-    assert kb.consolidate()["reason"] == "empty"
+    assert not kb.consolidate().changed
