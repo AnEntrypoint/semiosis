@@ -1,10 +1,11 @@
 """Shared pytest fixtures for the semiosis core test suite."""
+
 from __future__ import annotations
 
 import pytest
 
-from core.interfaces import ClusterTree, NodeId, PhraseId, Prefix
 from core.cone_engine import ConeFitConfig
+from core.interfaces import ClusterTree, NodeId, PhraseId, Prefix
 
 
 @pytest.fixture()

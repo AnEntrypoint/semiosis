@@ -1,35 +1,38 @@
 """Hyperbolic entailment-cone engine -- fits Lorentz cones via RiemannianAdam."""
+
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .settings import ConeSettings
 
 import numpy as np
 
-from .interfaces import ConeNode, ClusterTree, NodeId
+from .interfaces import ClusterTree, ConeNode, NodeId
 
 # These imports are deferred so the module is importable without torch present
 # (e.g. for type-checking or docs builds); the engine validates them on init.
 try:  # pragma: no cover - exercised in integration env
-    import torch
     import geoopt
+    import torch
+
     _HAS_TORCH = True
 except Exception:  # pragma: no cover
     _HAS_TORCH = False
 
 
-_EPS = 1e-7              # arccos / sqrt guard
-_MIN_APERTURE = 0.1      # radians; cones never collapse to a ray
-_MAX_GRAD_NORM = 1.0     # tangent-space gradient clip
+_EPS = 1e-7  # arccos / sqrt guard
+_MIN_APERTURE = 0.1  # radians; cones never collapse to a ray
+_MAX_GRAD_NORM = 1.0  # tangent-space gradient clip
 
 
 @dataclass(frozen=True, slots=True)
 class ConeFitConfig:
     curvature: float = 1.0
-    dim: int = 8                 # cone-space dim (small; the octave prefix is separate)
+    dim: int = 8  # cone-space dim (small; the octave prefix is separate)
     epochs: int = 200
     lr: float = 1e-2
     margin: float = 0.01
@@ -37,7 +40,7 @@ class ConeFitConfig:
     seed: int = 0
 
     @classmethod
-    def from_settings(cls, s: "ConeSettings") -> "ConeFitConfig":
+    def from_settings(cls, s: ConeSettings) -> ConeFitConfig:
         """Build from env-configurable ConeSettings; single source of truth for hyperparams."""
         return cls(
             curvature=s.curvature,
@@ -56,31 +59,30 @@ class HyperbolicConeEngine:
     def __init__(self, cfg: ConeFitConfig) -> None:
         if not _HAS_TORCH:
             raise RuntimeError(
-                "HyperbolicConeEngine requires torch + geoopt. "
-                "Install the 'hyperbolic' extra."
+                "HyperbolicConeEngine requires torch + geoopt. Install the 'hyperbolic' extra."
             )
         self.cfg = cfg
         self.manifold = geoopt.Lorentz(k=torch.tensor(cfg.curvature))
 
     # --- numerically guarded primitives -------------------------------------
     @staticmethod
-    def _safe_arccos(x: "torch.Tensor") -> "torch.Tensor":
+    def _safe_arccos(x: torch.Tensor) -> torch.Tensor:
         return torch.arccos(torch.clamp(x, -1.0 + _EPS, 1.0 - _EPS))
 
-    def _half_aperture(self, apex: "torch.Tensor") -> "torch.Tensor":
+    def _half_aperture(self, apex: torch.Tensor) -> torch.Tensor:
         """Ganea 2018 closed-form aperture as a function of apex norm, floored."""
         # spatial component norm on the hyperboloid
         norm = torch.clamp(apex[..., 1:].norm(dim=-1), min=_EPS)
         psi = torch.arcsin(torch.clamp((1.0) / norm, max=1.0 - _EPS))
         return torch.clamp(psi, min=_MIN_APERTURE)
 
-    def _cone_energy(self, parent: "torch.Tensor", child: "torch.Tensor") -> "torch.Tensor":
+    def _cone_energy(self, parent: torch.Tensor, child: torch.Tensor) -> torch.Tensor:
         """Penalty when `child` lies outside `parent`'s entailment cone (>=0)."""
         xi = self._angle_at(parent, child)
         psi = self._half_aperture(parent)
         return torch.clamp(xi - psi, min=0.0)
 
-    def _angle_at(self, apex: "torch.Tensor", other: "torch.Tensor") -> "torch.Tensor":
+    def _angle_at(self, apex: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
         """Angle between the cone axis at `apex` and the geodesic to `other`."""
         # Lorentzian inner product <a,b>_L = -a0 b0 + sum a_i b_i
         ip = -apex[..., 0] * other[..., 0] + (apex[..., 1:] * other[..., 1:]).sum(-1)
@@ -126,7 +128,7 @@ class HyperbolicConeEngine:
                     cfg.margin - self._cone_energy(np_apex, nc_apex), min=0.0
                 ).mean()
                 loss = loss_pos + loss_neg
-                loss.backward()
+                loss.backward()  # type: ignore[no-untyped-call]
                 torch.nn.utils.clip_grad_norm_([apex], _MAX_GRAD_NORM)
                 opt.step()
 
@@ -157,9 +159,9 @@ class HyperbolicConeEngine:
 
     def batch_contains(
         self,
-        parents: "Sequence[ConeNode]",
-        children: "Sequence[ConeNode]",
-    ) -> "np.ndarray":
+        parents: Sequence[ConeNode],
+        children: Sequence[ConeNode],
+    ) -> np.ndarray:
         """Return [N, M] float32 containment margins for N parents x M children."""
         pa = torch.tensor(np.stack([n.apex for n in parents]), dtype=torch.float32)
         ca = torch.tensor(np.stack([n.apex for n in children]), dtype=torch.float32)
@@ -175,9 +177,9 @@ class HyperbolicConeEngine:
 
     def find_entailments(
         self,
-        nodes: "Sequence[ConeNode]",
+        nodes: Sequence[ConeNode],
         threshold: float = 0.0,
-    ) -> "list[tuple[ConeNode, ConeNode]]":
+    ) -> list[tuple[ConeNode, ConeNode]]:
         """Return all (parent, child) pairs where contains(parent, child) > threshold."""
         result = []
         for i, p in enumerate(nodes):
@@ -192,7 +194,7 @@ class HyperbolicConeEngine:
         return float(self.contains(a, b) - self.contains(b, a))
 
     def tension(self, a: ConeNode, b: ConeNode) -> float:
-        """High overlap with symmetric (ambiguous) containment = redundancy/contradiction tension."""
+        """High overlap with symmetric containment = redundancy/contradiction tension."""
         return float(self.overlap_score(a, b) - abs(self.containment_asymmetry(a, b)))
 
     def pair_kind(
@@ -217,11 +219,11 @@ class HyperbolicConeEngine:
 
     def tension_scan(
         self,
-        nodes: "Sequence[ConeNode]",
+        nodes: Sequence[ConeNode],
         top_n: int = 10,
         min_overlap: float = 0.0,
         max_candidates: int = 256,
-    ) -> "list[tuple[NodeId, NodeId, float, str]]":
+    ) -> list[tuple[NodeId, NodeId, float, str]]:
         """Return the top_n worst (a_id, b_id, tension, kind) pairs sharing an octave."""
         pool = list(nodes)[:max_candidates]
         if len(pool) < 2:
@@ -249,15 +251,16 @@ class HyperbolicConeEngine:
 
     def flow_weight(self, focus: ConeNode, other: ConeNode) -> float:
         """Entailment gradient: asymmetry per unit distance; sign gives flow direction."""
-        return float(self.containment_asymmetry(focus, other) / (self.geodesic_distance(focus, other) + _EPS))
+        asym = self.containment_asymmetry(focus, other)
+        return float(asym / (self.geodesic_distance(focus, other) + _EPS))
 
     def flow_neighbors(
         self,
         focus: ConeNode,
-        nodes: "Sequence[ConeNode]",
+        nodes: Sequence[ConeNode],
         k: int = 5,
-    ) -> "list[tuple[NodeId, float, str]]":
-        """Rank neighbors by entailment gradient; direction down=focus-generalizes, up=focus-specializes."""
+    ) -> list[tuple[NodeId, float, str]]:
+        """Rank neighbors by entailment gradient; down=focus-generalizes, up=focus-specializes."""
         scored: list[tuple[NodeId, float, str]] = []
         for n in nodes:
             if n.id == focus.id:
@@ -267,7 +270,7 @@ class HyperbolicConeEngine:
         scored.sort(key=lambda t: abs(t[1]), reverse=True)
         return scored[:k]
 
-    def context_energy(self, nodes: "Sequence[ConeNode]") -> float:
+    def context_energy(self, nodes: Sequence[ConeNode]) -> float:
         """Semiotic spread = sum of pairwise geodesic distances of a context set."""
         pool = list(nodes)
         total = 0.0
@@ -278,10 +281,10 @@ class HyperbolicConeEngine:
 
     def select_representatives(
         self,
-        nodes: "Sequence[ConeNode]",
+        nodes: Sequence[ConeNode],
         k: int,
-    ) -> "tuple[list[ConeNode], float]":
-        """Greedy farthest-point k-center; returns reps and coverage energy (sum min-dist to a rep)."""
+    ) -> tuple[list[ConeNode], float]:
+        """Greedy farthest-point k-center; returns reps and coverage energy (sum min-dist)."""
         pool = list(nodes)
         if k <= 0 or not pool:
             return [], 0.0
@@ -302,21 +305,23 @@ class HyperbolicConeEngine:
         coverage = sum(min(self.geodesic_distance(n, r) for r in reps) for n in pool)
         return reps, float(coverage)
 
-    def energy_contribution(self, node: ConeNode, context: "Sequence[ConeNode]") -> float:
+    def energy_contribution(self, node: ConeNode, context: Sequence[ConeNode]) -> float:
         """Marginal energy a node adds = summed distance to the rest of the context set."""
         return float(sum(self.geodesic_distance(node, o) for o in context if o.id != node.id))
 
-    def _lorentz_mean(self, apices: "Sequence[np.ndarray]") -> "np.ndarray":
+    def _lorentz_mean(self, apices: Sequence[np.ndarray]) -> np.ndarray:
         """Euclidean-mean the apices then project back onto the hyperboloid (guarded centroid)."""
         stacked = torch.from_numpy(np.stack(apices)).float()
         mean = stacked.mean(dim=0)
         proj = self.manifold.projx(mean)
-        return proj.detach().cpu().numpy().astype(np.float64)
+        out: np.ndarray = proj.detach().cpu().numpy().astype(np.float64)
+        return out
 
     # --- dispel operations ---------------------------------------------------
     def merge_nodes(self, a: ConeNode, b: ConeNode) -> ConeNode:
         """Collapse a redundant pair to one cone: midpoint apex, widest aperture, union members."""
         import dataclasses
+
         apex = self._lorentz_mean([a.apex, b.apex])
         return dataclasses.replace(
             a,
@@ -328,8 +333,8 @@ class HyperbolicConeEngine:
     def reparent(
         self,
         child: ConeNode,
-        candidates: "Sequence[ConeNode]",
-    ) -> "NodeId | None":
+        candidates: Sequence[ConeNode],
+    ) -> NodeId | None:
         """Pick the candidate that most decisively entails child (max containment)."""
         best, best_c = None, 0.0
         for cand in candidates:
@@ -340,9 +345,10 @@ class HyperbolicConeEngine:
                 best, best_c = cand.id, c
         return best
 
-    def summarize_cluster(self, nodes: "Sequence[ConeNode]") -> "ConeNode | None":
+    def summarize_cluster(self, nodes: Sequence[ConeNode]) -> ConeNode | None:
         """Synthesize one umbrella cone whose aperture is widened to contain every input."""
         import dataclasses
+
         pool = list(nodes)
         if not pool:
             return None
@@ -354,7 +360,7 @@ class HyperbolicConeEngine:
         for n in pool:
             c = torch.from_numpy(n.apex).float().unsqueeze(0)
             required = max(required, float(self._angle_at(p, c).item()))
-        members: tuple = ()
+        members: tuple[Any, ...] = ()
         for n in pool:
             members = (*members, *n.members)
         return dataclasses.replace(
@@ -367,34 +373,38 @@ class HyperbolicConeEngine:
 
     def dispel_plan(
         self,
-        scan_result: "Sequence[tuple[NodeId, NodeId, float, str]]",
-    ) -> "list[tuple[str, NodeId, NodeId]]":
-        """Map each scanned pair's kind to a remediation op; coherent KB yields an empty plan."""
-        op = {"redundancy": "merge", "contradiction": "reparent", "aperture_degenerate": "summarize"}
+        scan_result: Sequence[tuple[NodeId, NodeId, float, str]],
+    ) -> list[tuple[str, NodeId, NodeId]]:
+        """Map each scanned pair's kind to a remediation op; coherent KB yields empty plan."""
+        op = {
+            "redundancy": "merge",
+            "contradiction": "reparent",
+            "aperture_degenerate": "summarize",
+        }
         return [(op[kind], a, b) for a, b, _t, kind in scan_result if kind in op]
 
-    def fit_and_close(self, tree: ClusterTree) -> "list[ConeNode]":
+    def fit_and_close(self, tree: ClusterTree) -> list[ConeNode]:
         """Fit cones then close transitivity in one call; the recommended production API."""
         nodes = list(self.fit(tree))
         return self.close_transitivity(nodes, list(tree.edges))
 
     def close_transitivity(
         self,
-        nodes: "Sequence[ConeNode]",
-        edges: "Sequence[tuple[NodeId, NodeId]]",
-    ) -> "list[ConeNode]":
+        nodes: Sequence[ConeNode],
+        edges: Sequence[tuple[NodeId, NodeId]],
+    ) -> list[ConeNode]:
         """Widen apertures so containment closes over the transitive hull; apices unchanged."""
         import dataclasses
         from collections import defaultdict, deque
 
         by_id = {n.id: n for n in nodes}
-        children: dict = defaultdict(set)
-        for p, c in edges:
-            children[p].add(c)
+        children: dict[NodeId, set[NodeId]] = defaultdict(set)
+        for parent, child in edges:
+            children[parent].add(child)
 
-        def _descendants(nid: NodeId) -> set:
-            seen: set = set()
-            queue: deque = deque(children.get(nid, set()))
+        def _descendants(nid: NodeId) -> set[NodeId]:
+            seen: set[NodeId] = set()
+            queue: deque[NodeId] = deque(children.get(nid, set()))
             while queue:
                 d = queue.popleft()
                 if d not in seen:
@@ -402,20 +412,20 @@ class HyperbolicConeEngine:
                     queue.extend(children.get(d, set()))
             return seen
 
-        result: list = []
+        result: list[ConeNode] = []
         for node in nodes:
             desc = _descendants(node.id)
             if not desc:
                 result.append(node)
                 continue
-            p = torch.from_numpy(node.apex).float().unsqueeze(0)
+            apex_p = torch.from_numpy(node.apex).float().unsqueeze(0)
             required = node.aperture
             for did in desc:
                 if did not in by_id:
                     continue
                 d_node = by_id[did]
-                c = torch.from_numpy(d_node.apex).float().unsqueeze(0)
-                angle = float(self._angle_at(p, c).item())
+                apex_c = torch.from_numpy(d_node.apex).float().unsqueeze(0)
+                angle = float(self._angle_at(apex_p, apex_c).item())
                 if angle > required:
                     required = angle
             if required > node.aperture:

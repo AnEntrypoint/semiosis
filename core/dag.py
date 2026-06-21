@@ -1,4 +1,5 @@
 """Dagster DAG: encode -> cluster -> fit cones -> store, wired to real core components."""
+
 import dataclasses
 import uuid
 
@@ -11,6 +12,7 @@ from .settings import Settings
 
 try:
     from dagster import Config, Definitions, asset
+
     _HAS_DAGSTER = True
 except ImportError:  # pragma: no cover
     _HAS_DAGSTER = False
@@ -20,6 +22,7 @@ def build_encoder(settings: Settings):
     """Real Matryoshka encoder when sentence-transformers is present, else RandomEncoder."""
     try:
         from .encoder import SentenceTransformerEncoder
+
         return SentenceTransformerEncoder(
             model_name=settings.encoder.model,
             octaves=settings.encoder.octaves,
@@ -56,6 +59,7 @@ def fit_octave_nodes(vecs: np.ndarray, texts: list[str], dims, settings: Setting
 
 
 if _HAS_DAGSTER:
+
     class CorpusConfig(Config):
         texts: list[str] = []
 
@@ -65,8 +69,13 @@ if _HAS_DAGSTER:
         settings = Settings()
         encoder = build_encoder(settings)
         texts = list(config.texts)
-        vecs = encoder.encode(texts) if texts else np.zeros((0, max(encoder.dims)), dtype=np.float32)
-        return {"texts": texts, "vecs": np.asarray(vecs, dtype=np.float32), "dims": list(encoder.dims)}
+        empty = np.zeros((0, max(encoder.dims)), dtype=np.float32)
+        vecs = encoder.encode(texts) if texts else empty
+        return {
+            "texts": texts,
+            "vecs": np.asarray(vecs, dtype=np.float32),
+            "dims": list(encoder.dims),
+        }
 
     @asset
     def cone_nodes(embeddings):
@@ -81,6 +90,7 @@ if _HAS_DAGSTER:
     def store_snapshot(cone_nodes):
         """Write fitted cones to the store at a fresh CommitId."""
         from .store import InMemoryStore
+
         store = InMemoryStore()
         commit_id = CommitId(str(uuid.uuid4()))
         store.write(list(cone_nodes), commit_id)

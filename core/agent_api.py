@@ -1,4 +1,5 @@
 """High-level KnowledgeBase API for agents -- hides cone/manifold internals."""
+
 from __future__ import annotations
 
 import json
@@ -7,8 +8,8 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-from .context_pack import ContextPack, ContextPackBuilder, ContextPackConfig
-from .interfaces import Prefix, phrase_to_text_index
+from .context_pack import ContextPack, ContextPackBuilder, ContextPackConfig, TokenCounter
+from .interfaces import ConeNode, NodeId, Prefix, phrase_to_text_index
 from .pipeline import KnowledgePipeline
 from .recursive import RecursiveAnswerEngine, RecursiveResult
 from .semiotic_memory import SemioticMemory
@@ -43,7 +44,7 @@ class TensionPair:
 class DeepSearchResult:
     texts: tuple[str, ...]
     evidence: tuple[str, ...]
-    trace: tuple[tuple, ...]
+    trace: tuple[tuple[Any, ...], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,11 +85,14 @@ class KnowledgeBase:
         self._memory = SemioticMemory(None, [], self._settings)
         self._usage: dict[str, int] = {}
         self._metrics: dict[str, int] = {
-            "queries": 0, "ingests": 0, "record_outcomes": 0, "consolidations": 0,
+            "queries": 0,
+            "ingests": 0,
+            "record_outcomes": 0,
+            "consolidations": 0,
         }
 
     def ingest(self, texts: list[str]) -> None:
-        """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
+        """Add texts; reuses cached embeddings incrementally as an agent grows the KB in a loop."""
         if not texts:
             return
         self._texts.extend(texts)
@@ -101,7 +105,12 @@ class KnowledgeBase:
         self._memory._texts = list(self._texts)
 
     # --- helpers -------------------------------------------------------------
-    def _member_texts(self, node) -> list[str]:
+    def _require_pipeline(self) -> KnowledgePipeline:
+        if self._pipeline is None:
+            raise RuntimeError("pipeline is empty; ingest texts first")
+        return self._pipeline
+
+    def _member_texts(self, node: ConeNode) -> list[str]:
         out: list[str] = []
         for m in node.members:
             idx = phrase_to_text_index(m, len(self._texts))
@@ -109,27 +118,29 @@ class KnowledgeBase:
                 out.append(self._texts[idx])
         return out
 
-    def _primary_text(self, node) -> str:
+    def _primary_text(self, node: ConeNode) -> str:
         mt = self._member_texts(node)
         return mt[0] if mt else (node.digest or node.label or "")
 
-    def _node_uses(self, node) -> int:
+    def _node_uses(self, node: ConeNode) -> int:
         return sum(self._usage.get(t, 0) for t in self._member_texts(node))
 
-    def _resolve_top(self, query: str):
-        enc = self._pipeline._encoder
+    def _resolve_top(self, query: str) -> ConeNode | None:
+        pipe = self._require_pipeline()
+        enc = pipe._encoder
         q_vec = enc.encode([query])[0]
         prefix = Prefix(enc.dims[0])
-        ids = self._pipeline.query.knn(q_vec[:prefix], k=1, prefix=prefix)
-        return self._pipeline.store.get(ids[0]) if ids else None
+        ids = pipe.query.knn(q_vec[:prefix], k=1, prefix=prefix)
+        return pipe.store.get(ids[0]) if ids else None
 
-    def _ranked(self, query: str, k: int) -> list[tuple[Any, float]]:
+    def _ranked(self, query: str, k: int) -> list[tuple[ConeNode, float]]:
         """Candidate nodes with blended (relevance + usage) score, MMR-diversified to k."""
-        enc = self._pipeline._encoder
-        store = self._pipeline.store
+        pipe = self._require_pipeline()
+        enc = pipe._encoder
+        store = pipe.store
         a = self._settings.agent
         q_vec = enc.encode([query])[0]
-        scored: dict[str, float] = {}
+        scored: dict[NodeId, float] = {}
         if a.octave_fusion:
             for prefix in (Prefix(d) for d in enc.dims):
                 for rank, (nid, _s) in enumerate(store.knn_scored(q_vec[:prefix], k * 4, prefix)):
@@ -138,7 +149,7 @@ class KnowledgeBase:
             prefix = Prefix(enc.dims[0])
             for nid, s in store.knn_scored(q_vec[:prefix], k * 4, prefix):
                 scored[nid] = s
-        cands = []
+        cands: list[tuple[ConeNode, float]] = []
         for nid, base in scored.items():
             node = store.get(nid)
             if not node.members:
@@ -147,9 +158,11 @@ class KnowledgeBase:
         cands.sort(key=lambda t: t[1], reverse=True)
         return self._mmr(cands, k, a.mmr_lambda)
 
-    def _mmr(self, cands: list[tuple[Any, float]], k: int, lam: float) -> list[tuple[Any, float]]:
-        engine = self._pipeline.engine
-        selected: list[tuple[Any, float]] = []
+    def _mmr(
+        self, cands: list[tuple[ConeNode, float]], k: int, lam: float
+    ) -> list[tuple[ConeNode, float]]:
+        engine = self._require_pipeline().engine
+        selected: list[tuple[ConeNode, float]] = []
         seen_text: set[str] = set()
         pool = list(cands)
         while pool and len(selected) < k:
@@ -181,11 +194,15 @@ class KnowledgeBase:
         hits: list[SearchHit] = []
         for node, score in self._ranked(query, k):
             members = self._member_texts(node)
-            hits.append(SearchHit(
-                text=members[0] if members else self._primary_text(node),
-                score=float(score), node_id=str(node.id), octave=int(node.prefix),
-                members=tuple(members),
-            ))
+            hits.append(
+                SearchHit(
+                    text=members[0] if members else self._primary_text(node),
+                    score=float(score),
+                    node_id=str(node.id),
+                    octave=int(node.prefix),
+                    members=tuple(members),
+                )
+            )
         return hits
 
     def search_texts(self, query: str, k: int = 5) -> list[str]:
@@ -206,8 +223,11 @@ class KnowledgeBase:
             return DeepSearchResult((), (), ())
         r = self._settings.recursive
         engine = RecursiveAnswerEngine(
-            self._pipeline, max_depth=r.max_depth, max_breadth=r.max_breadth,
-            beam_k=r.beam_k, min_aperture_stop=r.min_aperture_stop,
+            self._pipeline,
+            max_depth=r.max_depth,
+            max_breadth=r.max_breadth,
+            beam_k=r.beam_k,
+            min_aperture_stop=r.min_aperture_stop,
         )
         result: RecursiveResult = engine.answer(query)
         return DeepSearchResult(
@@ -229,15 +249,21 @@ class KnowledgeBase:
         top = ranked[0][0]
         steps: list[RetrievalStep] = []
         for node, score in ranked:
-            steps.append(RetrievalStep(
-                text=self._primary_text(node), score=float(score), node_id=str(node.id),
-                octave=int(node.prefix),
-                containment_to_top=float(engine.contains(top, node)),
-                tension=float(engine.tension(top, node)) if node.id != top.id else 0.0,
-            ))
+            steps.append(
+                RetrievalStep(
+                    text=self._primary_text(node),
+                    score=float(score),
+                    node_id=str(node.id),
+                    octave=int(node.prefix),
+                    containment_to_top=float(engine.contains(top, node)),
+                    tension=float(engine.tension(top, node)) if node.id != top.id else 0.0,
+                )
+            )
         return steps
 
-    def build_context_pack(self, query: str, max_tokens: int, counter=None) -> ContextPack:
+    def build_context_pack(
+        self, query: str, max_tokens: int, counter: TokenCounter | None = None
+    ) -> ContextPack:
         """Budget-bounded, redundancy-free context pack mitigating context rot."""
         if not isinstance(max_tokens, int):
             raise ValueError("max_tokens must be an int")
@@ -247,16 +273,20 @@ class KnowledgeBase:
             return ContextPack()
         c = self._settings.context
         cfg = ContextPackConfig(
-            max_tokens=max_tokens, overlap_threshold=c.overlap_threshold,
+            max_tokens=max_tokens,
+            overlap_threshold=c.overlap_threshold,
             distance_summary_threshold=c.distance_summary_threshold,
-            max_members_per_node=c.max_members_per_node, reserve_tokens=c.reserve_tokens,
+            max_members_per_node=c.max_members_per_node,
+            reserve_tokens=c.reserve_tokens,
             max_dedup_candidates=c.max_dedup_candidates,
         )
-        return ContextPackBuilder(self._pipeline, self._texts, cfg, counter).build(query, max_tokens)
+        builder = ContextPackBuilder(self._pipeline, self._texts, cfg, counter)
+        return builder.build(query, max_tokens)
 
     # --- learning loop -------------------------------------------------------
-    def record_outcome(self, query: str, useful_texts: list[str],
-                       useless_texts: list[str] | None = None) -> dict[str, int]:
+    def record_outcome(
+        self, query: str, useful_texts: list[str], useless_texts: list[str] | None = None
+    ) -> dict[str, int]:
         """Feed back which retrieved texts proved useful; usage counts steer future ranking."""
         self._metrics["record_outcomes"] += 1
         known = set(self._texts)
@@ -265,7 +295,7 @@ class KnowledgeBase:
             if t in known:
                 self._usage[t] = self._usage.get(t, 0) + 1
                 applied += 1
-        for t in (useless_texts or []):
+        for t in useless_texts or []:
             if t in known and self._usage.get(t, 0) > 0:
                 self._usage[t] -= 1
         return {"applied": applied, "ignored": len(useful_texts) - applied}
@@ -280,8 +310,11 @@ class KnowledgeBase:
         nodes = store.all_nodes()
         scan = engine.tension_scan(nodes, top_n=len(nodes))
         thr = self._settings.agent.consolidate_tension
-        plan = [row for row in engine.dispel_plan(scan)
-                if any(s[0] == row[1] and s[1] == row[2] and s[2] >= thr for s in scan)]
+        plan = [
+            row
+            for row in engine.dispel_plan(scan)
+            if any(s[0] == row[1] and s[1] == row[2] and s[2] >= thr for s in scan)
+        ]
         actions = []
         for op, a_id, b_id in plan:
             if op == "merge":
@@ -296,8 +329,9 @@ class KnowledgeBase:
     def diagnose(self) -> DiagnoseReport:
         """Health snapshot an agent reads to decide when to consolidate or diversify ingest."""
         if self._pipeline is None:
-            return DiagnoseReport(0, 0, len(self._texts), len(self._memory.facts()),
-                                  0.0, 0.0, 0.0, 0)
+            return DiagnoseReport(
+                0, 0, len(self._texts), len(self._memory.facts()), 0.0, 0.0, 0.0, 0
+            )
         engine = self._pipeline.engine
         nodes = [n for n in self._pipeline.store.all_nodes() if n.members]
         octaves = len({n.prefix for n in nodes})
@@ -307,20 +341,30 @@ class KnowledgeBase:
         redundant = sum(1 for _, _, _, kind in scan if kind in ("redundancy", "contradiction"))
         energy = engine.context_energy(nodes[:32])
         return DiagnoseReport(
-            nodes=len(nodes), octaves=octaves, texts=len(self._texts),
-            facts=len(self._memory.facts()), mean_aperture=float(mean_ap),
-            mean_tension=float(mean_t), total_energy=float(energy), redundant_pairs=redundant,
+            nodes=len(nodes),
+            octaves=octaves,
+            texts=len(self._texts),
+            facts=len(self._memory.facts()),
+            mean_aperture=float(mean_ap),
+            mean_tension=float(mean_t),
+            total_energy=float(energy),
+            redundant_pairs=redundant,
         )
 
     def metrics(self) -> dict[str, int]:
         """Usage counters for agent monitoring."""
         m = dict(self._metrics)
-        m.update({"nodes": len(self._pipeline.store.all_nodes()) if self._pipeline else 0,
-                  "n_texts": len(self._texts), "n_facts": len(self._memory.facts())})
+        m.update(
+            {
+                "nodes": len(self._pipeline.store.all_nodes()) if self._pipeline else 0,
+                "n_texts": len(self._texts),
+                "n_facts": len(self._memory.facts()),
+            }
+        )
         return m
 
     # --- persistence ---------------------------------------------------------
-    def save(self, path: "str | os.PathLike[str]") -> None:
+    def save(self, path: str | os.PathLike[str]) -> None:
         """Persist texts, usage, facts, session, and a Settings snapshot for reproducible reload."""
         data = {
             "version": 1,
@@ -335,7 +379,7 @@ class KnowledgeBase:
             json.dump(data, f)
 
     @classmethod
-    def load(cls, path: "str | os.PathLike[str]", settings: Settings | None = None) -> "KnowledgeBase":
+    def load(cls, path: str | os.PathLike[str], settings: Settings | None = None) -> KnowledgeBase:
         """Reconstruct a KnowledgeBase from a save(); cones rebuilt deterministically from texts."""
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -372,12 +416,16 @@ class KnowledgeBase:
         if focus is None:
             return []
         engine = self._pipeline.engine
-        nodes = [n for n in self._pipeline.store.all_nodes()
-                 if n.prefix == focus.prefix and n.members]
+        nodes = [
+            n for n in self._pipeline.store.all_nodes() if n.prefix == focus.prefix and n.members
+        ]
         out: list[FlowNeighbor] = []
         for nid, weight, direction in engine.flow_neighbors(focus, nodes, k):
-            out.append(FlowNeighbor(self._primary_text(self._pipeline.store.get(nid)),
-                                    float(weight), direction))
+            out.append(
+                FlowNeighbor(
+                    self._primary_text(self._pipeline.store.get(nid)), float(weight), direction
+                )
+            )
         return out
 
     def scan_tension(self, top_n: int = 10) -> list[TensionPair]:
@@ -388,12 +436,18 @@ class KnowledgeBase:
         store = self._pipeline.store
         out: list[TensionPair] = []
         for a_id, b_id, tension, kind in engine.tension_scan(store.all_nodes(), top_n=top_n):
-            out.append(TensionPair(self._primary_text(store.get(a_id)),
-                                   self._primary_text(store.get(b_id)), float(tension), kind))
+            out.append(
+                TensionPair(
+                    self._primary_text(store.get(a_id)),
+                    self._primary_text(store.get(b_id)),
+                    float(tension),
+                    kind,
+                )
+            )
         return out
 
     def compress_context(self, query: str, k: int) -> CompressResult:
-        """Pick k energy-minimizing representatives over a candidate pool; report energy reduction."""
+        """Pick k energy-minimizing reps over a candidate pool; report energy reduction."""
         if k <= 0:
             raise ValueError("k must be positive")
         if self._pipeline is None or not query:
@@ -406,8 +460,9 @@ class KnowledgeBase:
         engine = self._pipeline.engine
         reps, coverage = engine.select_representatives(pool, k)
         base = engine.select_representatives(pool, 1)[1]
-        return CompressResult(tuple(self._primary_text(n) for n in reps),
-                              float(max(0.0, base - coverage)))
+        return CompressResult(
+            tuple(self._primary_text(n) for n in reps), float(max(0.0, base - coverage))
+        )
 
     # --- hierarchy / containment ---------------------------------------------
     def explain_hierarchy(self, query: str) -> dict[str, Any]:
@@ -418,8 +473,10 @@ class KnowledgeBase:
         if node is None:
             return {}
         return {
-            "node_id": str(node.id), "aperture": node.aperture,
-            "members": [str(m) for m in node.members], "label": node.label,
+            "node_id": str(node.id),
+            "aperture": node.aperture,
+            "members": [str(m) for m in node.members],
+            "label": node.label,
             "digest": node.digest,
         }
 

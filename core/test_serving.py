@@ -1,4 +1,5 @@
 """Tests for the FastAPI serving surface over a warm KnowledgeBase."""
+
 from __future__ import annotations
 
 import pytest
@@ -62,3 +63,22 @@ def test_search_validation_422() -> None:
     assert c.post("/search", json={"query": "", "k": 2}).status_code == 422
     assert c.post("/search", json={"query": "x", "k": 0}).status_code == 422
     assert c.post("/context_pack", json={"query": "x", "max_tokens": -1}).status_code == 422
+
+
+def test_resource_caps_422() -> None:
+    s = Settings()
+    s.cone.epochs = 4
+    s.agent.max_k = 5
+    s.agent.max_ingest_texts = 2
+    s.agent.max_text_chars = 10
+    s.agent.max_budget_tokens = 100
+    kb = KnowledgeBase(s)
+    kb.ingest(FACTS)
+    c = TestClient(create_app(s, kb))
+    assert c.post("/search", json={"query": "alpha", "k": 6}).status_code == 422
+    assert c.post("/ingest", json={"texts": ["a", "b", "c"]}).status_code == 422
+    assert c.post("/ingest", json={"texts": ["x" * 50]}).status_code == 422
+    assert c.post("/recall", json={"query": "a", "budget_tokens": 1000}).status_code == 422
+    assert c.post("/context_pack", json={"query": "a", "max_tokens": 1000}).status_code == 422
+    # within caps still passes
+    assert c.post("/search", json={"query": "alpha", "k": 2}).status_code == 200

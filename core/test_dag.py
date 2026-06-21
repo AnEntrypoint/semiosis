@@ -1,4 +1,5 @@
 """Integration tests for the Dagster DAG wiring (core/dag.py)."""
+
 from __future__ import annotations
 
 import pytest
@@ -18,9 +19,11 @@ FACTS = [
 
 def test_dag_helpers_materialize_store_snapshot() -> None:
     from core.settings import Settings
+
     settings = Settings()
     encoder = dag.build_encoder(settings)
     import numpy as np
+
     vecs = np.asarray(encoder.encode(FACTS), dtype=np.float32)
     nodes = dag.fit_octave_nodes(vecs, FACTS, list(encoder.dims), settings)
     assert nodes
@@ -32,6 +35,7 @@ def test_dag_helpers_materialize_store_snapshot() -> None:
 def test_dag_assets_run_end_to_end() -> None:
     pytest.importorskip("dagster")
     from dagster import materialize
+
     result = materialize(
         [dag.embeddings, dag.cone_nodes, dag.store_snapshot],
         run_config={"ops": {"embeddings": {"config": {"texts": FACTS}}}},

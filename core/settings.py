@@ -1,13 +1,15 @@
 """Typed, env-aware configuration -- validated at boot, overridable via env vars."""
+
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Env(str, Enum):
+class Env(StrEnum):
     dev = "dev"
     staging = "staging"
     prod = "prod"
@@ -70,12 +72,16 @@ class RecursiveSettings(BaseModel):
 
 
 class AgentSettings(BaseModel):
-    usage_weight: float = Field(0.0, ge=0.0)        # blend of usage feedback into ranking; 0 == pure relevance
+    usage_weight: float = Field(0.0, ge=0.0)  # usage-feedback blend into ranking; 0 == off
     mmr_lambda: float = Field(0.7, ge=0.0, le=1.0)  # 1.0 == pure relevance, lower == more diversity
-    octave_fusion: bool = False                     # fuse rankings across octaves (RRF)
-    incremental_ingest: bool = True                 # reuse cached embeddings on ingest
-    consolidate_tension: float = 0.3                # tension threshold above which consolidate acts
-    max_query_chars: int = Field(2048, ge=1)        # serving-side query length cap
+    octave_fusion: bool = False  # fuse rankings across octaves (RRF)
+    incremental_ingest: bool = True  # reuse cached embeddings on ingest
+    consolidate_tension: float = 0.3  # tension threshold above which consolidate acts
+    max_query_chars: int = Field(2048, ge=1)  # serving-side query length cap
+    max_ingest_texts: int = Field(10_000, ge=1)  # per-request ingest count cap
+    max_text_chars: int = Field(20_000, ge=1)  # per-text length cap on ingest
+    max_k: int = Field(1000, ge=1)  # upper bound on k/top_n result counts
+    max_budget_tokens: int = Field(1_000_000, ge=1)  # upper bound on recall budget
 
 
 class Settings(BaseSettings):
@@ -88,4 +94,4 @@ class Settings(BaseSettings):
     context: ContextSettings = ContextSettings()
     recursive: RecursiveSettings = RecursiveSettings()
     agent: AgentSettings = AgentSettings()
-    enable_nla_labels: bool = False            # optional, decoupled
+    enable_nla_labels: bool = False  # optional, decoupled

@@ -1,4 +1,5 @@
 """Tests for KnowledgeBase save/load session continuity."""
+
 from __future__ import annotations
 
 import os

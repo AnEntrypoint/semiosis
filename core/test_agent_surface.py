@@ -1,4 +1,5 @@
 """Tests for the agent-facing KnowledgeBase surface: typed hits, MMR, learning loop, diagnose."""
+
 from __future__ import annotations
 
 import pytest
@@ -6,13 +7,18 @@ import pytest
 torch = pytest.importorskip("torch")
 geoopt = pytest.importorskip("geoopt")
 
-from core.agent_api import KnowledgeBase, SearchHit, DiagnoseReport  # noqa: E402
+from core.agent_api import DiagnoseReport, KnowledgeBase, SearchHit  # noqa: E402
 from core.settings import Settings  # noqa: E402
 
 FACTS = [
-    "alpha unique term", "beta distinct phrase", "gamma separate idea",
-    "delta other concept", "epsilon final note", "zeta extra item",
-    "eta seventh thing", "theta eighth thing",
+    "alpha unique term",
+    "beta distinct phrase",
+    "gamma separate idea",
+    "delta other concept",
+    "epsilon final note",
+    "zeta extra item",
+    "eta seventh thing",
+    "theta eighth thing",
 ]
 
 

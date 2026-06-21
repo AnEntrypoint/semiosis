@@ -1,4 +1,5 @@
 """Property and edge-case tests for the token-budgeted context pack builder."""
+
 from __future__ import annotations
 
 import pytest

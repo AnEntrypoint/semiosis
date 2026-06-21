@@ -1,22 +1,25 @@
 """Core protocol interfaces -- contracts every module implements."""
+
 from __future__ import annotations
 
 import types
-from typing import Mapping, Protocol, runtime_checkable, Sequence, NewType
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import NewType, Protocol, runtime_checkable
+
 import numpy as np
 import numpy.typing as npt
 
 PhraseId = NewType("PhraseId", str)
 NodeId = NewType("NodeId", str)
-Prefix = NewType("Prefix", int)          # Matryoshka octave = embedding prefix length
-CommitId = NewType("CommitId", str)      # lakeFS/Deep Lake reproducibility handle
+Prefix = NewType("Prefix", int)  # Matryoshka octave = embedding prefix length
+CommitId = NewType("CommitId", str)  # lakeFS/Deep Lake reproducibility handle
 
 EuclideanVec = npt.NDArray[np.float32]
 LorentzVec = npt.NDArray[np.float64]
 
 
-def phrase_to_text_index(phrase_id: "PhraseId | str", n_texts: int) -> int | None:
+def phrase_to_text_index(phrase_id: PhraseId | str, n_texts: int) -> int | None:
     """Decode a PhraseId's trailing integer to a source-text index, or None if out of range."""
     tail = str(phrase_id).rsplit("_", 1)[-1]
     if not tail.isdigit():
@@ -36,18 +39,20 @@ class Phrase:
 @dataclass(frozen=True, slots=True)
 class ConeNode:
     """Apex (Lorentz manifold point) + half-aperture; parent-contains-child is the hierarchy."""
+
     id: NodeId
     apex: LorentzVec
     aperture: float
     prefix: Prefix
     members: tuple[PhraseId, ...]
     label: str | None = None
-    digest: str | None = None      # lightweight summary standing in for members at distance
-    pinned: bool = False           # explicit long-term fact, exempt from summary-collapse/eviction
-    centroid: tuple[float, ...] | None = None  # embedding-space member mean; retrieval ranks on this
+    digest: str | None = None  # lightweight summary standing in for members at distance
+    pinned: bool = False  # explicit long-term fact, exempt from summary-collapse/eviction
+    centroid: tuple[float, ...] | None = None  # embedding-space member mean; retrieval ranks here
 
     def __repr__(self) -> str:
-        return f"ConeNode(id={self.id!r}, aperture={self.aperture:.4f}, members={len(self.members)})"
+        n = len(self.members)
+        return f"ConeNode(id={self.id!r}, aperture={self.aperture:.4f}, members={n})"
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +82,7 @@ class HierarchicalClusterer(Protocol):
 @runtime_checkable
 class ConeEmbedder(Protocol):
     """Fits hyperbolic entailment cones from a cluster tree."""
+
     def fit(self, tree: ClusterTree) -> Sequence[ConeNode]: ...
     def contains(self, parent: ConeNode, child: ConeNode) -> float: ...
 
@@ -84,6 +90,7 @@ class ConeEmbedder(Protocol):
 @runtime_checkable
 class Store(Protocol):
     """Versioned persistence: HNSW over tangent-space projections, exact cone math on retrieval."""
+
     def write(self, nodes: Sequence[ConeNode], at: CommitId) -> CommitId: ...
     def knn(self, q: EuclideanVec, k: int, prefix: Prefix) -> Sequence[NodeId]: ...
     def upsert(self, node: ConeNode) -> None: ...
@@ -92,12 +99,14 @@ class Store(Protocol):
 @runtime_checkable
 class Labeler(Protocol):
     """Optional NLA post-hoc labeler -- the system is correct without it."""
+
     def label(self, node: ConeNode, members: Sequence[Phrase]) -> str: ...
 
 
 @runtime_checkable
 class Query(Protocol):
     """Unified query surface: knn, containment, analogy, overlap."""
+
     def knn(self, q: EuclideanVec, k: int, prefix: Prefix) -> Sequence[NodeId]: ...
     def containment_score(self, parent: NodeId, child: NodeId) -> float: ...
     def analogy(self, a: NodeId, b: NodeId, c: NodeId) -> Sequence[NodeId]: ...

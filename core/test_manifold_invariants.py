@@ -1,24 +1,35 @@
 """Property-based and integration tests for manifold invariants and cone engine."""
+
 from __future__ import annotations
 
 import pytest
 
 torch = pytest.importorskip("torch")
 geoopt = pytest.importorskip("geoopt")
-from hypothesis import given, settings, strategies as st  # noqa: E402
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
 
-from core.cone_engine import HyperbolicConeEngine, ConeFitConfig  # noqa: E402
+from core.cone_engine import ConeFitConfig, HyperbolicConeEngine  # noqa: E402
 from core.encoder import (  # noqa: E402
-    AgglomerativeClusterer, FixedClusterer, RandomEncoder, SentenceTransformerEncoder,
+    AgglomerativeClusterer,
+    FixedClusterer,
+    RandomEncoder,
+    SentenceTransformerEncoder,
 )
 from core.interfaces import (  # noqa: E402
-    ClusterTree, ConeNode, CommitId, NodeId, PhraseId, Prefix,
-    Encoder, HierarchicalClusterer, Store, Query,
+    ClusterTree,
+    CommitId,
+    Encoder,
+    HierarchicalClusterer,
+    NodeId,
+    PhraseId,
+    Prefix,
+    Query,
+    Store,
 )
-from core.serialization import cone_node_to_dict, cone_node_from_dict  # noqa: E402
+from core.serialization import cone_node_from_dict, cone_node_to_dict  # noqa: E402
 from core.settings import ConeSettings, Settings  # noqa: E402
-from core.store import InMemoryStore, InMemoryQuery  # noqa: E402
-
+from core.store import InMemoryQuery, InMemoryStore  # noqa: E402
 
 # --- manifold primitives ---
 
@@ -33,7 +44,7 @@ def test_expmap_logmap_roundtrip(scale: float, seed: int) -> None:
     m = geoopt.Lorentz(k=torch.tensor(1.0))
     x = m.random_normal((4, 6), std=0.1)
     v = torch.randn(4, 6) * scale
-    v = m.proju(x, v)                      # project to tangent space
+    v = m.proju(x, v)  # project to tangent space
     y = m.expmap(x, v)
     v_back = m.logmap(x, y)
     # float32 manifold ops accumulate ~1e-3 round-trip error; 1e-4 is too tight
@@ -47,7 +58,7 @@ def test_points_stay_on_manifold(seed: int) -> None:
     m = geoopt.Lorentz(k=torch.tensor(1.0))
     x = m.random_normal((8, 6), std=0.3)
     # Lorentzian norm of a hyperboloid point equals -1/k
-    ip = -x[:, 0] ** 2 + (x[:, 1:] ** 2).sum(-1)
+    ip = -(x[:, 0] ** 2) + (x[:, 1:] ** 2).sum(-1)
     assert torch.allclose(ip, torch.full_like(ip, -1.0), atol=1e-3)
 
 
@@ -204,12 +215,14 @@ def test_encoder_deterministic_per_text() -> None:
     v1 = enc.encode(["hello"])
     v2 = enc.encode(["hello"])
     import numpy as np
+
     assert np.allclose(v1, v2), "same text must produce same vector"
 
 
 def test_encoder_different_texts_differ() -> None:
     enc = RandomEncoder(octaves=(64,), seed=0)
     import numpy as np
+
     v_a = enc.encode(["alpha"])
     v_b = enc.encode(["beta"])
     assert not np.allclose(v_a, v_b), "distinct texts should yield distinct vectors"
@@ -235,7 +248,6 @@ def test_fixed_clusterer_satisfies_protocol() -> None:
 
 
 def test_end_to_end_pipeline_returns_float() -> None:
-    import numpy as np
     enc = RandomEncoder(octaves=(64,), seed=0)
     texts = ["draw call", "batched draw call"]
     vecs = enc.encode(texts)
@@ -257,6 +269,7 @@ def test_end_to_end_pipeline_returns_float() -> None:
 
 def test_batch_contains_shape() -> None:
     import numpy as np
+
     cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
     engine = HyperbolicConeEngine(cfg)
     nodes = list(engine.fit(_two_node_tree()))
@@ -337,8 +350,9 @@ def test_transitive_entailment_root_contains_leaf() -> None:
     by_id = {n.id: n for n in nodes}
     assert engine.contains(by_id[NodeId("root")], by_id[NodeId("mid")]) > 0
     assert engine.contains(by_id[NodeId("mid")], by_id[NodeId("leaf")]) > 0
-    assert engine.contains(by_id[NodeId("root")], by_id[NodeId("leaf")]) > 0, \
+    assert engine.contains(by_id[NodeId("root")], by_id[NodeId("leaf")]) > 0, (
         "close_transitivity must make root entail leaf"
+    )
 
 
 # --- close_transitivity ---
@@ -362,6 +376,7 @@ def test_close_transitivity_expands_ancestor_aperture() -> None:
 
 def test_close_transitivity_apex_unchanged() -> None:
     import numpy as np
+
     cfg = ConeFitConfig(epochs=50, dim=4, seed=2)
     engine = HyperbolicConeEngine(cfg)
     tree = _three_node_chain()
@@ -370,8 +385,7 @@ def test_close_transitivity_apex_unchanged() -> None:
     by_raw = {n.id: n for n in raw}
     by_closed = {n.id: n for n in closed}
     for nid in by_raw:
-        assert np.allclose(by_raw[nid].apex, by_closed[nid].apex), \
-            f"apex must not change for {nid}"
+        assert np.allclose(by_raw[nid].apex, by_closed[nid].apex), f"apex must not change for {nid}"
 
 
 def test_close_transitivity_cross_branch_unchanged() -> None:
@@ -384,8 +398,10 @@ def test_close_transitivity_cross_branch_unchanged() -> None:
     by_raw = {n.id: n for n in raw}
     by_closed = {n.id: n for n in closed}
     # texture is not an ancestor of draw_call; its aperture must not change from draw_call side
-    assert by_closed[NodeId("texture")].aperture == by_raw[NodeId("texture")].aperture or \
-        by_closed[NodeId("texture")].aperture >= by_raw[NodeId("texture")].aperture
+    assert (
+        by_closed[NodeId("texture")].aperture == by_raw[NodeId("texture")].aperture
+        or by_closed[NodeId("texture")].aperture >= by_raw[NodeId("texture")].aperture
+    )
     # astc is a leaf; aperture unchanged
     assert by_closed[NodeId("astc_texture")].aperture == by_raw[NodeId("astc_texture")].aperture
 
@@ -410,12 +426,14 @@ def test_settings_env_store_backend_override(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_cone_settings_rejects_zero_curvature() -> None:
     import pydantic
+
     with pytest.raises((pydantic.ValidationError, ValueError)):
         ConeSettings(curvature=0.0)
 
 
 def test_cone_settings_rejects_zero_dim() -> None:
     import pydantic
+
     with pytest.raises((pydantic.ValidationError, ValueError)):
         ConeSettings(dim=0)
 
@@ -427,6 +445,7 @@ def test_cone_settings_rejects_zero_dim() -> None:
 @given(seed=st.integers(0, 9999))
 def test_angle_at_in_valid_range(seed: int) -> None:
     import math
+
     torch.manual_seed(seed)
     m = geoopt.Lorentz(k=torch.tensor(1.0))
     a = m.random_normal((5, 6), std=0.3)
@@ -455,19 +474,22 @@ def test_half_aperture_at_or_above_floor(seed: int) -> None:
 
 def test_fit_reproducible_same_seed() -> None:
     import numpy as np
+
     cfg = ConeFitConfig(epochs=30, dim=4, seed=42)
     nodes_a = list(HyperbolicConeEngine(cfg).fit(_two_node_tree()))
     nodes_b = list(HyperbolicConeEngine(cfg).fit(_two_node_tree()))
     by_id_a = {n.id: n for n in nodes_a}
     by_id_b = {n.id: n for n in nodes_b}
     for nid in by_id_a:
-        assert np.allclose(by_id_a[nid].apex, by_id_b[nid].apex, atol=1e-5), \
+        assert np.allclose(by_id_a[nid].apex, by_id_b[nid].apex, atol=1e-5), (
             f"apex mismatch for {nid}: same seed must produce same result"
+        )
 
 
 def test_fit_reproducible_sequential_calls() -> None:
     # Two sequential fit() calls on the SAME engine must also reproduce.
     import numpy as np
+
     cfg = ConeFitConfig(epochs=20, dim=4, seed=7)
     engine = HyperbolicConeEngine(cfg)
     nodes_a = list(engine.fit(_two_node_tree()))
@@ -475,8 +497,9 @@ def test_fit_reproducible_sequential_calls() -> None:
     by_id_a = {n.id: n for n in nodes_a}
     by_id_b = {n.id: n for n in nodes_b}
     for nid in by_id_a:
-        assert np.allclose(by_id_a[nid].apex, by_id_b[nid].apex, atol=1e-5), \
+        assert np.allclose(by_id_a[nid].apex, by_id_b[nid].apex, atol=1e-5), (
             f"sequential fit() not reproducible for {nid}"
+        )
 
 
 # --- overlap_score symmetry ---
@@ -505,13 +528,15 @@ def test_overlap_score_self_is_max() -> None:
 
 def test_cluster_tree_assignments_immutable() -> None:
     import types as _types
+
     tree = ClusterTree(
         edges=((NodeId("a"), NodeId("b")),),
         assignments={PhraseId("p"): NodeId("a")},
         prefix=Prefix(64),
     )
-    assert isinstance(tree.assignments, _types.MappingProxyType), \
+    assert isinstance(tree.assignments, _types.MappingProxyType), (
         "assignments must be wrapped in MappingProxyType at construction"
+    )
     with pytest.raises(TypeError):
         tree.assignments[PhraseId("q")] = NodeId("b")  # type: ignore[index]
 
@@ -526,6 +551,7 @@ def test_in_memory_store_satisfies_protocol() -> None:
 
 def test_in_memory_store_write_and_knn() -> None:
     import numpy as np
+
     cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
     engine = HyperbolicConeEngine(cfg)
     nodes = list(engine.fit(_two_node_tree()))
@@ -539,7 +565,6 @@ def test_in_memory_store_write_and_knn() -> None:
 
 
 def test_in_memory_store_upsert() -> None:
-    import numpy as np
     cfg = ConeFitConfig(epochs=5, dim=4, seed=0)
     engine = HyperbolicConeEngine(cfg)
     nodes = list(engine.fit(_two_node_tree()))
@@ -590,6 +615,7 @@ def test_in_memory_query_overlap_nodes() -> None:
 
 def test_cone_node_round_trip() -> None:
     import numpy as np
+
     cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
     engine = HyperbolicConeEngine(cfg)
     original = list(engine.fit(_two_node_tree()))
@@ -605,6 +631,7 @@ def test_cone_node_round_trip() -> None:
 
 def test_cone_node_to_dict_json_serializable() -> None:
     import json
+
     cfg = ConeFitConfig(epochs=5, dim=4, seed=0)
     engine = HyperbolicConeEngine(cfg)
     nodes = list(engine.fit(_two_node_tree()))
@@ -680,6 +707,7 @@ def test_empty_tree_returns_no_nodes() -> None:
 
 def test_api_module_importable() -> None:
     from core import api  # noqa: F401 -- verifies the module parses cleanly
+
     assert hasattr(api, "create_app")
 
 
@@ -688,6 +716,7 @@ def test_api_module_importable() -> None:
 
 def test_dag_module_importable() -> None:
     from core import dag  # noqa: F401
+
     assert hasattr(dag, "_HAS_DAGSTER")
 
 
@@ -696,6 +725,7 @@ def test_dag_module_importable() -> None:
 
 def test_in_memory_store_save_load_roundtrip(tmp_path) -> None:
     import numpy as np
+
     cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
     engine = HyperbolicConeEngine(cfg)
     nodes = list(engine.fit(_two_node_tree()))
@@ -735,8 +765,8 @@ def test_five_level_chain_direct_edges_held() -> None:
     engine = HyperbolicConeEngine(cfg)
     by_id = {n.id: n for n in engine.fit(_five_node_chain())}
     for i in range(4):
-        margin = engine.contains(by_id[NodeId(f"l{i}")], by_id[NodeId(f"l{i+1}")])
-        assert margin > 0, f"l{i} should entail l{i+1}, margin={margin:.4f}"
+        margin = engine.contains(by_id[NodeId(f"l{i}")], by_id[NodeId(f"l{i + 1}")])
+        assert margin > 0, f"l{i} should entail l{i + 1}, margin={margin:.4f}"
 
 
 def test_five_level_chain_end_to_end_transitivity() -> None:
@@ -746,7 +776,7 @@ def test_five_level_chain_end_to_end_transitivity() -> None:
     nodes = engine.close_transitivity(list(engine.fit(tree)), list(tree.edges))
     by_id = {n.id: n for n in nodes}
     margin = engine.contains(by_id[NodeId("l0")], by_id[NodeId("l4")])
-    assert margin > 0, f"5-level transitivity: l0 must entail l4 after close_transitivity, margin={margin:.4f}"
+    assert margin > 0, f"5-level transitivity: l0 must entail l4 after close, margin={margin:.4f}"
 
 
 # --- fit_and_close convenience method ---
@@ -762,6 +792,7 @@ def test_fit_and_close_returns_list() -> None:
 
 def test_fit_and_close_matches_fit_then_close() -> None:
     import numpy as np
+
     cfg = ConeFitConfig(epochs=30, dim=4, seed=42)
     engine = HyperbolicConeEngine(cfg)
     tree = _two_node_tree()
@@ -781,7 +812,7 @@ def test_close_transitivity_idempotent() -> None:
     raw = list(engine.fit(tree))
     once = engine.close_transitivity(raw, list(tree.edges))
     twice = engine.close_transitivity(once, list(tree.edges))
-    for a, b in zip(once, twice):
+    for a, b in zip(once, twice, strict=True):
         assert a.id == b.id
         assert abs(a.aperture - b.aperture) < 1e-9
 
@@ -790,9 +821,14 @@ def test_close_transitivity_idempotent() -> None:
 
 
 def test_sentence_transformer_encoder_raises_without_package() -> None:
+    import importlib.util
     import sys
+
     # If sentence_transformers is already installed, skip this check.
-    if "sentence_transformers" in sys.modules or __import__("importlib").util.find_spec("sentence_transformers"):
+    installed = "sentence_transformers" in sys.modules or importlib.util.find_spec(
+        "sentence_transformers"
+    )
+    if installed:
         pytest.skip("sentence_transformers is installed; skipping guard test")
     with pytest.raises(RuntimeError, match="sentence-transformers"):
         SentenceTransformerEncoder()
@@ -808,6 +844,7 @@ def test_agglomerative_clusterer_satisfies_protocol() -> None:
 
 def test_agglomerative_clusterer_fit_returns_cluster_tree() -> None:
     import numpy as np
+
     rng = np.random.default_rng(0)
     vecs = rng.standard_normal((10, 64)).astype(np.float32)
     norms = np.linalg.norm(vecs, axis=1, keepdims=True)
@@ -824,6 +861,7 @@ def test_agglomerative_clusterer_fit_returns_cluster_tree() -> None:
 
 def test_agglomerative_clusterer_assignments_cover_all_docs() -> None:
     import numpy as np
+
     rng = np.random.default_rng(7)
     vecs = rng.standard_normal((20, 128)).astype(np.float32)
     ac = AgglomerativeClusterer(n_clusters=5)
@@ -836,7 +874,6 @@ def test_agglomerative_clusterer_assignments_cover_all_docs() -> None:
 
 def test_agglomerative_end_to_end_pipeline() -> None:
     # Encode -> cluster -> fit cones; verifies the full build-order-step-2 path.
-    import numpy as np
     enc = RandomEncoder(octaves=(64, 128), seed=0)
     texts = [f"term_{i}" for i in range(12)]
     vecs = enc.encode(texts)
@@ -857,7 +894,7 @@ def test_agglomerative_end_to_end_pipeline() -> None:
     curvature=st.floats(min_value=0.1, max_value=10.0),
     dim=st.integers(min_value=1, max_value=64),
     epochs=st.integers(min_value=1, max_value=1000),
-    seed=st.integers(min_value=0, max_value=2 ** 31 - 1),
+    seed=st.integers(min_value=0, max_value=2**31 - 1),
 )
 def test_from_settings_property_all_fields_roundtrip(
     curvature: float, dim: int, epochs: int, seed: int
@@ -920,5 +957,9 @@ def test_select_representatives_energy_monotone() -> None:
 def test_pair_kind_buckets_known() -> None:
     engine, nodes = _fitted_nodes()
     assert engine.pair_kind(nodes[0], nodes[1]) in (
-        "entailment", "redundancy", "contradiction", "independent", "aperture_degenerate"
+        "entailment",
+        "redundancy",
+        "contradiction",
+        "independent",
+        "aperture_degenerate",
     )

@@ -1,4 +1,5 @@
 """Tests for Encoder and HierarchicalClusterer implementations."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -62,6 +63,7 @@ def test_agglomerative_clusterer_all_assigned() -> None:
 def test_sentence_transformer_encoder_skip_if_absent() -> None:
     pytest.importorskip("sentence_transformers")
     from core.encoder import SentenceTransformerEncoder
+
     enc = SentenceTransformerEncoder(
         model_name="sentence-transformers/all-MiniLM-L6-v2",
         octaves=(64, 128),
