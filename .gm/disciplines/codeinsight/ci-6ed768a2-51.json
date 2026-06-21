@@ -1,0 +1,6 @@
+core/test_manifold_invariants.py:218:222 test_encoder_slice_shape
+def test_encoder_slice_shape() -> None:
+    enc = RandomEncoder(octaves=(64, 128), seed=0)
+    vecs = enc.encode(["hello", "world"])
+    sliced = enc.slice(vecs, Prefix(64))
+    assert sliced.shape == (2, 64)

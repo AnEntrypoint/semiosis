@@ -1,0 +1,4 @@
+core/test_encoder.py:11:13 test_random_encoder_dims
+def test_random_encoder_dims() -> None:
+    enc = RandomEncoder(octaves=(64, 128, 256))
+    assert list(enc.dims) == [Prefix(64), Prefix(128), Prefix(256)]

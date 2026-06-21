@@ -11,10 +11,19 @@ core/
   __init__.py
   interfaces.py          -- Protocols: Encoder, HierarchicalClusterer, ConeEmbedder,
                             Store, Labeler, Query + all shared dataclasses
-  cone_engine.py         -- HyperbolicConeEngine (ConeEmbedder impl, geoopt.Lorentz)
+  cone_engine.py         -- HyperbolicConeEngine + tension/flow/energy/dispel ops
+  semiotic_memory.py     -- SemioticMemory: ChatGPT 4-layer memory (facts/summaries/working/session)
+  context_pack.py        -- ContextPackBuilder: token-budgeted, overlap-deduped, distance-collapsed
+  recursive.py           -- RecursiveAnswerEngine: RLM octave-descent + query decomposition
+  agent_api.py           -- KnowledgeBase: search/deep_search/recall/navigate/scan_tension/
+                            build_context_pack/compress_context/remember/forget
   settings.py            -- Pydantic-settings Settings; sub-models are BaseModel
   test_manifold_invariants.py  -- property-based + integration tests
 ```
+
+Meaning-flow layer (maps three sources onto the cone structure): ChatGPT memory
+(`semiotic_memory.py`), context rot (`context_pack.py`), Recursive Language Models
+(`recursive.py`); tension/flow/energy primitives live on `cone_engine.py`.
 
 Root files `cone_engine.py`, `interfaces.py`, `settings.py`, `test_manifold_invariants.py`
 are stale copies superseded by `core/`; delete them.

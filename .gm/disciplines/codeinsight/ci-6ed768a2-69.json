@@ -1,0 +1,11 @@
+core/test_manifold_invariants.py:31:40 test_expmap_logmap_roundtrip
+def test_expmap_logmap_roundtrip(scale: float, seed: int) -> None:
+    torch.manual_seed(seed)
+    m = geoopt.Lorentz(k=torch.tensor(1.0))
+    x = m.random_normal((4, 6), std=0.1)
+    v = torch.randn(4, 6) * scale
+    v = m.proju(x, v)                      # project to tangent space
+    y = m.expmap(x, v)
+    v_back = m.logmap(x, y)
+    # float32 manifold ops accumulate ~1e-3 round-trip error; 1e-4 is too tight
+    assert torch.allclose(v, v_back, atol=1e-3), "expmap/logmap not inverse"

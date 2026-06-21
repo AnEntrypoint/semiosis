@@ -1,0 +1,15 @@
+core/test_encoder.py:62:75 test_sentence_transformer_encoder_skip_if_absent
+def test_sentence_transformer_encoder_skip_if_absent() -> None:
+    pytest.importorskip("sentence_transformers")
+    from core.encoder import SentenceTransformerEncoder
+    enc = SentenceTransformerEncoder(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        octaves=(64, 128),
+    )
+    vecs = enc.encode(["hello world"])
+    assert vecs.shape[0] == 1
+    assert vecs.shape[1] == 128
+    sliced = enc.slice(vecs[0], Prefix(64))
+    assert sliced.shape == (64,)
+    norm = float(np.linalg.norm(sliced))
+    assert abs(norm - 1.0) < 1e-5

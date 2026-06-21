@@ -72,3 +72,59 @@ def test_knowledge_base_empty_search() -> None:
     assert kb.search("anything") == []
     assert kb.explain_hierarchy("x") == {}
     assert kb.containment("a", "b") == 0.0
+
+
+def _kb() -> KnowledgeBase:
+    kb = KnowledgeBase()
+    kb.ingest(WEBGL_FACTS)
+    return kb
+
+
+def test_kb_deep_search_returns_bounded_evidence() -> None:
+    kb = _kb()
+    out = kb.deep_search("reduce draw calls and compress textures", k=3)
+    assert isinstance(out["texts"], list)
+    assert len(out["texts"]) <= 3
+
+
+def test_kb_navigate_returns_directions() -> None:
+    kb = _kb()
+    out = kb.navigate("texture", k=3)
+    assert all(d["direction"] in ("up", "down") for d in out)
+
+
+def test_kb_scan_tension_shape() -> None:
+    kb = _kb()
+    out = kb.scan_tension(top_n=3)
+    assert isinstance(out, list)
+    for row in out:
+        assert {"text_a", "text_b", "tension", "kind"} <= set(row)
+
+
+def test_kb_build_context_pack_respects_budget() -> None:
+    kb = _kb()
+    pack = kb.build_context_pack("draw call optimization", max_tokens=100)
+    assert pack.total_tokens <= 100
+
+
+def test_kb_recall_includes_pinned_fact() -> None:
+    kb = _kb()
+    kb.remember("user prefers ascii only", "p1")
+    block = kb.recall("draw call", budget_tokens=300)
+    assert "ascii" in block
+    assert kb.forget("p1") is True
+
+
+def test_kb_compress_context_reduces_energy() -> None:
+    kb = _kb()
+    out = kb.compress_context("gpu memory", k=2)
+    assert len(out["texts"]) <= 2
+    assert out["energy_reduction"] >= 0.0
+
+
+def test_kb_input_validation() -> None:
+    kb = _kb()
+    with pytest.raises(ValueError):
+        kb.search("x", k=0)
+    with pytest.raises(ValueError):
+        kb.build_context_pack("x", max_tokens=-1)

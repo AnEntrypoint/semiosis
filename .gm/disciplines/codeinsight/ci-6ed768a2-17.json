@@ -1,0 +1,9 @@
+core/test_manifold_invariants.py:642:649 test_contains_asymmetric
+def test_contains_asymmetric() -> None:
+    # contains(root, child) != contains(child, root) in general after training.
+    cfg = ConeFitConfig(epochs=200, dim=4, seed=1, lr=5e-3)
+    engine = HyperbolicConeEngine(cfg)
+    by_id = {n.id: n for n in engine.fit(_two_node_tree())}
+    fwd = engine.contains(by_id[NodeId("root")], by_id[NodeId("child")])
+    rev = engine.contains(by_id[NodeId("child")], by_id[NodeId("root")])
+    assert abs(fwd - rev) > 1e-6, "contains() should be asymmetric between parent and child"

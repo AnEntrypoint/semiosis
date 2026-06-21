@@ -1,0 +1,7 @@
+core/test_manifold_invariants.py:485:490 test_overlap_score_symmetric
+def test_overlap_score_symmetric() -> None:
+    cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    nodes = list(engine.fit(_two_node_tree()))
+    a, b = nodes[0], nodes[1]
+    assert abs(engine.overlap_score(a, b) - engine.overlap_score(b, a)) < 1e-9

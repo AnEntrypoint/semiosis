@@ -1,0 +1,12 @@
+core/test_manifold_invariants.py:655:665 test_single_node_tree_no_crash
+def test_single_node_tree_no_crash() -> None:
+    tree = ClusterTree(
+        edges=(),
+        assignments={PhraseId("solo_phrase"): NodeId("solo")},
+        prefix=Prefix(64),
+    )
+    cfg = ConeFitConfig(epochs=5, dim=4, seed=0)
+    nodes = list(HyperbolicConeEngine(cfg).fit(tree))
+    assert len(nodes) == 1
+    assert nodes[0].id == NodeId("solo")
+    assert nodes[0].aperture >= 0.1

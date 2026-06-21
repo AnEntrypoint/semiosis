@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:143:149 test_webgl_domain_parent_entails_child
+def test_webgl_domain_parent_entails_child() -> None:
+    # draw_call should entail batched_draw_call; texture should entail compressed_texture.
+    cfg = ConeFitConfig(epochs=800, dim=6, seed=3, lr=3e-3)
+    engine = HyperbolicConeEngine(cfg)
+    by_id = {n.id: n for n in engine.fit(_webgl_tree())}
+    assert engine.contains(by_id[NodeId("draw_call")], by_id[NodeId("batched_draw_call")]) > 0
+    assert engine.contains(by_id[NodeId("texture")], by_id[NodeId("compressed_texture")]) > 0

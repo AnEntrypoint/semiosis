@@ -1,0 +1,7 @@
+core/test_manifold_invariants.py:202:207 test_encoder_deterministic_per_text
+def test_encoder_deterministic_per_text() -> None:
+    enc = RandomEncoder(octaves=(64,), seed=1)
+    v1 = enc.encode(["hello"])
+    v2 = enc.encode(["hello"])
+    import numpy as np
+    assert np.allclose(v1, v2), "same text must produce same vector"

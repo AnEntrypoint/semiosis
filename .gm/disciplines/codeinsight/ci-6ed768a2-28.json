@@ -1,0 +1,12 @@
+core/test_manifold_invariants.py:506:516 test_cluster_tree_assignments_immutable
+def test_cluster_tree_assignments_immutable() -> None:
+    import types as _types
+    tree = ClusterTree(
+        edges=((NodeId("a"), NodeId("b")),),
+        assignments={PhraseId("p"): NodeId("a")},
+        prefix=Prefix(64),
+    )
+    assert isinstance(tree.assignments, _types.MappingProxyType), \
+        "assignments must be wrapped in MappingProxyType at construction"
+    with pytest.raises(TypeError):
+        tree.assignments[PhraseId("q")] = NodeId("b")  # type: ignore[index]

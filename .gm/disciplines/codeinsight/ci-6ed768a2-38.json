@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:396:399 test_settings_env_cone_epochs_override
+def test_settings_env_cone_epochs_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SC_CONE__EPOCHS", "42")
+    s = Settings()
+    assert s.cone.epochs == 42

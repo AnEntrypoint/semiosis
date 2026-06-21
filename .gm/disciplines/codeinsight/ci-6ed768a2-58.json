@@ -1,0 +1,9 @@
+core/test_manifold_invariants.py:152:159 test_webgl_domain_non_edge_not_entailed
+def test_webgl_domain_non_edge_not_entailed() -> None:
+    # draw_call should NOT entail texture (different branch).
+    cfg = ConeFitConfig(epochs=800, dim=6, seed=3, lr=3e-3)
+    engine = HyperbolicConeEngine(cfg)
+    by_id = {n.id: n for n in engine.fit(_webgl_tree())}
+    # cross-branch containment should be negative (not entailed)
+    margin = engine.contains(by_id[NodeId("draw_call")], by_id[NodeId("texture")])
+    assert margin < 0, f"draw_call should not entail texture, got margin={margin:.4f}"

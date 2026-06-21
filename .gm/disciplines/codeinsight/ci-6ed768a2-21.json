@@ -1,0 +1,14 @@
+core/test_manifold_invariants.py:591:603 test_cone_node_round_trip
+def test_cone_node_round_trip() -> None:
+    import numpy as np
+    cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    original = list(engine.fit(_two_node_tree()))
+    for node in original:
+        d = cone_node_to_dict(node)
+        restored = cone_node_from_dict(d)
+        assert restored.id == node.id
+        assert abs(restored.aperture - node.aperture) < 1e-9
+        assert restored.prefix == node.prefix
+        assert restored.members == node.members
+        assert np.allclose(restored.apex, node.apex)

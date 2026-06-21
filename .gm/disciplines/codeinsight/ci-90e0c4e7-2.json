@@ -1,0 +1,8 @@
+core/test_encoder.py:46:52 test_agglomerative_clusterer_returns_cluster_tree
+def test_agglomerative_clusterer_returns_cluster_tree() -> None:
+    enc = RandomEncoder(octaves=(64,), seed=0)
+    vecs = enc.encode([f"doc{i}" for i in range(10)])
+    clusterer = AgglomerativeClusterer(n_clusters=3)
+    tree = clusterer.fit(vecs, Prefix(64))
+    assert len(tree.edges) >= 1
+    assert len(tree.assignments) == 10

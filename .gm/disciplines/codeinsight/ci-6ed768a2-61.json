@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:113:119 test_contains_dtype_consistent
+def test_contains_dtype_consistent() -> None:
+    # contains() must return a plain float regardless of apex dtype in ConeNode.
+    cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    by_id = {n.id: n for n in engine.fit(_two_node_tree())}
+    margin = engine.contains(by_id[NodeId("root")], by_id[NodeId("child")])
+    assert type(margin) is float

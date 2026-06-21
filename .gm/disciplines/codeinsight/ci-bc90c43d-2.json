@@ -1,0 +1,5 @@
+core/test_store.py:40:43 test_knn_empty_store
+def test_knn_empty_store() -> None:
+    store = InMemoryStore()
+    q = np.zeros(8, dtype=np.float32)
+    assert store.knn(q, k=5, prefix=Prefix(8)) == []

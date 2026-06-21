@@ -1,0 +1,7 @@
+core/test_manifold_invariants.py:755:760 test_fit_and_close_returns_list
+def test_fit_and_close_returns_list() -> None:
+    cfg = ConeFitConfig(epochs=20, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    nodes = engine.fit_and_close(_two_node_tree())
+    assert isinstance(nodes, list)
+    assert len(nodes) == 2

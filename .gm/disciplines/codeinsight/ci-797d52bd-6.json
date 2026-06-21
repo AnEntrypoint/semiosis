@@ -1,0 +1,4 @@
+core/test_pipeline.py:26:28 test_pipeline_constructs_without_error
+def test_pipeline_constructs_without_error() -> None:
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    assert pipe.store.all_nodes()

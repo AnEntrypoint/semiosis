@@ -46,10 +46,7 @@ class FixedClusterer:
 
 
 class SentenceTransformerEncoder:
-    """Encoder wrapping a sentence-transformers model; requires the sentence-transformers package.
-
-    Re-normalizes Matryoshka sub-vectors after slicing so each prefix is a valid unit vector.
-    """
+    """Encoder wrapping a sentence-transformers model; renormalizes Matryoshka sub-vectors on slice."""
 
     def __init__(
         self,
@@ -91,11 +88,7 @@ class SentenceTransformerEncoder:
 
 
 class AgglomerativeClusterer:
-    """HierarchicalClusterer using scipy Ward agglomeration; satisfies the HierarchicalClusterer protocol.
-
-    Builds a two-level star tree: a synthetic root containing k flat clusters.
-    Requires scipy.
-    """
+    """HierarchicalClusterer via scipy Ward agglomeration; builds a root-over-k-clusters star tree."""
 
     def __init__(self, n_clusters: int = 16, linkage: str = "ward") -> None:
         self._n_clusters = n_clusters

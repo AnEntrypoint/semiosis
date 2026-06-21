@@ -1,0 +1,6 @@
+core/test_manifold_invariants.py:187:191 test_from_settings_override
+def test_from_settings_override() -> None:
+    s = ConeSettings(epochs=50, seed=7)
+    cfg = ConeFitConfig.from_settings(s)
+    assert cfg.epochs == 50
+    assert cfg.seed == 7

@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:417:420 test_cone_settings_rejects_zero_dim
+def test_cone_settings_rejects_zero_dim() -> None:
+    import pydantic
+    with pytest.raises((pydantic.ValidationError, ValueError)):
+        ConeSettings(dim=0)

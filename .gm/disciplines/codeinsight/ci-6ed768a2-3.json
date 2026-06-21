@@ -1,0 +1,15 @@
+core/test_manifold_invariants.py:809:822 test_agglomerative_clusterer_fit_returns_cluster_tree
+def test_agglomerative_clusterer_fit_returns_cluster_tree() -> None:
+    import numpy as np
+    rng = np.random.default_rng(0)
+    vecs = rng.standard_normal((10, 64)).astype(np.float32)
+    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+    vecs = vecs / norms
+    ac = AgglomerativeClusterer(n_clusters=3)
+    tree = ac.fit(vecs, Prefix(64))
+    assert isinstance(tree, ClusterTree)
+    # k <= n_clusters clusters under root
+    unique_children = {c for _, c in tree.edges}
+    assert len(unique_children) <= 3
+    # All 10 docs assigned
+    assert len(tree.assignments) == 10

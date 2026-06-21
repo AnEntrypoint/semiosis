@@ -1,7 +1,0 @@
-core/test_manifold_invariants.py:67:72 test_contains_returns_float
-def test_contains_returns_float() -> None:
-    cfg = ConeFitConfig(epochs=20, dim=4, seed=0)
-    engine = HyperbolicConeEngine(cfg)
-    by_id = {n.id: n for n in engine.fit(_two_node_tree())}
-    margin = engine.contains(by_id[NodeId("root")], by_id[NodeId("child")])
-    assert isinstance(margin, float)

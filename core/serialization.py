@@ -17,6 +17,8 @@ def cone_node_to_dict(node: ConeNode) -> dict[str, Any]:
         "prefix": int(node.prefix),
         "members": [str(m) for m in node.members],
         "label": node.label,
+        "digest": node.digest,
+        "pinned": bool(node.pinned),
     }
 
 
@@ -29,4 +31,6 @@ def cone_node_from_dict(d: dict[str, Any]) -> ConeNode:
         prefix=Prefix(int(d["prefix"])),
         members=tuple(PhraseId(str(m)) for m in d.get("members", [])),
         label=d.get("label"),
+        digest=d.get("digest"),
+        pinned=bool(d.get("pinned", False)),
     )

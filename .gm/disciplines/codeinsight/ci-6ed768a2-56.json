@@ -1,0 +1,4 @@
+core/test_manifold_invariants.py:182:184 test_from_settings_defaults_roundtrip
+def test_from_settings_defaults_roundtrip() -> None:
+    cfg = ConeFitConfig.from_settings(ConeSettings())
+    assert cfg == ConeFitConfig()

@@ -1,0 +1,6 @@
+core/test_encoder.py:22:26 test_random_encoder_slice
+def test_random_encoder_slice() -> None:
+    enc = RandomEncoder(octaves=(64, 128))
+    vecs = enc.encode(["test"])
+    sliced = enc.slice(vecs[0], Prefix(64))
+    assert sliced.shape == (64,)

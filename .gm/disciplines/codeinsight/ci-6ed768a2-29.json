@@ -1,0 +1,9 @@
+core/test_manifold_invariants.py:493:500 test_overlap_score_self_is_max
+def test_overlap_score_self_is_max() -> None:
+    # overlap(n, n) == contains(n, n), which should be aperture - 0 = aperture
+    cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    nodes = list(engine.fit(_two_node_tree()))
+    n = nodes[0]
+    self_score = engine.overlap_score(n, n)
+    assert isinstance(self_score, float)

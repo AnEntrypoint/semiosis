@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:85:91 test_parent_entails_child_after_fit
+def test_parent_entails_child_after_fit() -> None:
+    # After enough training, root should contain child (margin > 0).
+    cfg = ConeFitConfig(epochs=500, dim=4, seed=7, lr=5e-3)
+    engine = HyperbolicConeEngine(cfg)
+    by_id = {n.id: n for n in engine.fit(_two_node_tree())}
+    margin = engine.contains(by_id[NodeId("root")], by_id[NodeId("child")])
+    assert margin > 0, f"expected root to entail child after training, got margin={margin:.4f}"

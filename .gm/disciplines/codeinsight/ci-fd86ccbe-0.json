@@ -1,0 +1,4 @@
+core/dag.py:27:29 store_snapshot
+def store_snapshot(cone_nodes):  # noqa: F811
+        """Write cones to Store at a new CommitId; wire Store.write here."""
+        raise NotImplementedError("wire Store.write and CommitId here")

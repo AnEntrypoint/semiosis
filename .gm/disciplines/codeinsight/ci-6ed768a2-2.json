@@ -1,0 +1,11 @@
+core/test_manifold_invariants.py:825:834 test_agglomerative_clusterer_assignments_cover_all_docs
+def test_agglomerative_clusterer_assignments_cover_all_docs() -> None:
+    import numpy as np
+    rng = np.random.default_rng(7)
+    vecs = rng.standard_normal((20, 128)).astype(np.float32)
+    ac = AgglomerativeClusterer(n_clusters=5)
+    tree = ac.fit(vecs, Prefix(64))
+    assigned_ids = set(tree.assignments.values())
+    for _, child in tree.edges:
+        assert child in assigned_ids or child == NodeId("root") or True
+    assert len(tree.assignments) == 20

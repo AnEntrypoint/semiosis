@@ -16,6 +16,15 @@ EuclideanVec = npt.NDArray[np.float32]
 LorentzVec = npt.NDArray[np.float64]
 
 
+def phrase_to_text_index(phrase_id: "PhraseId | str", n_texts: int) -> int | None:
+    """Decode a PhraseId's trailing integer to a source-text index, or None if out of range."""
+    tail = str(phrase_id).rsplit("_", 1)[-1]
+    if not tail.isdigit():
+        return None
+    idx = int(tail)
+    return idx if 0 <= idx < n_texts else None
+
+
 @dataclass(frozen=True, slots=True)
 class Phrase:
     id: PhraseId
@@ -33,6 +42,8 @@ class ConeNode:
     prefix: Prefix
     members: tuple[PhraseId, ...]
     label: str | None = None
+    digest: str | None = None      # lightweight summary standing in for members at distance
+    pinned: bool = False           # explicit long-term fact, exempt from summary-collapse/eviction
 
     def __repr__(self) -> str:
         return f"ConeNode(id={self.id!r}, aperture={self.aperture:.4f}, members={len(self.members)})"

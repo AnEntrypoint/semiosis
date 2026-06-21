@@ -1,0 +1,11 @@
+core/serialization.py:23:32 cone_node_from_dict
+def cone_node_from_dict(d: dict[str, Any]) -> ConeNode:
+    """Reconstruct ConeNode from a dict produced by cone_node_to_dict."""
+    return ConeNode(
+        id=NodeId(str(d["id"])),
+        apex=np.array(d["apex"], dtype=np.float64),
+        aperture=float(d["aperture"]),
+        prefix=Prefix(int(d["prefix"])),
+        members=tuple(PhraseId(str(m)) for m in d.get("members", [])),
+        label=d.get("label"),
+    )

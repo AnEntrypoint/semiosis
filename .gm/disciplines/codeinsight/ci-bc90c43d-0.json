@@ -1,0 +1,10 @@
+core/test_store.py:53:61 test_save_load_roundtrip
+def test_save_load_roundtrip(tmp_path) -> None:
+    store = InMemoryStore()
+    nodes = [_make_node(f"m{i}") for i in range(3)]
+    store.write(nodes, CommitId("r1"))
+    path = tmp_path / "nodes.json"
+    store.save(path)
+    store2 = InMemoryStore()
+    store2.load(path)
+    assert set(store2._nodes.keys()) == set(store._nodes.keys())

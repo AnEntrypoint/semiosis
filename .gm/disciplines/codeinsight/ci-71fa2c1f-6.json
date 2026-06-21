@@ -1,5 +1,0 @@
-core/interfaces.py:42:45 ClusterTree
-class ClusterTree:
-    edges: tuple[tuple[NodeId, NodeId], ...]
-    assignments: dict[PhraseId, NodeId]
-    prefix: Prefix

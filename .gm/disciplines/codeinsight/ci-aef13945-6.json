@@ -1,0 +1,9 @@
+core/interfaces.py:42:49 ClusterTree
+class ClusterTree:
+    edges: tuple[tuple[NodeId, NodeId], ...]
+    assignments: Mapping[PhraseId, NodeId]
+    prefix: Prefix
+
+    def __post_init__(self) -> None:
+        # Wrap mutable dict in a read-only proxy; frozen=True only blocks reassignment.
+        object.__setattr__(self, "assignments", types.MappingProxyType(dict(self.assignments)))

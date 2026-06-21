@@ -1,0 +1,10 @@
+core/test_manifold_invariants.py:862:870 test_from_settings_property_all_fields_roundtrip
+def test_from_settings_property_all_fields_roundtrip(
+    curvature: float, dim: int, epochs: int, seed: int
+) -> None:
+    s = ConeSettings(curvature=curvature, dim=dim, epochs=epochs, seed=seed)
+    cfg = ConeFitConfig.from_settings(s)
+    assert cfg.curvature == s.curvature
+    assert cfg.dim == s.dim
+    assert cfg.epochs == s.epochs
+    assert cfg.seed == s.seed

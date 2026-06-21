@@ -1,0 +1,12 @@
+core/test_manifold_invariants.py:776:786 test_close_transitivity_idempotent
+def test_close_transitivity_idempotent() -> None:
+    # Applying close_transitivity twice should produce the same result.
+    cfg = ConeFitConfig(epochs=50, dim=4, seed=3)
+    engine = HyperbolicConeEngine(cfg)
+    tree = _three_node_chain()
+    raw = list(engine.fit(tree))
+    once = engine.close_transitivity(raw, list(tree.edges))
+    twice = engine.close_transitivity(once, list(tree.edges))
+    for a, b in zip(once, twice):
+        assert a.id == b.id
+        assert abs(a.aperture - b.aperture) < 1e-9

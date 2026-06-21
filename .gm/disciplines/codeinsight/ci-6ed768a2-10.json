@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:733:739 test_five_level_chain_direct_edges_held
+def test_five_level_chain_direct_edges_held() -> None:
+    cfg = ConeFitConfig(epochs=1200, dim=8, seed=11, lr=2e-3)
+    engine = HyperbolicConeEngine(cfg)
+    by_id = {n.id: n for n in engine.fit(_five_node_chain())}
+    for i in range(4):
+        margin = engine.contains(by_id[NodeId(f"l{i}")], by_id[NodeId(f"l{i+1}")])
+        assert margin > 0, f"l{i} should entail l{i+1}, margin={margin:.4f}"

@@ -1,0 +1,15 @@
+core/test_manifold_invariants.py:347:360 test_close_transitivity_expands_ancestor_aperture
+def test_close_transitivity_expands_ancestor_aperture() -> None:
+    cfg = ConeFitConfig(epochs=200, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    tree = _three_node_chain()
+    raw = list(engine.fit(tree))
+    closed = engine.close_transitivity(raw, list(tree.edges))
+    by_raw = {n.id: n for n in raw}
+    by_closed = {n.id: n for n in closed}
+    # root aperture must be >= raw aperture (may have been expanded)
+    assert by_closed[NodeId("root")].aperture >= by_raw[NodeId("root")].aperture
+    # mid aperture must be >= raw aperture
+    assert by_closed[NodeId("mid")].aperture >= by_raw[NodeId("mid")].aperture
+    # leaf has no descendants; aperture unchanged
+    assert by_closed[NodeId("leaf")].aperture == by_raw[NodeId("leaf")].aperture

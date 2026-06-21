@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:630:636 test_cone_node_repr_contains_id_and_aperture
+def test_cone_node_repr_contains_id_and_aperture() -> None:
+    cfg = ConeFitConfig(epochs=5, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    nodes = list(engine.fit(_two_node_tree()))
+    r = repr(nodes[0])
+    assert "ConeNode" in r
+    assert nodes[0].id in r

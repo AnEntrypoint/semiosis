@@ -44,10 +44,38 @@ class StoreSettings(BaseModel):
     lakefs_repo: str = "semantic-cones"
 
 
+class MemorySettings(BaseModel):
+    budget_tokens: int = Field(2048, ge=0)
+    digest_min_members: int = Field(2, ge=1)
+    digest_tau: float = 0.0
+    recency_lambda: float = Field(0.05, ge=0.0)
+    max_pinned: int = Field(64, ge=1)
+    summary_max_chars: int = Field(160, ge=8)
+
+
+class ContextSettings(BaseModel):
+    max_tokens: int = Field(2048, ge=0)
+    overlap_threshold: float = 0.5
+    distance_summary_threshold: float = 0.0
+    max_members_per_node: int = Field(4, ge=1)
+    reserve_tokens: int = Field(64, ge=0)
+    max_dedup_candidates: int = Field(256, ge=1)
+
+
+class RecursiveSettings(BaseModel):
+    max_depth: int = Field(4, ge=1)
+    max_breadth: int = Field(8, ge=1)
+    beam_k: int = Field(3, ge=1)
+    min_aperture_stop: float = Field(0.1, ge=0.0)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SC_", env_nested_delimiter="__")
     env: Env = Env.dev
     encoder: EncoderSettings = EncoderSettings()
     cone: ConeSettings = ConeSettings()
     store: StoreSettings = StoreSettings()
+    memory: MemorySettings = MemorySettings()
+    context: ContextSettings = ContextSettings()
+    recursive: RecursiveSettings = RecursiveSettings()
     enable_nla_labels: bool = False            # optional, decoupled

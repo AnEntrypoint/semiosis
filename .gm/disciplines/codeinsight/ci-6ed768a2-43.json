@@ -1,0 +1,14 @@
+core/test_manifold_invariants.py:315:327 _three_node_chain
+def _three_node_chain() -> ClusterTree:
+    return ClusterTree(
+        edges=(
+            (NodeId("root"), NodeId("mid")),
+            (NodeId("mid"), NodeId("leaf")),
+        ),
+        assignments={
+            PhraseId("p_root"): NodeId("root"),
+            PhraseId("p_mid"): NodeId("mid"),
+            PhraseId("p_leaf"): NodeId("leaf"),
+        },
+        prefix=Prefix(64),
+    )

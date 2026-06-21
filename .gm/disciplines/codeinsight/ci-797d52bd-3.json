@@ -1,0 +1,6 @@
+core/test_pipeline.py:48:52 test_knowledge_base_ingest_and_search
+def test_knowledge_base_ingest_and_search() -> None:
+    kb = KnowledgeBase()
+    kb.ingest(WEBGL_FACTS)
+    results = kb.search("draw call optimization", k=3)
+    assert isinstance(results, list)

@@ -1,0 +1,5 @@
+core/settings.py:10:13 Env
+class Env(str, Enum):
+    dev = "dev"
+    staging = "staging"
+    prod = "prod"

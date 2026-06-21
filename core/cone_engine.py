@@ -186,6 +186,191 @@ class HyperbolicConeEngine:
                     result.append((p, c))
         return result
 
+    # --- semiotic distancing: tension, flow, energy --------------------------
+    def containment_asymmetry(self, a: ConeNode, b: ConeNode) -> float:
+        """Signed entailment direction contains(a,b) - contains(b,a); >0 means a entails b."""
+        return float(self.contains(a, b) - self.contains(b, a))
+
+    def tension(self, a: ConeNode, b: ConeNode) -> float:
+        """High overlap with symmetric (ambiguous) containment = redundancy/contradiction tension."""
+        return float(self.overlap_score(a, b) - abs(self.containment_asymmetry(a, b)))
+
+    def pair_kind(
+        self,
+        a: ConeNode,
+        b: ConeNode,
+        min_overlap: float = 0.0,
+        dir_margin: float = 0.05,
+    ) -> str:
+        """Bucket a pair as entailment, redundancy, contradiction, or independent."""
+        overlap = self.overlap_score(a, b)
+        if overlap <= min_overlap:
+            return "independent"
+        if abs(a.aperture - _MIN_APERTURE) < _EPS and abs(b.aperture - _MIN_APERTURE) < _EPS:
+            return "aperture_degenerate"
+        asym = self.containment_asymmetry(a, b)
+        if abs(asym) > dir_margin:
+            return "entailment"
+        if self.contains(a, b) <= 0.0 and self.contains(b, a) <= 0.0:
+            return "contradiction"
+        return "redundancy"
+
+    def tension_scan(
+        self,
+        nodes: "Sequence[ConeNode]",
+        top_n: int = 10,
+        min_overlap: float = 0.0,
+        max_candidates: int = 256,
+    ) -> "list[tuple[NodeId, NodeId, float, str]]":
+        """Return the top_n worst (a_id, b_id, tension, kind) pairs sharing an octave."""
+        pool = list(nodes)[:max_candidates]
+        if len(pool) < 2:
+            return []
+        result: list[tuple[NodeId, NodeId, float, str]] = []
+        for i in range(len(pool)):
+            for j in range(i + 1, len(pool)):
+                a, b = pool[i], pool[j]
+                if a.prefix != b.prefix:
+                    continue
+                ov = self.overlap_score(a, b)
+                if ov <= min_overlap:
+                    continue
+                result.append((a.id, b.id, self.tension(a, b), self.pair_kind(a, b, min_overlap)))
+        result.sort(key=lambda t: t[2], reverse=True)
+        return result[:top_n]
+
+    def geodesic_distance(self, a: ConeNode, b: ConeNode) -> float:
+        """Guarded hyperbolic distance between two cone apices on the Lorentz manifold."""
+        pa = torch.from_numpy(a.apex).float()
+        pb = torch.from_numpy(b.apex).float()
+        return float(self.manifold.dist(pa, pb).item())
+
+    def flow_weight(self, focus: ConeNode, other: ConeNode) -> float:
+        """Entailment gradient: asymmetry per unit distance; sign gives flow direction."""
+        return float(self.containment_asymmetry(focus, other) / (self.geodesic_distance(focus, other) + _EPS))
+
+    def flow_neighbors(
+        self,
+        focus: ConeNode,
+        nodes: "Sequence[ConeNode]",
+        k: int = 5,
+    ) -> "list[tuple[NodeId, float, str]]":
+        """Rank neighbors by entailment gradient; direction down=focus-generalizes, up=focus-specializes."""
+        scored: list[tuple[NodeId, float, str]] = []
+        for n in nodes:
+            if n.id == focus.id:
+                continue
+            w = self.flow_weight(focus, n)
+            scored.append((n.id, w, "down" if w >= 0 else "up"))
+        scored.sort(key=lambda t: abs(t[1]), reverse=True)
+        return scored[:k]
+
+    def context_energy(self, nodes: "Sequence[ConeNode]") -> float:
+        """Semiotic spread = sum of pairwise geodesic distances of a context set."""
+        pool = list(nodes)
+        total = 0.0
+        for i in range(len(pool)):
+            for j in range(i + 1, len(pool)):
+                total += self.geodesic_distance(pool[i], pool[j])
+        return float(total)
+
+    def select_representatives(
+        self,
+        nodes: "Sequence[ConeNode]",
+        k: int,
+    ) -> "tuple[list[ConeNode], float]":
+        """Greedy farthest-point k-center; returns reps and coverage energy (sum min-dist to a rep)."""
+        pool = list(nodes)
+        if k <= 0 or not pool:
+            return [], 0.0
+        if k >= len(pool):
+            return pool, 0.0
+        reps = [pool[0]]
+        while len(reps) < k:
+            best, best_d = None, -1.0
+            for n in pool:
+                if any(n.id == r.id for r in reps):
+                    continue
+                d = min(self.geodesic_distance(n, r) for r in reps)
+                if d > best_d:
+                    best, best_d = n, d
+            if best is None:
+                break
+            reps.append(best)
+        coverage = sum(min(self.geodesic_distance(n, r) for r in reps) for n in pool)
+        return reps, float(coverage)
+
+    def energy_contribution(self, node: ConeNode, context: "Sequence[ConeNode]") -> float:
+        """Marginal energy a node adds = summed distance to the rest of the context set."""
+        return float(sum(self.geodesic_distance(node, o) for o in context if o.id != node.id))
+
+    def _lorentz_mean(self, apices: "Sequence[np.ndarray]") -> "np.ndarray":
+        """Euclidean-mean the apices then project back onto the hyperboloid (guarded centroid)."""
+        stacked = torch.from_numpy(np.stack(apices)).float()
+        mean = stacked.mean(dim=0)
+        proj = self.manifold.projx(mean)
+        return proj.detach().cpu().numpy().astype(np.float64)
+
+    # --- dispel operations ---------------------------------------------------
+    def merge_nodes(self, a: ConeNode, b: ConeNode) -> ConeNode:
+        """Collapse a redundant pair to one cone: midpoint apex, widest aperture, union members."""
+        import dataclasses
+        apex = self._lorentz_mean([a.apex, b.apex])
+        return dataclasses.replace(
+            a,
+            apex=apex,
+            aperture=max(a.aperture, b.aperture),
+            members=tuple(dict.fromkeys((*a.members, *b.members))),
+        )
+
+    def reparent(
+        self,
+        child: ConeNode,
+        candidates: "Sequence[ConeNode]",
+    ) -> "NodeId | None":
+        """Pick the candidate that most decisively entails child (max containment)."""
+        best, best_c = None, 0.0
+        for cand in candidates:
+            if cand.id == child.id:
+                continue
+            c = self.contains(cand, child)
+            if c > best_c:
+                best, best_c = cand.id, c
+        return best
+
+    def summarize_cluster(self, nodes: "Sequence[ConeNode]") -> "ConeNode | None":
+        """Synthesize one umbrella cone whose aperture is widened to contain every input."""
+        import dataclasses
+        pool = list(nodes)
+        if not pool:
+            return None
+        if len(pool) == 1:
+            return pool[0]
+        apex_np = self._lorentz_mean([n.apex for n in pool])
+        p = torch.from_numpy(apex_np).float().unsqueeze(0)
+        required = _MIN_APERTURE
+        for n in pool:
+            c = torch.from_numpy(n.apex).float().unsqueeze(0)
+            required = max(required, float(self._angle_at(p, c).item()))
+        members: tuple = ()
+        for n in pool:
+            members = (*members, *n.members)
+        return dataclasses.replace(
+            pool[0],
+            apex=apex_np,
+            aperture=required + _EPS,
+            members=tuple(dict.fromkeys(members)),
+            digest=None,
+        )
+
+    def dispel_plan(
+        self,
+        scan_result: "Sequence[tuple[NodeId, NodeId, float, str]]",
+    ) -> "list[tuple[str, NodeId, NodeId]]":
+        """Map each scanned pair's kind to a remediation op; coherent KB yields an empty plan."""
+        op = {"redundancy": "merge", "contradiction": "reparent", "aperture_degenerate": "summarize"}
+        return [(op[kind], a, b) for a, b, _t, kind in scan_result if kind in op]
+
     def fit_and_close(self, tree: ClusterTree) -> "list[ConeNode]":
         """Fit cones then close transitivity in one call; the recommended production API."""
         nodes = list(self.fit(tree))
@@ -196,13 +381,7 @@ class HyperbolicConeEngine:
         nodes: "Sequence[ConeNode]",
         edges: "Sequence[tuple[NodeId, NodeId]]",
     ) -> "list[ConeNode]":
-        """Expand apertures so cone containment closes over the transitive hull of edges.
-
-        The Ganea 2018 loss trains direct edges only; skip-N containment is not
-        guaranteed. This post-processing pass computes every node's full descendant
-        set and widens its aperture to cover the maximum geodesic angle to any
-        descendant. Apices are unchanged; only apertures grow.
-        """
+        """Widen apertures so containment closes over the transitive hull; apices unchanged."""
         import dataclasses
         from collections import defaultdict, deque
 

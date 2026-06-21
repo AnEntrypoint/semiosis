@@ -1,0 +1,8 @@
+core/test_pipeline.py:31:37 test_pipeline_knn_returns_node_ids
+def test_pipeline_knn_returns_node_ids() -> None:
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    enc = pipe._encoder
+    q = enc.encode(["reduce draw calls"])[0]
+    prefix = Prefix(enc.dims[0])
+    results = pipe.query.knn(q[:prefix], k=2, prefix=prefix)
+    assert len(results) >= 1

@@ -1,0 +1,12 @@
+core/test_manifold_invariants.py:720:730 _five_node_chain
+def _five_node_chain() -> ClusterTree:
+    return ClusterTree(
+        edges=(
+            (NodeId("l0"), NodeId("l1")),
+            (NodeId("l1"), NodeId("l2")),
+            (NodeId("l2"), NodeId("l3")),
+            (NodeId("l3"), NodeId("l4")),
+        ),
+        assignments={PhraseId(f"phrase_{i}"): NodeId(f"l{i}") for i in range(5)},
+        prefix=Prefix(64),
+    )

@@ -1,0 +1,12 @@
+core/test_store.py:11:21 _make_node
+def _make_node(nid: str, dim: int = 9, aperture: float = 0.3) -> ConeNode:
+    rng = np.random.default_rng(abs(hash(nid)) % (2**32))
+    apex = rng.standard_normal(dim)
+    apex[0] = np.sqrt(1.0 + (apex[1:] ** 2).sum())  # on hyperboloid
+    return ConeNode(
+        id=NodeId(nid),
+        apex=apex.astype(np.float64),
+        aperture=aperture,
+        prefix=Prefix(8),
+        members=(PhraseId(f"p_{nid}"),),
+    )

@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:792:798 test_sentence_transformer_encoder_raises_without_package
+def test_sentence_transformer_encoder_raises_without_package() -> None:
+    import sys
+    # If sentence_transformers is already installed, skip this check.
+    if "sentence_transformers" in sys.modules or __import__("importlib").util.find_spec("sentence_transformers"):
+        pytest.skip("sentence_transformers is installed; skipping guard test")
+    with pytest.raises(RuntimeError, match="sentence-transformers"):
+        SentenceTransformerEncoder()

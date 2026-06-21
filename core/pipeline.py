@@ -1,12 +1,13 @@
 """End-to-end knowledge pipeline: encode -> cluster -> fit cones -> store -> query."""
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from typing import Sequence
 
 from .cone_engine import ConeFitConfig, HyperbolicConeEngine
 from .encoder import AgglomerativeClusterer, RandomEncoder
-from .interfaces import CommitId, Prefix
+from .interfaces import CommitId, Prefix, phrase_to_text_index
 from .settings import Settings
 from .store import InMemoryQuery, InMemoryStore
 
@@ -20,6 +21,8 @@ class KnowledgePipeline:
         settings: Settings | None = None,
     ) -> None:
         cfg = settings or Settings()
+        self._settings = cfg
+        self._texts: list[str] = list(texts)
         try:
             from .encoder import SentenceTransformerEncoder
             self._encoder = SentenceTransformerEncoder(
@@ -53,9 +56,30 @@ class KnowledgePipeline:
         all_nodes: list = []
         for prefix in self._encoder.dims:
             tree = self._clusterer.fit(vecs, Prefix(prefix))
-            nodes = self._engine.fit(tree)
+            nodes = [self._digest(n) for n in self._engine.fit(tree)]
             all_nodes.extend(nodes)
         return self._store.write(all_nodes, commit_id)
+
+    def _digest(self, node):
+        """Backfill a lightweight digest for multi-member cones; lazy member-text fallback."""
+        mem = self._settings.memory
+        if len(node.members) <= mem.digest_min_members:
+            return node
+        parts: list[str] = []
+        for m in sorted(node.members):
+            idx = phrase_to_text_index(m, len(self._texts))
+            if idx is not None and self._texts[idx] not in parts:
+                parts.append(self._texts[idx])
+            if len(parts) >= 1:
+                break
+        head = parts[0] if parts else ""
+        extra = len(node.members) - 1
+        text = f"{head} (+{extra} more)" if extra > 0 else head
+        return dataclasses.replace(node, digest=text[:mem.summary_max_chars])
+
+    @property
+    def texts(self) -> list[str]:
+        return list(self._texts)
 
     def ingest(self, texts: Sequence[str]) -> CommitId:
         """Add more texts; rebuilds all octave clusters."""

@@ -1,0 +1,6 @@
+core/settings.py:40:44 StoreSettings
+class StoreSettings(BaseModel):
+    backend: Literal["memory", "qdrant", "pgvector"] = "memory"
+    hnsw_m: int = 16
+    hnsw_ef_construct: int = 200
+    lakefs_repo: str = "semantic-cones"

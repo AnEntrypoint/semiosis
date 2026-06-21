@@ -1,0 +1,4 @@
+core/test_manifold_invariants.py:689:691 test_dag_module_importable
+def test_dag_module_importable() -> None:
+    from core import dag  # noqa: F401
+    assert hasattr(dag, "_HAS_DAGSTER")

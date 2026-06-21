@@ -868,3 +868,57 @@ def test_from_settings_property_all_fields_roundtrip(
     assert cfg.dim == s.dim
     assert cfg.epochs == s.epochs
     assert cfg.seed == s.seed
+
+
+# --- tension, flow, and energy (semiotic distancing) ---
+
+
+def _fitted_nodes() -> list:
+    cfg = ConeFitConfig(epochs=20, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    return engine, list(engine.fit(_two_node_tree()))
+
+
+def test_tension_is_symmetric() -> None:
+    engine, nodes = _fitted_nodes()
+    a, b = nodes[0], nodes[1]
+    assert abs(engine.tension(a, b) - engine.tension(b, a)) < 1e-6
+
+
+def test_containment_asymmetry_antisymmetric() -> None:
+    engine, nodes = _fitted_nodes()
+    a, b = nodes[0], nodes[1]
+    assert abs(engine.containment_asymmetry(a, b) + engine.containment_asymmetry(b, a)) < 1e-6
+
+
+def test_geodesic_distance_self_zero() -> None:
+    engine, nodes = _fitted_nodes()
+    assert engine.geodesic_distance(nodes[0], nodes[0]) < 1e-4
+
+
+def test_tension_scan_under_two_nodes_empty() -> None:
+    engine, nodes = _fitted_nodes()
+    assert engine.tension_scan(nodes[:1]) == []
+
+
+def test_flow_neighbors_directions_valid() -> None:
+    engine, nodes = _fitted_nodes()
+    for _nid, _w, direction in engine.flow_neighbors(nodes[0], nodes, k=5):
+        assert direction in ("up", "down")
+
+
+def test_select_representatives_energy_monotone() -> None:
+    cfg = ConeFitConfig(epochs=20, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    nodes = list(engine.fit(_webgl_tree()))
+    if len(nodes) >= 3:
+        _, cov2 = engine.select_representatives(nodes, 2)
+        _, cov3 = engine.select_representatives(nodes, 3)
+        assert cov3 <= cov2 + 1e-6
+
+
+def test_pair_kind_buckets_known() -> None:
+    engine, nodes = _fitted_nodes()
+    assert engine.pair_kind(nodes[0], nodes[1]) in (
+        "entailment", "redundancy", "contradiction", "independent", "aperture_degenerate"
+    )

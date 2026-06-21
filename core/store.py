@@ -50,6 +50,20 @@ class InMemoryStore:
     def all_nodes(self) -> list[ConeNode]:
         return list(self._nodes.values())
 
+    def nodes_at(self, prefix: Prefix) -> list[ConeNode]:
+        """Return nodes belonging to one Matryoshka octave (prefix)."""
+        return [n for n in self._nodes.values() if n.prefix == prefix]
+
+    def members_to_nodes(self, prefix: Prefix) -> dict[PhraseId, NodeId]:
+        """Reverse map PhraseId -> NodeId at a given octave; the recurse-into-members edge."""
+        out: dict[PhraseId, NodeId] = {}
+        for n in self._nodes.values():
+            if n.prefix != prefix:
+                continue
+            for m in n.members:
+                out[m] = n.id
+        return out
+
     def save(self, path: "str | os.PathLike[str]") -> None:
         """Write all nodes to a JSON file; lossless via cone_node_to_dict."""
         data = [cone_node_to_dict(n) for n in self._nodes.values()]
@@ -90,4 +104,12 @@ class InMemoryQuery:
         return [
             c.id for c in self._store.all_nodes()
             if c.id != node and self._engine.overlap_score(n, c) > threshold
+        ]
+
+    def tension_nodes(self, node: NodeId, threshold: float) -> Sequence[NodeId]:
+        """Return same-octave nodes whose semantic tension with node exceeds threshold."""
+        n = self._store.get(node)
+        return [
+            c.id for c in self._store.all_nodes()
+            if c.id != node and c.prefix == n.prefix and self._engine.tension(n, c) > threshold
         ]

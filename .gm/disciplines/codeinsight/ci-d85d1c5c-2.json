@@ -1,0 +1,10 @@
+core/encoder.py:37:45 FixedClusterer
+class FixedClusterer:
+    """HierarchicalClusterer that wraps a pre-built ClusterTree; for pipeline testing."""
+
+    def __init__(self, tree: ClusterTree) -> None:
+        self._tree = tree
+
+    def fit(self, vecs: EuclideanVec, prefix: Prefix) -> ClusterTree:
+        """Return the fixed tree, ignoring vecs (vecs are unused in stub)."""
+        return self._tree

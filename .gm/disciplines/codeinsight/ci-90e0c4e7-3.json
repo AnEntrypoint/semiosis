@@ -1,0 +1,6 @@
+core/test_encoder.py:36:40 test_random_encoder_unit_vectors
+def test_random_encoder_unit_vectors() -> None:
+    enc = RandomEncoder(octaves=(128,))
+    vecs = enc.encode(["a", "b", "c"])
+    norms = np.linalg.norm(vecs, axis=1)
+    np.testing.assert_allclose(norms, 1.0, atol=1e-6)

@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:107:110 test_fit_single_epoch_no_crash
+def test_fit_single_epoch_no_crash() -> None:
+    cfg = ConeFitConfig(epochs=1, dim=4, seed=0)
+    nodes = HyperbolicConeEngine(cfg).fit(_two_node_tree())
+    assert len(nodes) == 2

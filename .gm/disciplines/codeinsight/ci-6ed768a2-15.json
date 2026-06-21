@@ -1,0 +1,6 @@
+core/test_manifold_invariants.py:671:675 test_empty_tree_returns_no_nodes
+def test_empty_tree_returns_no_nodes() -> None:
+    tree = ClusterTree(edges=(), assignments={}, prefix=Prefix(64))
+    cfg = ConeFitConfig(epochs=5, dim=4, seed=0)
+    nodes = list(HyperbolicConeEngine(cfg).fit(tree))
+    assert nodes == []
