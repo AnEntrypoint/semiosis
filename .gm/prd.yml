@@ -1164,3 +1164,63 @@
   witness_type: design
   status: completed
   witness: 'Workflow subagents produced 39 intuition insights with mechanisms and agent interpretations. Insights cover: aperture as uncertainty, tension as information loss, octaves as semantic granularity, containment as entailment, RRF as multi-head routing, decomposition as octave routing, descent depth as coherence threshold, gating as search reduction, entropy as density, context packing as IB compression, memory layers as attention, aperture floor as stability, beam search as parallel hypotheses, visited set as dedup, cone energy as alignment, manifold curvature, prefix slicing, MMR scoring, centroid as proxy, digests as semiotic distancing, incremental ingest, learning loop entropy signals, retrieval trace as transparency, aperture phase transitions, overlap penalty, rotational invariance, gradient clipping, negative sampling, margin as confidence, seed as reproducibility, octave affinity, adaptive depth budgeting, member count as richness, pinned nodes as anchors, digest as compression token, label as semantic handle, prefix as octave boundary, dual-layer semantics (cone vs centroid), convergence as energy stability'
+- id: production-scaling-100k-nodes
+  title: 'Production: Scale Beyond 100K Nodes'
+  description: 'Current pipeline fits in memory. Production: handle 100k+ nodes via streaming fit, lakeFS versioning, distributed cone fitting. Formalize: batch-fit strategy, incremental node registration, checkpoint/restore protocol. Agent learns: when/how to trigger refit, data locality concerns.'
+  status: pending
+- id: adversarial-robustness-queries
+  title: 'Robustness: Adversarial Query Attacks'
+  description: 'Agent should detect queries designed to break system: exact-match-to-corpus queries (embedding collapse), semantic poisoning (contradictory claims), hierarchical confusion (circular queries). Formalize: adversarial detector, confidence downgrade on suspicious patterns, fallback to broader context.'
+  status: pending
+- id: hardware-acceleration-gpu
+  title: 'Optimization: GPU-Accelerated Cone Fitting'
+  description: 'Current fit via torch on CPU. Production: move to GPU (CUDA/ROCm). Formalize: batched distance/aperture ops, manifold math kernels, memory-efficient streaming. Agent learns: when speedup justifies GPU overhead, kernel selection per cone structure.'
+  status: pending
+- id: cross-modal-retrieval
+  title: 'Learning: Cross-Modal Hierarchies (Text+Image+Audio)'
+  description: 'Current: text-only embeddings. Extension: fuse modalities at cone level. Formalize: multi-encoder (text/image/audio), shared aperture/containment space, multi-modal member clustering. Agent learns: which modal matters for queries, modality-specific aperture tuning.'
+  status: pending
+- id: empirical-validation-benchmarks
+  title: 'Validation: Comprehensive Benchmark Suite'
+  description: 'No current system benchmarks on standard retrieval datasets. Create: SQuAD, MS MARCO, Natural Questions benchmarks + semiosis-specific KB evaluation. Formalize: baseline comparisons (BM25, dense retrieval, hierarchical baselines), metric suite (recall@k, MRR, NDCG per octave).'
+  status: pending
+- id: distributed-cone-trees
+  title: 'Row: distributed-cone-trees'
+  description: 'Session 3: distributed-cone-trees production/scaling/advanced aspect'
+  status: pending
+- id: sparse-indexing
+  title: 'Row: sparse-indexing'
+  description: 'Session 3: sparse-indexing production/scaling/advanced aspect'
+  status: pending
+- id: realtime-ingestion
+  title: 'Row: realtime-ingestion'
+  description: 'Session 3: realtime-ingestion production/scaling/advanced aspect'
+  status: pending
+- id: knowledge-graph-integration
+  title: 'Row: knowledge-graph-integration'
+  description: 'Session 3: knowledge-graph-integration production/scaling/advanced aspect'
+  status: pending
+- id: active-learning-loop
+  title: 'Row: active-learning-loop'
+  description: 'Session 3: active-learning-loop production/scaling/advanced aspect'
+  status: pending
+- id: semantic-versioning
+  title: 'Row: semantic-versioning'
+  description: 'Session 3: semantic-versioning production/scaling/advanced aspect'
+  status: pending
+- id: batch-retrieval-optimization
+  title: 'Row: batch-retrieval-optimization'
+  description: 'Session 3: batch-retrieval-optimization production/scaling/advanced aspect'
+  status: pending
+- id: cone-visualizer
+  title: 'Row: cone-visualizer'
+  description: 'Session 3: cone-visualizer production/scaling/advanced aspect'
+  status: pending
+- id: interactive-feedback
+  title: 'Row: interactive-feedback'
+  description: 'Session 3: interactive-feedback production/scaling/advanced aspect'
+  status: pending
+- id: loop-learning-diagnostics
+  title: 'Row: loop-learning-diagnostics'
+  description: 'Session 3: loop-learning-diagnostics production/scaling/advanced aspect'
+  status: pending
