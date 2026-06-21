@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:876:879 _fitted_nodes
+def _fitted_nodes() -> list:
+    cfg = ConeFitConfig(epochs=20, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    return engine, list(engine.fit(_two_node_tree()))

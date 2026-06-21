@@ -1,0 +1,5 @@
+core/test_context_pack.py:78:81 test_render_is_string
+def test_render_is_string() -> None:
+    kb = _kb()
+    pack = kb.build_context_pack("draw call", max_tokens=256)
+    assert isinstance(pack.render(), str)

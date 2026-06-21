@@ -1,0 +1,7 @@
+core/test_recursive.py:40:45 test_answer_merges_subqueries
+def test_answer_merges_subqueries() -> None:
+    eng = _engine()
+    result = eng.answer("draw calls and texture memory")
+    assert len(result.sub_answers) == 2
+    ids = list(result.evidence_node_ids)
+    assert len(ids) == len(set(ids))

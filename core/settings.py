@@ -69,6 +69,15 @@ class RecursiveSettings(BaseModel):
     min_aperture_stop: float = Field(0.1, ge=0.0)
 
 
+class AgentSettings(BaseModel):
+    usage_weight: float = Field(0.0, ge=0.0)        # blend of usage feedback into ranking; 0 == pure relevance
+    mmr_lambda: float = Field(0.7, ge=0.0, le=1.0)  # 1.0 == pure relevance, lower == more diversity
+    octave_fusion: bool = False                     # fuse rankings across octaves (RRF)
+    incremental_ingest: bool = True                 # reuse cached embeddings on ingest
+    consolidate_tension: float = 0.3                # tension threshold above which consolidate acts
+    max_query_chars: int = Field(2048, ge=1)        # serving-side query length cap
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SC_", env_nested_delimiter="__")
     env: Env = Env.dev
@@ -78,4 +87,5 @@ class Settings(BaseSettings):
     memory: MemorySettings = MemorySettings()
     context: ContextSettings = ContextSettings()
     recursive: RecursiveSettings = RecursiveSettings()
+    agent: AgentSettings = AgentSettings()
     enable_nla_labels: bool = False            # optional, decoupled

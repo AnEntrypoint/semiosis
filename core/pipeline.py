@@ -5,6 +5,8 @@ import dataclasses
 import uuid
 from typing import Sequence
 
+import numpy as np
+
 from .cone_engine import ConeFitConfig, HyperbolicConeEngine
 from .encoder import AgglomerativeClusterer, RandomEncoder
 from .interfaces import CommitId, Prefix, phrase_to_text_index
@@ -46,19 +48,47 @@ class KnowledgePipeline:
         self._engine = HyperbolicConeEngine(cone_cfg)
         self._store = InMemoryStore()
         self._query = InMemoryQuery(self._store, self._engine)
+        self._vec_cache: dict[str, np.ndarray] = {}
+        self._commit: CommitId | None = None
 
         if texts:
-            self._ingest(list(texts))
+            self._rebuild()
 
-    def _ingest(self, texts: list[str]) -> CommitId:
-        vecs = self._encoder.encode(texts)
+    def _encode_cached(self, texts: list[str]) -> np.ndarray:
+        """Encode only texts absent from the cache; assemble the full matrix in order."""
+        missing = [t for t in dict.fromkeys(texts) if t not in self._vec_cache]
+        if missing:
+            vecs = self._encoder.encode(missing)
+            for t, v in zip(missing, vecs):
+                self._vec_cache[t] = np.asarray(v, dtype=np.float32)
+        return np.stack([self._vec_cache[t] for t in texts])
+
+    def _rebuild(self) -> CommitId:
+        """Rebuild all octave cones over the full corpus, reusing cached embeddings."""
+        vecs = self._encode_cached(self._texts)
+        n = max(1, len(self._texts))
+        self._clusterer = AgglomerativeClusterer(n_clusters=min(n, 16))
+        self._store = InMemoryStore()
+        self._query = InMemoryQuery(self._store, self._engine)
         commit_id = CommitId(str(uuid.uuid4()))
         all_nodes: list = []
         for prefix in self._encoder.dims:
             tree = self._clusterer.fit(vecs, Prefix(prefix))
-            nodes = [self._digest(n) for n in self._engine.fit(tree)]
+            nodes = [self._centroid(self._digest(n), vecs, Prefix(prefix))
+                     for n in self._engine.fit(tree)]
             all_nodes.extend(nodes)
-        return self._store.write(all_nodes, commit_id)
+        self._store.write(all_nodes, commit_id)
+        self._commit = commit_id
+        return commit_id
+
+    def _centroid(self, node, vecs: np.ndarray, prefix: Prefix):
+        """Attach the embedding-space mean of a node's members (prefix-sliced) for retrieval."""
+        idxs = [phrase_to_text_index(m, len(self._texts)) for m in node.members]
+        idxs = [i for i in idxs if i is not None]
+        if not idxs:
+            return node
+        c = vecs[idxs, :int(prefix)].mean(axis=0)
+        return dataclasses.replace(node, centroid=tuple(float(x) for x in c))
 
     def _digest(self, node):
         """Backfill a lightweight digest for multi-member cones; lazy member-text fallback."""
@@ -81,9 +111,14 @@ class KnowledgePipeline:
     def texts(self) -> list[str]:
         return list(self._texts)
 
+    @property
+    def commit(self) -> "CommitId | None":
+        return self._commit
+
     def ingest(self, texts: Sequence[str]) -> CommitId:
-        """Add more texts; rebuilds all octave clusters."""
-        return self._ingest(list(texts))
+        """Append texts and rebuild over the full corpus, reusing cached embeddings."""
+        self._texts.extend(texts)
+        return self._rebuild()
 
     @property
     def query(self) -> InMemoryQuery:

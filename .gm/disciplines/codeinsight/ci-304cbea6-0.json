@@ -1,0 +1,3 @@
+core/test_recursive.py:54:55 _DummyNone
+class _DummyNone:
+    store = None

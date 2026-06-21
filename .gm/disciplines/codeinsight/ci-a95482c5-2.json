@@ -1,0 +1,7 @@
+core/test_pipeline.py:110:115 test_kb_recall_includes_pinned_fact
+def test_kb_recall_includes_pinned_fact() -> None:
+    kb = _kb()
+    kb.remember("user prefers ascii only", "p1")
+    block = kb.recall("draw call", budget_tokens=300)
+    assert "ascii" in block
+    assert kb.forget("p1") is True

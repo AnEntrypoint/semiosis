@@ -1,0 +1,7 @@
+core/test_memory.py:32:37 test_budget_zero_keeps_pinned_fact
+def test_budget_zero_keeps_pinned_fact() -> None:
+    kb = KnowledgeBase()
+    kb.ingest(FACTS)
+    kb.remember("pinned fact text", "p1")
+    block = kb.recall("anything", budget_tokens=0)
+    assert "pinned fact text" in block

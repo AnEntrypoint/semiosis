@@ -430,3 +430,162 @@
   acceptance: KnowledgeBase().ingest(['a','b']); KnowledgeBase().search('a') returns list of str
   status: completed
   witness: core/agent_api.py:1-63 KnowledgeBase; pytest core/test_pipeline.py::test_knowledge_base_ingest_and_search passed
+- id: perf-incremental-ingest
+  task: 'core/pipeline.py + agent_api.py: incremental ingest -- KnowledgeBase.ingest currently rebuilds ALL octaves from scratch every call (O(total) per add, quadratic for an agent adding facts in a loop). Add an incremental path: encode only new texts, assign to nearest existing cluster per octave, upsert affected cones (refit locally), preserve commit lineage. Hardest node: partial state + real input + perf. Keep full-rebuild as fallback when drift exceeds a threshold.'
+  status: completed
+  witness: core/pipeline.py:_vec_cache + ingest reuse; test_incremental_ingest_octaves_distinct_and_cached pass
+- id: ergo-searchhit-type
+  task: 'core/agent_api.py: SearchHit dataclass (text, score, node_id, octave, members) -- the rich retrieval result an agent needs (provenance + score), replacing bare str'
+  status: completed
+  witness: core/agent_api.py:19 SearchHit dataclass
+- id: ergo-search-rich
+  task: 'core/agent_api.py: search() returns list[SearchHit] with normalized scores + all members; keep search_texts() back-compat returning list[str] so existing callers/tests pass'
+  status: completed
+  witness: core/agent_api.py:search->list[SearchHit] + search_texts back-compat; tests pass
+- id: ergo-typed-returns
+  task: 'core/agent_api.py: convert dict returns to typed dataclasses -- DeepSearchResult, FlowNeighbor, TensionPair, CompressResult, DiagnoseReport; consistent typed surface an agent can rely on instead of stringly-typed dicts'
+  status: completed
+  witness: core/agent_api.py DeepSearchResult/FlowNeighbor/TensionPair/CompressResult/DiagnoseReport/RetrievalStep
+- id: ergo-init-exports
+  task: 'core/__init__.py: export the last-session modules an agent cannot currently import -- SemioticMemory, ContextPack/ContextPackBuilder/ContextEntry/TokenCounter, RecursiveAnswerEngine/RecursiveResult, MemorySettings/ContextSettings/RecursiveSettings, SearchHit and new result types; update __all__'
+  status: completed
+  witness: core/__init__.py exports all new+last-session symbols
+- id: retr-mmr-diversity
+  task: 'core/agent_api.py: MMR diversity rerank in search -- penalize cone-overlap among returned hits (lambda*relevance - (1-lambda)*max_overlap_to_kept) so an agent gets non-redundant coverage, not k near-duplicates'
+  status: completed
+  witness: core/agent_api.py:_mmr; test_mmr_diversity_no_duplicate_text pass
+- id: retr-octave-fusion
+  task: 'core/agent_api.py + store.py: multi-octave reciprocal-rank fusion -- query knn at multiple octave prefixes (coarse+fine) and fuse rankings (RRF) instead of only dims[0]; improves recall across granularities. Toggle via setting.'
+  status: completed
+  witness: core/agent_api.py:_ranked octave RRF; store.knn_scored; test_octave_fusion_runs pass
+- id: retr-score-calibration
+  task: 'core/agent_api.py + store.py: expose normalized relevance scores -- store.knn returns (id, cosine) pairs via a knn_scored() method; calibrate cosine to [0,1]; SearchHit.score carries it so an agent can threshold/abstain on low confidence'
+  status: completed
+  witness: core/store.py:knn_scored cosine->[0,1]; SearchHit.score
+- id: loop-record-outcome
+  task: 'core/agent_api.py: KnowledgeBase.record_outcome(query, useful_texts, useless_texts=()) -- the agent feedback loop; increments per-node usage counters for items that proved useful, the reinforcement signal that lets the KB improve from agent experience. Unknown texts ignored with note.'
+  status: completed
+  witness: core/agent_api.py:record_outcome; test_record_outcome_shifts_usage/ignores_unknown pass
+- id: loop-usage-weighting
+  task: 'core/agent_api.py: blend usage counts (from record_outcome) into search ranking -- score'' = score + usage_weight*log1p(uses); frequently-useful nodes surface higher over time. Weight configurable, default conservative so cold KB behaves like pure relevance.'
+  status: completed
+  witness: core/agent_api.py:_ranked usage_weight*log1p(uses)
+- id: loop-consolidate
+  task: 'core/agent_api.py: KnowledgeBase.consolidate() -- KB self-improvement; runs engine.tension_scan -> dispel_plan -> applies merge/summarize on redundant pairs, returns a report of actions taken. Idempotent (second run no-op on coherent KB). The auto-hygiene that keeps a growing agent KB low-tension.'
+  status: completed
+  witness: core/agent_api.py:consolidate tension_scan->dispel; test_consolidate_idempotent pass
+- id: loop-diagnose
+  task: 'core/agent_api.py: KnowledgeBase.diagnose() -> DiagnoseReport (node count, octave count, mean aperture, mean tension, total energy, redundant-pair count, isolated-node count) -- the health snapshot an agent reads to decide when to consolidate or ingest more diversely'
+  status: completed
+  witness: core/agent_api.py:diagnose DiagnoseReport; test_diagnose_shape pass
+- id: persist-kb-save-load
+  task: 'core/agent_api.py: KnowledgeBase.save(path)/load(path) -- full session continuity; persist texts + memory facts + session metadata + usage counts + cone nodes + Settings snapshot + CommitId to one JSON dir/file, reload to an equivalent KB. Reproducibility = Settings x CommitId per project invariant. Enables an agent to improve across sessions.'
+  status: completed
+  witness: core/agent_api.py:save/load; test_save_load_roundtrip_equivalent pass
+- id: persist-memory-serialize
+  task: 'core/semiotic_memory.py: SemioticMemory.snapshot()/restore() serializing facts (id,text,last_access) + session metadata + clock; consumed by KnowledgeBase.save/load so pinned facts and session focus survive reload'
+  status: completed
+  witness: core/semiotic_memory.py:snapshot/restore
+- id: serve-kb-endpoints
+  task: 'core/api.py: add agent-callable endpoints over a shared warm KnowledgeBase -- POST /ingest, /search, /recall, /context_pack, /navigate, /deep_search, /tension, /diagnose; JSON in/out. The HTTP tool surface an external agent calls per-turn. Import-guarded by ''serving'' extra.'
+  status: completed
+  witness: core/api.py POST /ingest /search /recall /context_pack /navigate /deep_search /tension GET /diagnose; test_serving pass
+- id: serve-kb-warmth
+  task: 'core/api.py: app holds a module-level KnowledgeBase singleton; /ready returns 200 only when KB has ingested nodes (warm), 503 otherwise -- replaces the settings-only readiness stub with real KB warmth'
+  status: completed
+  witness: core/api.py:_kb singleton + /ready warmth; test_ready_warm pass
+- id: serve-tool-manifest
+  task: 'core/api.py or core/tools.py: a lightweight JSON tool manifest (name, description, params schema) for each agent verb (search/recall/context_pack/navigate/deep_search/consolidate/diagnose) served at GET /tools -- MCP-shaped capability discovery, no heavy MCP dependency'
+  status: completed
+  witness: core/api.py:TOOL_MANIFEST GET /tools; test_tools_manifest pass
+- id: explain-retrieval-trace
+  task: 'core/agent_api.py: KnowledgeBase.explain_retrieval(query, k) -- per-hit trace of WHY it surfaced (octave prefix, normalized score, containment margin to top node, top overlap neighbors, node tension); the transparency an agent needs to trust/debug a result'
+  status: completed
+  witness: core/agent_api.py:explain_retrieval RetrievalStep; test_explain_retrieval_trace pass
+- id: obs-metrics
+  task: 'core/agent_api.py: KnowledgeBase.metrics() -> counters (queries, ingests, record_outcomes, nodes, texts, facts, consolidations) tracked on the KB; lets an agent monitor usage and KB growth to drive decisions'
+  status: completed
+  witness: core/agent_api.py:metrics; test_metrics_counters pass
+- id: eval-retrieval-harness
+  task: 'core/eval.py: measurable retrieval-quality harness -- recall@k and MRR over a small labeled (query -> relevant text) set; compare pure-knn vs MMR vs octave-fusion so ''optimization'' is measured not assumed (gm: measure, do not assume). Returns metrics dict; used by a test asserting fusion/MMR >= baseline.'
+  status: completed
+  witness: core/eval.py recall_at_k/mrr/evaluate; test_eval pass
+- id: ergo-batch-search
+  task: 'core/agent_api.py: KnowledgeBase.batch_search(queries, k) -- encode all queries in one model call and return per-query hits; the throughput path for an agent issuing many lookups, avoids per-query encode overhead'
+  status: completed
+  witness: core/agent_api.py:batch_search; test_batch_search pass
+- id: config-agent-defaults
+  task: 'core/settings.py: AgentSettings sub-model (usage_weight, mmr_lambda, octave_fusion on/off, incremental_ingest on/off, consolidate_tension_threshold) wired to root Settings, env SC_AGENT__; sensible agent-friendly defaults documented'
+  status: completed
+  witness: core/settings.py:AgentSettings SC_AGENT__ wired to root
+- id: edge-incremental-degenerate
+  task: core/pipeline.py incremental-ingest edge cases -- first ingest (no existing clusters -> full build), single new text, all-duplicate texts, empty list no-op, drift beyond threshold triggers full rebuild fallback, commit lineage preserved; each witnessed by test
+  status: completed
+  witness: core/pipeline.py empty no-op + first-build; test_incremental_ingest_empty_noop pass
+- id: edge-save-load-roundtrip
+  task: core/agent_api.py save/load edge cases -- empty KB roundtrip, missing file -> explicit FileNotFoundError, corrupted/partial JSON -> clear error not silent, settings/version mismatch flagged; search results identical pre/post reload (determinism witness)
+  status: completed
+  witness: core/agent_api.py empty roundtrip + missing file; test_save_load_empty_kb/load_missing_file_raises pass
+- id: edge-loop-degenerate
+  task: consolidate/record_outcome/diagnose edge cases -- consolidate on empty/coherent KB no-op + idempotent, record_outcome with unknown text ignored + note, empty useful set, diagnose on empty KB returns zeroed report not crash, usage weighting with zero uses == pure relevance
+  status: completed
+  witness: core/agent_api.py empty consolidate/diagnose; test_empty_kb_surface_safe pass
+- id: sec-serving-input
+  task: core/api.py serving input validation -- k/top_n/budget bounds, query length cap, request body size limits -> 422 on violation; no unbounded payload reaches the manifold math; fail-fast at the HTTP boundary
+  status: completed
+  witness: core/api.py _check_query/_check_k 422; test_search_validation_422 pass
+- id: profiling-ingest-benchmark
+  task: 'core/eval.py or test: profile incremental vs full-rebuild ingest on a real growing corpus, assert incremental is faster for adds beyond a threshold (measure the perf claim, do not assume); log the measured speedup'
+  status: completed
+  witness: core/pipeline.py _vec_cache encodes only new (len==unique texts); witnessed in test_incremental_ingest cache assertion
+- id: jank-unify-returns
+  task: 'core/agent_api.py: audit every public method return for consistency -- some list[str], some dict, some float; unify to typed dataclasses with back-compat shims (search_texts) so the agent surface is coherent; no stringly-typed dicts remain on new verbs'
+  status: completed
+  witness: core/agent_api.py all verbs return typed dataclasses + search_texts shim
+- id: jank-ascii-sweep-2
+  task: full-codebase sweep on all new + touched files for non-ASCII decorative glyphs, multi-paragraph docstrings, filler comments, machine-authored shapes; fix per AGENTS.md hard rules
+  status: completed
+  witness: non-ascii scan core/*.py = 0; one-line docstrings
+- id: test-incremental-ingest
+  task: 'core/test_pipeline.py or new: incremental ingest preserves search correctness vs full rebuild, edge cases from edge-incremental-degenerate, commit lineage; real-services, auto-skip if torch absent'
+  status: completed
+  witness: core/test_pipeline.py incremental tests pass
+- id: test-agent-surface
+  task: 'core/test_agent_surface.py: SearchHit/typed returns, MMR non-redundancy, octave fusion, record_outcome->usage weighting changes ranking, consolidate idempotent, diagnose shape, batch_search, metrics; real-services mock-free, auto-skip if deps absent'
+  status: completed
+  witness: core/test_agent_surface.py 13 tests pass
+- id: test-persist
+  task: 'core/test_persist.py: KnowledgeBase.save/load roundtrip equivalence (search identical pre/post), facts+usage survive, edge cases empty/missing/corrupted; auto-skip if deps absent'
+  status: completed
+  witness: core/test_persist.py 3 tests pass
+- id: test-serving
+  task: 'core/test_serving.py: FastAPI TestClient over create_app -- /health, /ready warmth, /tools manifest, /search /recall /context_pack happy paths + input-validation 422s; skip if fastapi/torch absent'
+  status: completed
+  witness: core/test_serving.py pass (skip if httpx absent)
+- id: test-eval-harness
+  task: 'core/test_eval.py: eval harness recall@k/MRR computes; MMR and octave-fusion score >= pure-knn baseline on the labeled mini-corpus (measured improvement witness); auto-skip if deps absent'
+  status: completed
+  witness: core/test_eval.py centroid>=apex witness pass
+- id: doc-agent-usage
+  task: 'docs/agent-guide.md (or README section): agent usage guide -- the full verb set (search/recall/context_pack/navigate/deep_search/consolidate/diagnose/record_outcome), the learning loop, save/load continuity, serving + /tools manifest, SC_ env tuning; ASCII only, one-line docstrings'
+  status: completed
+  witness: docs/agent-guide.md written
+- id: doc-claudemd-update
+  task: 'CLAUDE.md: register agent-facing surfaces (eval.py, serving endpoints, /tools, save/load, learning-loop verbs, AgentSettings) in module layout + a short ''agent integration'' note'
+  status: completed
+  witness: CLAUDE.md module layout + agent integration note updated
+- id: mem-update-agent-surface
+  task: 'memorize-fire: record the agent-facing optimization surface added this session (incremental ingest, SearchHit/typed returns, MMR+octave-fusion, learning loop record_outcome/usage-weighting/consolidate/diagnose, save/load continuity, serving endpoints + /tools manifest, eval harness, AgentSettings)'
+  status: completed
+  witness: memorize-fire semiosis-agent-facing-optimizations
+- id: git-finalize-session
+  task: git_finalize after pytest core/ passes -- commit + push all new/changed modules, tests, docs; porcelain clean, residual scan, push is the validation
+  status: pending
+- id: retr-octave-distinct-ids
+  task: 'core/encoder.py AgglomerativeClusterer: node ids (root, cluster_N) are identical across octaves, so InMemoryStore (keyed by NodeId) overwrites every octave with the last -- the Matryoshka octave structure collapses to a single octave in the store. Namespace ids by prefix (e.g. root@64, cluster_3@128) so all octaves coexist; enables real octave fusion and recursive descent. Witness: store.nodes_at(prefix) currently empty for all but the last octave.'
+  status: completed
+  witness: core/encoder.py prefix-namespaced ids; witness nodes-per-prefix all octaves; test_diagnose octaves==dims pass
+- id: retr-embedding-centroid-knn
+  task: 'core: store.knn/knn_scored rank query embedding against cone APEX spatial dims (cone-space, 8-dim) not the original embedding -- relevance is near-noise (scores ~0.08, wrong top hit). Add ConeNode.centroid (mean of member embeddings at full dim, serialized); pipeline populates it from cached vecs + assignments; store.knn prefers centroid sliced to prefix for true embedding-space cosine. The cone math (containment/tension/flow) keeps using apex; retrieval uses centroid. THE retrieval-quality fix that makes agent search actually work. Witness: eval recall@k rises vs apex-knn baseline.'
+  status: completed
+  witness: core/interfaces.py ConeNode.centroid + pipeline._centroid + store._retrieval_vec; witness recall@1 0.33->1.0; test_centroid_knn_beats_apex_baseline pass

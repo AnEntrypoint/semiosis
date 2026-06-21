@@ -104,8 +104,8 @@ class AgglomerativeClusterer:
         k = min(self._n_clusters, max(1, n - 1))
         Z = _linkage(X, method=self._linkage)
         labels = fcluster(Z, k, criterion="maxclust")
-        cluster_ids = {int(c): NodeId(f"cluster_{c}") for c in np.unique(labels)}
-        root = NodeId("root")
+        cluster_ids = {int(c): NodeId(f"cluster_{c}@{int(prefix)}") for c in np.unique(labels)}
+        root = NodeId(f"root@{int(prefix)}")
         edges = tuple((root, cid) for cid in cluster_ids.values())
         assignments = {
             PhraseId(f"doc_{i}"): cluster_ids[int(labels[i])] for i in range(n)

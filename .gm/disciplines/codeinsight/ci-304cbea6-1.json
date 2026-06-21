@@ -1,0 +1,5 @@
+core/test_recursive.py:48:51 test_empty_pipeline_returns_empty
+def test_empty_pipeline_returns_empty() -> None:
+    kb = KnowledgeBase()
+    eng = RecursiveAnswerEngine(kb._pipeline or _DummyNone())
+    assert eng.answer("x").evidence_node_ids == ()

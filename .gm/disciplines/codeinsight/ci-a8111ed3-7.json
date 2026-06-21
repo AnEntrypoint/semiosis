@@ -1,0 +1,14 @@
+core/interfaces.py:37:49 ConeNode
+class ConeNode:
+    """Apex (Lorentz manifold point) + half-aperture; parent-contains-child is the hierarchy."""
+    id: NodeId
+    apex: LorentzVec
+    aperture: float
+    prefix: Prefix
+    members: tuple[PhraseId, ...]
+    label: str | None = None
+    digest: str | None = None      # lightweight summary standing in for members at distance
+    pinned: bool = False           # explicit long-term fact, exempt from summary-collapse/eviction
+
+    def __repr__(self) -> str:
+        return f"ConeNode(id={self.id!r}, aperture={self.aperture:.4f}, members={len(self.members)})"

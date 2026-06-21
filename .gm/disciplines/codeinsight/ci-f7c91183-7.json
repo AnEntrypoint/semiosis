@@ -1,0 +1,3 @@
+core/test_context_pack.py:28:29 test_heuristic_counter_positive
+def test_heuristic_counter_positive() -> None:
+    assert HeuristicTokenCounter().count("hello world") >= 1

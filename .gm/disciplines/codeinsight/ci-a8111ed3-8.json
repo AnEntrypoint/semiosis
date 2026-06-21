@@ -1,0 +1,6 @@
+core/interfaces.py:29:33 Phrase
+class Phrase:
+    id: PhraseId
+    text: str
+    span: tuple[int, int]
+    granularity: str

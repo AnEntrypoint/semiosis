@@ -1,0 +1,5 @@
+core/test_recursive.py:34:37 test_answer_terminates_with_bounded_depth
+def test_answer_terminates_with_bounded_depth() -> None:
+    eng = _engine()
+    result = eng.answer("compress textures")
+    assert result.depth_reached <= 3

@@ -33,13 +33,35 @@ class InMemoryStore:
         q_flat = np.asarray(q, dtype=np.float32).ravel()[:prefix]
         scores: list[tuple[float, NodeId]] = []
         for nid, node in self._nodes.items():
-            # skip time component [0]; take spatial dims [1:prefix+1]
-            spatial = node.apex[1:prefix + 1].astype(np.float32)
-            length = min(len(spatial), len(q_flat))
-            s = float(np.dot(spatial[:length], q_flat[:length]))
+            vec = self._retrieval_vec(node, prefix)
+            length = min(len(vec), len(q_flat))
+            s = float(np.dot(vec[:length], q_flat[:length]))
             scores.append((s, nid))
         scores.sort(reverse=True)
         return [nid for _, nid in scores[:k]]
+
+    @staticmethod
+    def _retrieval_vec(node: ConeNode, prefix: Prefix) -> np.ndarray:
+        """Embedding centroid (prefix-sliced) when present, else the cone apex spatial dims."""
+        if node.centroid is not None:
+            return np.asarray(node.centroid, dtype=np.float32)[:prefix]
+        return node.apex[1:prefix + 1].astype(np.float32)
+
+    def knn_scored(self, q: EuclideanVec, k: int, prefix: Prefix) -> list[tuple[NodeId, float]]:
+        """Like knn but return (node_id, cosine-in-[0,1]) pairs for calibrated relevance."""
+        if not self._nodes:
+            return []
+        q_flat = np.asarray(q, dtype=np.float32).ravel()[:prefix]
+        qn = float(np.linalg.norm(q_flat)) or 1.0
+        scores: list[tuple[float, NodeId]] = []
+        for nid, node in self._nodes.items():
+            vec = self._retrieval_vec(node, prefix)
+            length = min(len(vec), len(q_flat))
+            sn = float(np.linalg.norm(vec[:length])) or 1.0
+            cos = float(np.dot(vec[:length], q_flat[:length]) / (qn * sn))
+            scores.append((cos, nid))
+        scores.sort(reverse=True)
+        return [(nid, (c + 1.0) / 2.0) for c, nid in scores[:k]]
 
     def upsert(self, node: ConeNode) -> None:
         self._nodes[node.id] = node

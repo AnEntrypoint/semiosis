@@ -1,0 +1,12 @@
+core/test_context_pack.py:59:69 test_no_redundant_entries
+def test_no_redundant_entries() -> None:
+    kb = _kb()
+    pack = kb.build_context_pack("draw call", max_tokens=512)
+    engine = kb._pipeline.engine
+    store = kb._pipeline.store
+    full = [e for e in pack.entries if not e.is_summary]
+    thr = kb._settings.context.overlap_threshold
+    for i in range(len(full)):
+        for j in range(i + 1, len(full)):
+            a, b = store.get(full[i].node_id), store.get(full[j].node_id)
+            assert engine.overlap_score(a, b) <= thr

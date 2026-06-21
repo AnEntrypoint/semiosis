@@ -1,0 +1,5 @@
+core/test_context_pack.py:72:75 test_determinism_same_settings
+def test_determinism_same_settings() -> None:
+    p1 = _kb().build_context_pack("texture memory", max_tokens=256)
+    p2 = _kb().build_context_pack("texture memory", max_tokens=256)
+    assert [e.text for e in p1.entries] == [e.text for e in p2.entries]

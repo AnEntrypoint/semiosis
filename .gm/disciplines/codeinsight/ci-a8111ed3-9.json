@@ -1,0 +1,8 @@
+core/interfaces.py:19:25 phrase_to_text_index
+def phrase_to_text_index(phrase_id: "PhraseId | str", n_texts: int) -> int | None:
+    """Decode a PhraseId's trailing integer to a source-text index, or None if out of range."""
+    tail = str(phrase_id).rsplit("_", 1)[-1]
+    if not tail.isdigit():
+        return None
+    idx = int(tail)
+    return idx if 0 <= idx < n_texts else None

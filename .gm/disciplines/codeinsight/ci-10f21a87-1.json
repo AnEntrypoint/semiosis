@@ -1,0 +1,5 @@
+core/semiotic_memory.py:36:39 Fact
+class Fact:
+    id: str
+    text: str
+    last_access: int = 0

@@ -1,0 +1,10 @@
+core/test_memory.py:21:29 test_remember_and_forget_round_trip
+def test_remember_and_forget_round_trip() -> None:
+    kb = KnowledgeBase()
+    kb.ingest(FACTS)
+    fid = kb.remember("user prefers ascii", "p1")
+    assert fid == "p1"
+    block = kb.recall("draw call", budget_tokens=200)
+    assert "ascii" in block
+    assert kb.forget("p1") is True
+    assert kb.forget("p1") is False

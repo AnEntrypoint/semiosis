@@ -1,0 +1,8 @@
+core/recursive.py:13:19 RecursiveResult
+class RecursiveResult:
+    answer: "str | None" = None
+    evidence_node_ids: tuple[NodeId, ...] = ()
+    evidence_texts: tuple[str, ...] = ()
+    depth_reached: int = 0
+    sub_answers: tuple["RecursiveResult", ...] = ()
+    trace: tuple[tuple[int, str, float], ...] = ()

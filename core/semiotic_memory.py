@@ -71,6 +71,26 @@ class SemioticMemory:
     def facts(self) -> list[Fact]:
         return list(self._facts)
 
+    def snapshot(self) -> dict:
+        """Serialize facts, session metadata, and clock for cross-session persistence."""
+        return {
+            "facts": [{"id": f.id, "text": f.text, "last_access": f.last_access} for f in self._facts],
+            "session": {"query_count": self.session.query_count,
+                        "recent_foci": list(self.session.recent_foci),
+                        "active_octave": self.session.active_octave},
+            "clock": self._clock,
+        }
+
+    def restore(self, data: dict) -> None:
+        """Rehydrate facts, session, and clock from a snapshot()."""
+        self._facts = [Fact(d["id"], d["text"], int(d.get("last_access", 0)))
+                       for d in data.get("facts", [])]
+        s = data.get("session", {})
+        self.session = SessionMetadata(int(s.get("query_count", 0)),
+                                       list(s.get("recent_foci", [])),
+                                       int(s.get("active_octave", 0)))
+        self._clock = int(data.get("clock", 0))
+
     def decay_weight(self, age: int) -> float:
         return math.exp(-self._mem.recency_lambda * max(0, age))
 

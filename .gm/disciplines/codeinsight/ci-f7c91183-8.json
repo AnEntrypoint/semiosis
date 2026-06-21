@@ -1,0 +1,5 @@
+core/test_context_pack.py:22:25 _kb
+def _kb() -> KnowledgeBase:
+    kb = KnowledgeBase()
+    kb.ingest(FACTS)
+    return kb

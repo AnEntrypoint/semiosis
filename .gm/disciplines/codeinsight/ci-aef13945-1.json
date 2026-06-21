@@ -1,4 +1,0 @@
-core/interfaces.py:81:83 Labeler
-class Labeler(Protocol):
-    """Optional NLA post-hoc labeler -- the system is correct without it."""
-    def label(self, node: ConeNode, members: Sequence[Phrase]) -> str: ...

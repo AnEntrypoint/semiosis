@@ -83,14 +83,13 @@ def _kb() -> KnowledgeBase:
 def test_kb_deep_search_returns_bounded_evidence() -> None:
     kb = _kb()
     out = kb.deep_search("reduce draw calls and compress textures", k=3)
-    assert isinstance(out["texts"], list)
-    assert len(out["texts"]) <= 3
+    assert len(out.texts) <= 3
 
 
 def test_kb_navigate_returns_directions() -> None:
     kb = _kb()
     out = kb.navigate("texture", k=3)
-    assert all(d["direction"] in ("up", "down") for d in out)
+    assert all(n.direction in ("up", "down") for n in out)
 
 
 def test_kb_scan_tension_shape() -> None:
@@ -98,7 +97,7 @@ def test_kb_scan_tension_shape() -> None:
     out = kb.scan_tension(top_n=3)
     assert isinstance(out, list)
     for row in out:
-        assert {"text_a", "text_b", "tension", "kind"} <= set(row)
+        assert isinstance(row.text_a, str) and isinstance(row.kind, str)
 
 
 def test_kb_build_context_pack_respects_budget() -> None:
@@ -118,8 +117,8 @@ def test_kb_recall_includes_pinned_fact() -> None:
 def test_kb_compress_context_reduces_energy() -> None:
     kb = _kb()
     out = kb.compress_context("gpu memory", k=2)
-    assert len(out["texts"]) <= 2
-    assert out["energy_reduction"] >= 0.0
+    assert len(out.texts) <= 2
+    assert out.energy_reduction >= 0.0
 
 
 def test_kb_input_validation() -> None:
@@ -128,3 +127,22 @@ def test_kb_input_validation() -> None:
         kb.search("x", k=0)
     with pytest.raises(ValueError):
         kb.build_context_pack("x", max_tokens=-1)
+
+
+def test_incremental_ingest_octaves_distinct_and_cached() -> None:
+    kb = KnowledgeBase()
+    kb.ingest(WEBGL_FACTS[:5])
+    octs = {n.prefix for n in kb._pipeline.store.all_nodes()}
+    assert len(octs) == len(kb._pipeline._encoder.dims)  # all octaves coexist (no id collision)
+    before = len(kb._pipeline._vec_cache)
+    kb.ingest(WEBGL_FACTS[5:])
+    # cache reused old embeddings, encoded only the new texts
+    assert len(kb._pipeline._vec_cache) == len(set(WEBGL_FACTS))
+    assert len(kb._pipeline._vec_cache) > before
+
+
+def test_incremental_ingest_empty_noop() -> None:
+    kb = _kb()
+    n0 = len(kb._pipeline.store.all_nodes())
+    kb.ingest([])
+    assert len(kb._pipeline.store.all_nodes()) == n0

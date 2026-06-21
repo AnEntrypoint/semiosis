@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:904:907 test_flow_neighbors_directions_valid
+def test_flow_neighbors_directions_valid() -> None:
+    engine, nodes = _fitted_nodes()
+    for _nid, _w, direction in engine.flow_neighbors(nodes[0], nodes, k=5):
+        assert direction in ("up", "down")

@@ -15,8 +15,11 @@ core/
   semiotic_memory.py     -- SemioticMemory: ChatGPT 4-layer memory (facts/summaries/working/session)
   context_pack.py        -- ContextPackBuilder: token-budgeted, overlap-deduped, distance-collapsed
   recursive.py           -- RecursiveAnswerEngine: RLM octave-descent + query decomposition
-  agent_api.py           -- KnowledgeBase: search/deep_search/recall/navigate/scan_tension/
-                            build_context_pack/compress_context/remember/forget
+  agent_api.py           -- KnowledgeBase: typed search/deep_search/recall/navigate/scan_tension/
+                            build_context_pack/compress_context/remember/forget + learning loop
+                            (record_outcome/consolidate/diagnose/metrics) + save/load + batch_search
+  eval.py                -- retrieval-quality harness (recall@k, MRR); measure, do not assume
+  api.py                 -- FastAPI serving: /health /ready + agent endpoints + /tools manifest
   settings.py            -- Pydantic-settings Settings; sub-models are BaseModel
   test_manifold_invariants.py  -- property-based + integration tests
 ```
@@ -24,6 +27,11 @@ core/
 Meaning-flow layer (maps three sources onto the cone structure): ChatGPT memory
 (`semiotic_memory.py`), context rot (`context_pack.py`), Recursive Language Models
 (`recursive.py`); tension/flow/energy primitives live on `cone_engine.py`.
+
+Agent integration: `docs/agent-guide.md`. Retrieval ranks the query embedding against
+per-node embedding centroids (ConeNode.centroid), not the cone apex -- the cone math
+drives containment/tension/flow, embedding centroids drive relevance. Octave cluster ids
+are prefix-namespaced (root@64) so all Matryoshka octaves coexist in the store.
 
 Root files `cone_engine.py`, `interfaces.py`, `settings.py`, `test_manifold_invariants.py`
 are stale copies superseded by `core/`; delete them.

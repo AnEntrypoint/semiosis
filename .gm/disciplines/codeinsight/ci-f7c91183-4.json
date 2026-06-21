@@ -1,0 +1,5 @@
+core/test_context_pack.py:46:49 test_negative_budget_raises
+def test_negative_budget_raises() -> None:
+    kb = _kb()
+    with pytest.raises(ValueError):
+        kb.build_context_pack("draw call", max_tokens=-5)

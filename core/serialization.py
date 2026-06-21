@@ -19,6 +19,7 @@ def cone_node_to_dict(node: ConeNode) -> dict[str, Any]:
         "label": node.label,
         "digest": node.digest,
         "pinned": bool(node.pinned),
+        "centroid": list(node.centroid) if node.centroid is not None else None,
     }
 
 
@@ -33,4 +34,5 @@ def cone_node_from_dict(d: dict[str, Any]) -> ConeNode:
         label=d.get("label"),
         digest=d.get("digest"),
         pinned=bool(d.get("pinned", False)),
+        centroid=tuple(d["centroid"]) if d.get("centroid") is not None else None,
     )

@@ -1,0 +1,7 @@
+core/test_memory.py:58:63 test_assemble_respects_budget
+def test_assemble_respects_budget() -> None:
+    kb = KnowledgeBase()
+    kb.ingest(FACTS)
+    block = kb.recall("draw call", budget_tokens=80)
+    counter_tokens = max(1, len(block) // 4)
+    assert counter_tokens <= 80 + 40

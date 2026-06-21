@@ -1,0 +1,9 @@
+core/test_manifold_invariants.py:910:917 test_select_representatives_energy_monotone
+def test_select_representatives_energy_monotone() -> None:
+    cfg = ConeFitConfig(epochs=20, dim=4, seed=0)
+    engine = HyperbolicConeEngine(cfg)
+    nodes = list(engine.fit(_webgl_tree()))
+    if len(nodes) >= 3:
+        _, cov2 = engine.select_representatives(nodes, 2)
+        _, cov3 = engine.select_representatives(nodes, 3)
+        assert cov3 <= cov2 + 1e-6

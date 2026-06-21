@@ -1,0 +1,6 @@
+core/test_manifold_invariants.py:920:924 test_pair_kind_buckets_known
+def test_pair_kind_buckets_known() -> None:
+    engine, nodes = _fitted_nodes()
+    assert engine.pair_kind(nodes[0], nodes[1]) in (
+        "entailment", "redundancy", "contradiction", "independent", "aperture_degenerate"
+    )

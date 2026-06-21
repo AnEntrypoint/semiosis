@@ -1,0 +1,6 @@
+core/test_context_pack.py:32:36 test_budget_monotonicity
+def test_budget_monotonicity() -> None:
+    kb = _kb()
+    for budget in (16, 64, 256, 1024):
+        pack = kb.build_context_pack("draw call", max_tokens=budget)
+        assert pack.total_tokens <= budget

@@ -1,0 +1,6 @@
+core/context_pack.py:16:20 HeuristicTokenCounter
+class HeuristicTokenCounter:
+    """Dependency-free token estimate at ~4 chars per token; override via Settings for a real tokenizer."""
+
+    def count(self, text: str) -> int:
+        return max(1, math.ceil(len(text) / 4))
