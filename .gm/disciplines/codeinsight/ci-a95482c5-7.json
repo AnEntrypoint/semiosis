@@ -1,5 +1,0 @@
-core/test_pipeline.py:77:80 _kb
-def _kb() -> KnowledgeBase:
-    kb = KnowledgeBase()
-    kb.ingest(WEBGL_FACTS)
-    return kb

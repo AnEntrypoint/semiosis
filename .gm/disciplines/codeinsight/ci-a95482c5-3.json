@@ -1,5 +1,0 @@
-core/test_pipeline.py:104:107 test_kb_build_context_pack_respects_budget
-def test_kb_build_context_pack_respects_budget() -> None:
-    kb = _kb()
-    pack = kb.build_context_pack("draw call optimization", max_tokens=100)
-    assert pack.total_tokens <= 100

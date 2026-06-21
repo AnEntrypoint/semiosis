@@ -1,6 +1,0 @@
-core/test_pipeline.py:70:74 test_knowledge_base_empty_search
-def test_knowledge_base_empty_search() -> None:
-    kb = KnowledgeBase()
-    assert kb.search("anything") == []
-    assert kb.explain_hierarchy("x") == {}
-    assert kb.containment("a", "b") == 0.0

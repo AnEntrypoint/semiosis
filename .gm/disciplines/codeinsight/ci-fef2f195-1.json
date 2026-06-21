@@ -1,7 +1,0 @@
-core/conftest.py:11:16 two_node_tree
-def two_node_tree() -> ClusterTree:
-    return ClusterTree(
-        edges=((NodeId("root"), NodeId("child")),),
-        assignments={PhraseId("p1"): NodeId("root"), PhraseId("p2"): NodeId("child")},
-        prefix=Prefix(64),
-    )

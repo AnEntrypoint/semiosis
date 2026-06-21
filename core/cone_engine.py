@@ -241,8 +241,10 @@ class HyperbolicConeEngine:
 
     def geodesic_distance(self, a: ConeNode, b: ConeNode) -> float:
         """Guarded hyperbolic distance between two cone apices on the Lorentz manifold."""
-        pa = torch.from_numpy(a.apex).float()
-        pb = torch.from_numpy(b.apex).float()
+        if a.apex is b.apex or np.array_equal(a.apex, b.apex):
+            return 0.0
+        pa = torch.from_numpy(a.apex).double()
+        pb = torch.from_numpy(b.apex).double()
         return float(self.manifold.dist(pa, pb).item())
 
     def flow_weight(self, focus: ConeNode, other: ConeNode) -> float:

@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=69", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -29,7 +29,7 @@ orchestration = ["dagster>=1.7"]
 eval = ["mlflow>=2.12", "scikit-learn>=1.4"]
 labels = ["anthropic>=0.25"]          # optional NLA labeler
 dev = ["mypy>=1.9", "pytest>=8.1", "hypothesis>=6.100", "ruff>=0.3"]
-all = ["semantic-cones[hyperbolic,store,encoder,serving,eval]"]
+all = ["semantic-cones[hyperbolic,store,encoder,serving,eval,orchestration]"]
 
 [tool.mypy]
 strict = true

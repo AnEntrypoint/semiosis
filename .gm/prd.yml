@@ -590,3 +590,39 @@
   task: 'core: store.knn/knn_scored rank query embedding against cone APEX spatial dims (cone-space, 8-dim) not the original embedding -- relevance is near-noise (scores ~0.08, wrong top hit). Add ConeNode.centroid (mean of member embeddings at full dim, serialized); pipeline populates it from cached vecs + assignments; store.knn prefers centroid sliced to prefix for true embedding-space cosine. The cone math (containment/tension/flow) keeps using apex; retrieval uses centroid. THE retrieval-quality fix that makes agent search actually work. Witness: eval recall@k rises vs apex-knn baseline.'
   status: completed
   witness: core/interfaces.py ConeNode.centroid + pipeline._centroid + store._retrieval_vec; witness recall@1 0.33->1.0; test_centroid_knn_beats_apex_baseline pass
+- id: fix-build-backend
+  text: pyproject build-backend is setuptools.backends.legacy:build (nonexistent module); breaks pip install entirely. Fix to setuptools.build_meta and verify pip install -e succeeds.
+  witness: pyproject.toml:3 setuptools.build_meta; pip install -e . --no-deps + import core ok
+  status: completed
+- id: wire-dag-assets
+  text: core/dag.py assets all raise NotImplementedError; wire them to the real KnowledgePipeline (encode->cluster->fit->store) so the orchestration surface actually runs.
+  witness: core/dag.py rewritten with build_encoder/fit_octave_nodes + real assets; test_dag.py helper test passes (all octaves present)
+  status: completed
+- id: all-extra-completeness
+  text: pyproject 'all' extra omits orchestration; add it so [all] installs the full stack.
+  witness: pyproject.toml:32 all extra now includes orchestration
+  status: completed
+- id: gitignore-codeinsight-churn
+  text: .gm/disciplines/codeinsight and codeinsight-vec are machine-regenerated index files churning the tree every session; add to managed gitignore block to keep porcelain clean.
+  witness: .gitignore lines added + git rm --cached codeinsight dirs; porcelain no longer lists them
+  status: completed
+- id: add-readme
+  text: No README.md exists; add concise README (install, quickstart KnowledgeBase usage, test command, links to ARCHITECTURE/agent-guide) for project usefulness/discoverability.
+  witness: README.md created with install/quickstart/surfaces/config/test sections
+  status: completed
+- id: green-test-baseline
+  text: Install deps and run pytest core/ to establish/confirm green baseline (memory says 144 passed); re-run after every change as the integration witness.
+  witness: pytest core/ = 138 passed, 2 skipped in 102s
+  status: completed
+- id: glyph-ascii-sweep
+  text: Sweep all source/docs for non-ASCII decorative glyphs (arrows, box-drawing, bullets, emoji) per AGENTS.md hard rule; convert to ASCII.
+  witness: grep -rPn non-ASCII over *.py *.md *.toml (excl .gm) returned empty
+  status: completed
+- id: dag-test-coverage
+  text: Add a test exercising the wired dag.py assets (materialize end-to-end on RandomEncoder) so the orchestration surface has integration coverage and cannot silently regress.
+  witness: 'core/test_dag.py: helper + dagster materialize end-to-end, 2 passed'
+  status: completed
+- id: fix-geodesic-self-distance
+  text: geodesic_distance self-distance was 0.00048 (float32 arccosh imprecision) failing test threshold 1e-4; fixed via exact-identity short-circuit + double-precision computation.
+  witness: core/cone_engine.py:243 identity short-circuit + double precision; test_geodesic_distance_self_zero passes
+  status: completed

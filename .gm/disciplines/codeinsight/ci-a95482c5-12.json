@@ -1,7 +1,0 @@
-core/test_pipeline.py:40:45 test_pipeline_containment_score_is_float
-def test_pipeline_containment_score_is_float() -> None:
-    pipe = KnowledgePipeline(WEBGL_FACTS)
-    nodes = pipe.store.all_nodes()
-    assert len(nodes) >= 2
-    score = pipe.query.containment_score(nodes[0].id, nodes[1].id)
-    assert isinstance(score, float)

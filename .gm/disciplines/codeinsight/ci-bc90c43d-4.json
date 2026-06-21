@@ -1,6 +1,0 @@
-core/test_store.py:24:28 test_write_returns_commit_id
-def test_write_returns_commit_id() -> None:
-    store = InMemoryStore()
-    nodes = [_make_node("a"), _make_node("b")]
-    cid = store.write(nodes, CommitId("rev-1"))
-    assert cid == CommitId("rev-1")

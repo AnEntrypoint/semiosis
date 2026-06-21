@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:522:524 test_in_memory_store_satisfies_protocol
-def test_in_memory_store_satisfies_protocol() -> None:
-    store = InMemoryStore()
-    assert isinstance(store, Store)

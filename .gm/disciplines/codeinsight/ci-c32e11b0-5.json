@@ -1,5 +1,0 @@
-core/test_manifold_invariants.py:888:891 test_containment_asymmetry_antisymmetric
-def test_containment_asymmetry_antisymmetric() -> None:
-    engine, nodes = _fitted_nodes()
-    a, b = nodes[0], nodes[1]
-    assert abs(engine.containment_asymmetry(a, b) + engine.containment_asymmetry(b, a)) < 1e-6

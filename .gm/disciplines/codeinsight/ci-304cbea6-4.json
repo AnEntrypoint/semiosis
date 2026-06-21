@@ -1,5 +1,0 @@
-core/test_recursive.py:28:31 test_decompose_splits_compound
-def test_decompose_splits_compound() -> None:
-    eng = _engine()
-    assert len(eng.decompose("draw calls and textures")) == 2
-    assert len(eng.decompose("just one thing")) == 1

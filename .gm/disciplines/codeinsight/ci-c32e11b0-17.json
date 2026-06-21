@@ -1,9 +1,0 @@
-core/test_manifold_invariants.py:742:749 test_five_level_chain_end_to_end_transitivity
-def test_five_level_chain_end_to_end_transitivity() -> None:
-    cfg = ConeFitConfig(epochs=1200, dim=8, seed=11, lr=2e-3)
-    engine = HyperbolicConeEngine(cfg)
-    tree = _five_node_chain()
-    nodes = engine.close_transitivity(list(engine.fit(tree)), list(tree.edges))
-    by_id = {n.id: n for n in nodes}
-    margin = engine.contains(by_id[NodeId("l0")], by_id[NodeId("l4")])
-    assert margin > 0, f"5-level transitivity: l0 must entail l4 after close_transitivity, margin={margin:.4f}"

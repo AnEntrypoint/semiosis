@@ -1,6 +1,6 @@
 # BROWSER
 
-## Hard Rule: Browser Witness Mandate (paper section 23)
+## Hard Rule: Browser Witness Mandate
 
 **Every edit to code that runs in a browser requires a live `browser` dispatch in the same turn as the edit.** Client-side surfaces -- `.html`, `.js`, `.jsx`, `.ts`, `.tsx`, `.vue`, `.svelte`, `.mjs`, `.css`, web components, service workers, every asset loaded by `<script>`, every path reached by `import` from a browser-side entry -- must be witnessed by a live `page.evaluate` of the specific invariant the edit establishes. A passing node test, build, `curl` of the HTML, or static-analysis pass witnesses server delivery, not browser behavior, and is non-substitutive. The witness IS the proof; prose is not.
 
@@ -22,7 +22,7 @@ session close <id>
 timeout=<ms>\n<expression>
 ```
 
-A bare expression with no live session opens one against `about:blank`; with a live session it reuses it. `session new` returns the id you carry; with more than one open, target it via `session=<id>\n<expr>`. (`session close` and `session kill` are aliases.) Default per-eval timeout 14000ms; operations that legitimately exceed it prefix `timeout=<ms>\n` (wrapper clamps to 50000ms). The response carries `timeout_ms_used`; `browser.runner-timeout` fires at the cap -- read `stderr`, narrow or raise, never retry blind at the same budget.
+A bare expression with no live session opens one against `about:blank`; with a live session it reuses it. `session new` returns the id you carry; with more than one open, target it via `session=<id>\n<expr>`. (`session close` and `session kill` are aliases.) Default per-eval timeout 120000ms; operations that legitimately exceed it prefix `timeout=<ms>\n` (wrapper clamps to 120000ms). The response carries `timeout_ms_used`; `browser.runner-timeout` fires at the cap -- read `stderr`, narrow or raise, never retry blind at the same budget.
 
 ## Envelope
 

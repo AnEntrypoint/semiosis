@@ -1,7 +1,0 @@
-core/test_manifold_invariants.py:291:296 test_find_entailments_no_self_pairs
-def test_find_entailments_no_self_pairs() -> None:
-    cfg = ConeFitConfig(epochs=10, dim=4, seed=0)
-    engine = HyperbolicConeEngine(cfg)
-    nodes = list(engine.fit(_two_node_tree()))
-    pairs = engine.find_entailments(nodes, threshold=-999.0)  # low threshold -> all pairs
-    assert all(p is not c for p, c in pairs)

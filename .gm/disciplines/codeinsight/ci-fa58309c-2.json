@@ -1,5 +1,0 @@
-core/test_memory.py:40:43 test_empty_kb_recall_is_safe
-def test_empty_kb_recall_is_safe() -> None:
-    kb = KnowledgeBase()
-    block = kb.recall("nothing here", budget_tokens=128)
-    assert isinstance(block, str)

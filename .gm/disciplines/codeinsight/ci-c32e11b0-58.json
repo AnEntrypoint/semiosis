@@ -1,5 +1,0 @@
-core/test_manifold_invariants.py:228:231 test_fixed_clusterer_satisfies_protocol
-def test_fixed_clusterer_satisfies_protocol() -> None:
-    tree = _two_node_tree()
-    fc = FixedClusterer(tree)
-    assert isinstance(fc, HierarchicalClusterer)

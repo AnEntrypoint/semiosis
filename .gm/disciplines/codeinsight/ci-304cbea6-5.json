@@ -1,5 +1,0 @@
-core/test_recursive.py:22:25 _engine
-def _engine() -> RecursiveAnswerEngine:
-    kb = KnowledgeBase()
-    kb.ingest(FACTS)
-    return RecursiveAnswerEngine(kb._pipeline, max_depth=3, beam_k=2)

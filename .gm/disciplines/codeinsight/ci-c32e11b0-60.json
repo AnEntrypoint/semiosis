@@ -1,7 +1,0 @@
-core/test_manifold_invariants.py:210:215 test_encoder_different_texts_differ
-def test_encoder_different_texts_differ() -> None:
-    enc = RandomEncoder(octaves=(64,), seed=0)
-    import numpy as np
-    v_a = enc.encode(["alpha"])
-    v_b = enc.encode(["beta"])
-    assert not np.allclose(v_a, v_b), "distinct texts should yield distinct vectors"

@@ -1,6 +1,0 @@
-core/test_pipeline.py:83:87 test_kb_deep_search_returns_bounded_evidence
-def test_kb_deep_search_returns_bounded_evidence() -> None:
-    kb = _kb()
-    out = kb.deep_search("reduce draw calls and compress textures", k=3)
-    assert isinstance(out["texts"], list)
-    assert len(out["texts"]) <= 3

@@ -1,9 +1,0 @@
-core/test_manifold_invariants.py:617:624 test_cone_node_from_dict_with_label
-def test_cone_node_from_dict_with_label() -> None:
-    cfg = ConeFitConfig(epochs=5, dim=4, seed=0)
-    engine = HyperbolicConeEngine(cfg)
-    nodes = list(engine.fit(_two_node_tree()))
-    d = cone_node_to_dict(nodes[0])
-    d["label"] = "draw_call"
-    restored = cone_node_from_dict(d)
-    assert restored.label == "draw_call"
