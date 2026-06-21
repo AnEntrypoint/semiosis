@@ -34,4 +34,15 @@
 - `pytest core/` is the test command; requires `torch` + `geoopt`.
 - Tests auto-skip if deps absent; no mocks for integration paths.
 
+## Skills
+This project has task-specific skills available.
+Before starting any task, read `SKILLS.md` and invoke every relevant skill.
+1. Read `SKILLS.md` to discover available skills.
+2. Read every skill file plausibly relevant to the task.
+3. Invoke with `Skill(skill="semiosis-skill")` before any KB manipulation.
+
+`semiosis-skill` is the primary harness for all KnowledgeBase operations:
+search, ingest, diagnose, consolidate, navigate, recall, and memory management.
+Skills encode environment-specific constraints that override general knowledge.
+
 @.gm/next-step.md

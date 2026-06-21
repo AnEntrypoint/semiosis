@@ -1,0 +1,112 @@
+---
+name: semiosis-skill
+description: >-
+  Drive the semiosis KnowledgeBase: hyperbolic entailment cones over Matryoshka
+  octaves. Use it whenever a task requires semantic search, hierarchy navigation,
+  context packing, or KB health management. The KB is the single source of truth
+  for meaning; state carried only in prose is lost on restart.
+allowed-tools: Skill, Read, Write, Bash(pytest *), Bash(python *)
+---
+
+# semiosis
+
+**The KB is the state; prose is not.** Retrieval, ingest, memory, and health ops
+route through the KnowledgeBase API (`core/agent_api.py`), never narrated.
+
+## Boot
+
+```python
+from core.agent_api import KnowledgeBase, QueryPriority, FailureMode
+kb = KnowledgeBase()
+kb.ingest(texts)        # build the cone hierarchy
+```
+
+Reload from disk: `KnowledgeBase.load(path)`.
+
+## Orient before acting
+
+`kb.diagnose()` -> `DiagnoseReport`. Read `failure_mode` first:
+
+- `NONE`: healthy, proceed.
+- `OUTSIDE_CONE`: ingest focused texts on target domain, re-diagnose.
+- `BOUNDARY_AMBIGUOUS`: call `kb.consolidate()` before search.
+- `OVER_COMPRESSED`: use `kb.deep_search()`, ingest more diverse texts.
+- `OCTAVE_MISMATCH`: use `kb.deep_search()` for cross-octave queries.
+
+`recovery_suggestions` carries the action string verbatim.
+
+## Retrieval
+
+```python
+hits = kb.search(query, k=5, priority=QueryPriority.MEDIUM)
+# priority=HIGH: multi-octave, diversity-biased MMR, slower
+# priority=LOW:  single coarse octave, fast routing pass
+```
+
+Read hits in confidence order:
+- `evidence_path_count >= 3` + `uncertainty_score < 0.2`: high-confidence claim.
+- `evidence_path_count == 1` + `uncertainty_score > 0.6`: weak, verify or re-query.
+- `aperture < 0.3`: specific concept; `aperture > 1.0`: broad prior.
+- `local_entropy > 1.0`: ambiguous concept, decompose query.
+
+Multi-hop / causal chain: `kb.deep_search(query, k=5)` (RLM octave descent).
+
+Token-budgeted context: `kb.build_context_pack(query, max_tokens=2000)`.
+
+Adaptive pattern:
+1. `search(k=3, priority=LOW)` -- route/identify domain.
+2. If `uncertainty_score > 0.5` on top hit, retry with `priority=HIGH`.
+3. If still `> 0.5`, ingest more texts (KB gap).
+
+## Memory
+
+```python
+kb.remember("key fact")          # pin to long-term facts layer
+kb.forget("key fact")            # remove from facts
+kb.recall("topic")               # retrieve pinned facts
+```
+
+Facts survive save/load; session metadata does not.
+
+## Health and self-improvement
+
+```python
+report = kb.consolidate()        # returns ConsolidateReport
+# report.merges: redundant pairs resolved
+# report.changed: False -> KB is coherent, no action needed
+```
+
+Call consolidate when `diagnose().redundant_pairs > nodes // 4`.
+
+Learning loop:
+```python
+kb.record_outcome(query, useful_texts, useless_texts)  # reinforce retrieval signal
+```
+
+Call after every agent interaction that produced a judgment on hit quality.
+
+## Navigation
+
+```python
+kb.navigate(node_id, direction="flow_out")  # downstream implications
+kb.scan_tension(top_n=10)                   # TensionPair list: boundary conflicts
+```
+
+Use `scan_tension` to find semantic conflicts before synthesizing an answer.
+
+## Persistence
+
+```python
+kb.save(path)
+kb = KnowledgeBase.load(path)
+m = kb.metrics()   # queries, ingests, nodes, n_texts, n_facts, consolidations
+```
+
+Reproducibility key: Settings snapshot x lakeFS CommitId (see CLAUDE.md).
+
+## Invariants
+
+- Manifold: Lorentz/hyperboloid; `_EPS=1e-7` arccos clamp, `_MIN_APERTURE=0.1` rad floor.
+- Octave ids are prefix-namespaced (`root@64`); all Matryoshka octaves coexist in store.
+- Env override: `SC_ENCODER__MODEL=...` (prefix `SC_`, delimiter `__`).
+- Tests: `pytest core/` (requires `torch` + `geoopt`; auto-skip if absent).

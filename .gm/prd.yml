@@ -28,3 +28,28 @@
   acceptance: 1. File exists with all 7 sections; 2. each section has intro + worked examples + code snippet; 3. no Unicode arrows or box-drawing; 4. <50 lines per section; 5. references paper evidence
   status: completed
   witness: 'docs/agent-intuition-guide.md: 7-section guide created covering cone fundamentals, SearchHit signal reading, energy/accuracy tradeoff, decision trees, failure mode recovery, multi-scale patterns, and mental models with 2 worked examples each'
+- id: skill-directory-structure
+  title: Create skills/semiosis-skill/ directory with SKILL.md
+  description: 'Create skills/ dir at repo root, skills/semiosis-skill/SKILL.md with frontmatter (name, description, allowed-tools) and prose rules teaching an agent the semiosis KnowledgeBase API: search/deep_search/ingest/diagnose/consolidate/navigate/scan_tension/build_context_pack/remember/forget/record_outcome/metrics. Must follow dstate/skills/adaptogen pattern (SKILL.md only, no index.js required).'
+  status: completed
+  witness: 'skills/semiosis-skill/SKILL.md created: frontmatter with name/description/allowed-tools, prose covering boot, orient/diagnose, retrieval confidence signals, memory, consolidate, navigation, persistence, invariants'
+- id: skills-md-index
+  title: Create SKILLS.md at repo root listing the semiosis-skill
+  description: One-file index at repo root; one line per skill with name, description, and invocation. Follows gm/SKILLS.md and dstate pattern of having a root-level manifest agents can discover.
+  status: completed
+  witness: 'SKILLS.md created at repo root: one entry for semiosis-skill with path, description, and Skill() invocation'
+- id: agents-md-skills-section
+  title: 'Add ## Skills section to AGENTS.md pointing to SKILLS.md'
+  description: 'Follows gm/AGENTS.md pattern: section telling agents to read SKILLS.md and invoke relevant skills before any task. Must reference semiosis-skill as the primary harness for KB manipulation.'
+  status: completed
+  witness: 'AGENTS.md: ## Skills section added referencing SKILLS.md and semiosis-skill as primary KB harness'
+- id: skill-prose-quality
+  title: Skill prose must be terse imperatives, not a manual
+  description: 'Per gm/AGENTS.md: strip explanatory prose, keep only invocation syntax, transition markers, gate conditions, constraint lists, exact-usage examples. Forbidden: step-by-step recipes, multi-step manuals. Must elicit behavior, not describe it.'
+  status: completed
+  witness: 'skills/semiosis-skill/SKILL.md: imperative syntax blocks, no step-by-step manuals, invocation examples only, no citations to papers'
+- id: claude-md-skills-ref
+  title: CLAUDE.md must reference SKILLS.md (via @AGENTS.md chain)
+  description: dstate/CLAUDE.md = @AGENTS.md; gm/CLAUDE.md = @AGENTS.md; both let AGENTS.md carry the skills ref. Verify semiosis CLAUDE.md -> AGENTS.md -> skills section chain works for auto-discovery.
+  status: completed
+  witness: 'CLAUDE.md -> @AGENTS.md -> ## Skills section -> SKILLS.md chain intact; matches dstate/gm pattern'
