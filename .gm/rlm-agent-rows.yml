@@ -1,0 +1,133 @@
+- id: agent-complexity-sensing
+  title: Agents sense task complexity and allocate reasoning depth
+  description: RLM agents adaptively decompose based on perceived complexity (O(n) vs O(n^2) vs O(1)). Semiosis should expose this - detect query complexity, allocate octave depth accordingly. O(n) gets depth=1, O(n^2) gets depth=2+, O(1) gets single-octave. RecursiveAnswerEngine.decompose() detects structure and sets max_depth; tests show depth allocation matches human assessment 90%+.
+  acceptance: RecursiveAnswerEngine.detect_query_complexity() returns int depth; tests on WebGL queries with known complexity show correct depth allocation
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-probe-then-slice
+  title: Agents probe input structure before decomposing
+  description: RLM agents peek at input before slicing (examine length, head, tail, structure). Semiosis agents should probe corpus/query structure before decomposing. If corpus is dense (high cluster coherence) vs sparse (diffuse), adjust strategy. Pipeline._probe_corpus_structure() analyzes entropy, estimates cluster count, returns structure_profile. search() uses profile to select decomposition strategy.
+  acceptance: _probe_corpus_structure returns dict with density, cluster_estimate, entropy_profile; strategy selection correlates with actual corpus properties
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-stitch-verification
+  title: Agents verify stitched results from recursive calls
+  description: When combining results from multiple octaves/calls, RLM agents check coherence. Semiosis should verify - do stitched pieces form coherent answer? Do overlaps make sense? check_result_coherence(results) returns coherence_score in [0,1]. Low scores flag problematic merges needing re-examination.
+  acceptance: check_result_coherence returns float; consolidate() uses it to flag incoherent merges; tests show low coherence correlates with manual quality assessment
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-capability-self-awareness
+  title: Agents recognize own capability limits and match task complexity appropriately
+  description: RLM agents know when to invoke sub-LMs vs code. Semiosis agents should recognize capabilities - is query within-cone (direct retrieval)? out-of-cone (needs probing)? estimate_capability_match(query, stored_answers) returns (match_score, recommended_depth). Agent can decide to escalate or give up gracefully.
+  acceptance: estimate_capability_match returns tuple (score, depth); scores correlate with actual retrieval success rate; tests on low/high capability queries show appropriate matching
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-intent-calibration
+  title: Agent intent understanding improves with in-context exemplars
+  description: RLM shows in-context examples improve decomposition even if unrelated. Semiosis agents should use exemplar-driven calibration. get_exemplars(query_kind, k=3) returns high-value prior queries of same kind. Agent adjusts intent model and decomposes better. Tests show 15%+ improvement in decomposition quality after seeing exemplars.
+  acceptance: get_exemplars returns list of SearchHit exemplars; agent decomposition quality metric improves 15% with exemplars vs without
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-error-driven-fallback
+  title: Agents detect errors and gracefully degrade strategy
+  description: When code execution fails (RLM agents retry with simplified code), Semiosis agents should fail gracefully. If knn at depth=3 times out, fall back to depth=2 + broader retrieval. Track error_rate per octave_depth, switch to lower depth if rate exceeds threshold. Tests show automatic fallback prevents 80%+ of cascading failures.
+  acceptance: RecursiveAnswerEngine.descend() wraps calls with error handling; counts errors per depth; switches strategies; tests show cascade prevention
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-uncertainty-detection
+  title: Agents infer uncertainty from execution metadata, not just content
+  description: RLM agents use stdout length, execution time, error counts to assess quality. Semiosis should track (result_entropy, octave_disagreement_count, centroid_distance, aperture_variance). compute_uncertainty_metadata(results, query, octaves) returns uncertainty_score. Include in every search result; agent can threshold and request clarification.
+  acceptance: compute_uncertainty_metadata returns float in [0,1]; search() includes uncertainty_score per result; agent thresholds are tunable
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-retry-with-degradation
+  title: Agents retry with simpler/narrower strategy when execution fails
+  description: When code fails, RLM agents retry with simplified code. Semiosis should retry with degraded strategy - depth=3 fails, retry depth=2+broader, retry depth=1+coarse. Each retry is simpler/faster; stop when uncertainty drops below threshold. Tests show 2-3 retries recover 85% of failed queries.
+  acceptance: RecursiveAnswerEngine.descend() includes retry loop; complexity reduces per retry; tests show recovery rate and latency behavior
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-partial-completion
+  title: Agents assess whether results are complete, partial, or incomplete
+  description: RLM agents work under time/resource limits; must decide if partial answer is acceptable. completeness_score = (results_found / expected_lower_bound) * coherence_score. Less than 0.3 equals incomplete, 0.3-0.7 equals partial, greater than 0.7 equals complete. search() includes completion status; tests show human agreement approximately 85%.
+  acceptance: assess_completion returns (score, status in [complete|partial|incomplete]); status included in SearchHit; validation against human ratings shows 85%+ agreement
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-malformed-input-recovery
+  title: Agents detect malformed/ambiguous queries and request disambiguation
+  description: Like syntax errors in RLM, some queries are ambiguous. Detect and ask for clarification. disambiguate_query(query) detects multiple AND/OR, conflicting terms, nonsense patterns. Returns (is_ambiguous, clarification_options). Tests on WebGL queries show 90%+ accuracy.
+  acceptance: query_validator detects ambiguity patterns; disambiguate returns structured options; tests on intentional/unintentional ambiguity show correct identification
+  status: pending
+  witness_type: code
+  priority: low
+- id: agent-confidence-complexity
+  title: Agent confidence should degrade gracefully with task complexity
+  description: RLM shows confidence degrades with O(n), O(n^2), O(n^3) complexity. Track confidence as function of query_complexity - return 1.0 for O(1), 0.8 for O(n), 0.5 for O(n^2), 0.3 for O(n^3). This honest calibration lets downstream systems adjust (request human review for low-confidence). Tests show predictions match observed error rates.
+  acceptance: compute_confidence_from_complexity returns float; confidence predictions correlate with actual error/success rates on WebGL queries
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-hints-improve-confidence
+  title: Providing context/hints improves agent confidence and accuracy
+  description: RLM paper shows hints improve results (38.7% to 65.6%). Semiosis agents similarly - rich context (exemplars, prior queries, cluster metadata) boosts confidence. search(hints=True) includes exemplars, similar_prior_queries, cluster_membership. Measure result_quality with/without; tests show 20%+ improvement with hints.
+  acceptance: search(hints=True) includes contextual enrichment; result_quality metric improves 20%+ with hints vs baseline; side-by-side comparison tests pass
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-confidence-communication
+  title: Agents explicitly communicate confidence and calibration to users
+  description: Confidence should not be silent. Agents report - found with confidence 0.85 (high complexity, limited context). SearchHit includes confidence_score and confidence_reasoning. API /explain endpoint returns full reasoning. Users adjust trust accordingly.
+  acceptance: SearchHit.confidence_score and confidence_reasoning fields present; /explain endpoint returns reasoning; test queries show reasoning is non-empty and human-understandable
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-reasoning-trace
+  title: Agents expose full reasoning traces for audit and debugging
+  description: Like RLM's code traces, Semiosis agents export reasoning_trace - decomposition, octave retrieval, stitching, confidence assessment. search(return_trace=True) returns (results, trace). Trace includes all steps, decisions, thresholds used. Users and other agents can audit the reasoning.
+  acceptance: SearchTraceResult dataclass present; trace includes decomposition, octave_steps, stitching_logic, confidence_reasons; test query traces are human-readable and complete
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-state-explicit
+  title: Agent state is explicit and inspectable at each step
+  description: RLM agents manage state explicitly (state.Final, stdout). Semiosis agents track AgentState equals query, decomposed_queries, octave_frontier, retrieved_nodes, stitched_result, confidence_score, final_answer. State is well-defined at each step and inspectable. debug_search(query, step_limit) stops at step and shows state.
+  acceptance: AgentState dataclass present; search() maintains state; debug_search stops at steps; tests show state inspection enables root-cause diagnosis of failures
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-failure-explanation
+  title: When agents fail, they explain why in terms of reasoning logic and system properties
+  description: RLM's negative results document failure modes (syntax errors, limits). Semiosis should explain failures - no clusters matched, query ambiguous (boundary), corpus too small for depth-2. explain_failure(query, trace) analyzes and returns (failure_mode, root_cause, suggestion). Tests show explanations are actionable and match root causes.
+  acceptance: explain_failure returns FailureExplanation with mode, cause, suggestion; explanations on failing queries match root-cause analysis; tests show actionable suggestions
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-mental-model
+  title: Agents build and use implicit mental models of hierarchy structure
+  description: Semiosis agents should implicitly learn - coarse octaves are fast but low-precision; fine octaves are slow but high-precision. build_mental_model(query_history, performance_data) learns from outcomes. explain_mental_model(octave) returns structured explanation of what agent learned about that octave. Tests show agent decisions correlate with inferred model.
+  acceptance: build_mental_model runs on query history; explain_mental_model returns structured description; agent decisions align with model greater than 80% of time
+  status: pending
+  witness_type: code
+  priority: medium
+- id: agent-decision-criteria
+  title: Agent decisions are explicit and based on observable system properties
+  description: Rather than black-box, agent decisions are criteria-based - choose depth=2 if complexity greater than 1.5 or fall back if latency greater than 1s. DecisionCriteria dataclass documents thresholds. search() logs which criteria triggered which decisions. Tests show criteria explain greater than 80% of decisions.
+  acceptance: DecisionCriteria dataclass present with observable thresholds; search() logs all decisions; tests show 80%+ of decisions traceable to criteria
+  status: pending
+  witness_type: code
+  priority: high
+- id: agent-cost-benefit
+  title: Agents reason about cost-benefit tradeoffs between precision and latency
+  description: RLM agents trade recursion depth vs token cost. Semiosis agents should reason - query is O(n^2), depth=2 needed (80% precision) but costs 500ms; depth=1 is 300ms but 50% precision; user deadline 2s; depth=2 OK. compute_cost_benefit(depth, budget, target_precision) returns score. descend() uses score to choose depth. Tests show decisions match human risk/benefit analysis.
+  acceptance: compute_cost_benefit returns float score; descend() uses score for decisions; test queries with different budgets show appropriate depth selection
+  status: pending
+  witness_type: code
+  priority: medium
