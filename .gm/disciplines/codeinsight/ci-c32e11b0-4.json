@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:894:896 test_geodesic_distance_self_zero
-def test_geodesic_distance_self_zero() -> None:
-    engine, nodes = _fitted_nodes()
-    assert engine.geodesic_distance(nodes[0], nodes[0]) < 1e-4

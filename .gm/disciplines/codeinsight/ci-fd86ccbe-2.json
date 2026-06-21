@@ -1,4 +1,0 @@
-core/dag.py:17:19 cluster_tree
-def cluster_tree(embeddings):  # noqa: F811 -- shadowed intentionally as asset input
-        """Cluster embeddings into a ClusterTree; wire HierarchicalClusterer here."""
-        raise NotImplementedError("wire HierarchicalClusterer.fit here")

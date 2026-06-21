@@ -1,7 +1,0 @@
-core/test_pipeline.py:96:101 test_kb_scan_tension_shape
-def test_kb_scan_tension_shape() -> None:
-    kb = _kb()
-    out = kb.scan_tension(top_n=3)
-    assert isinstance(out, list)
-    for row in out:
-        assert {"text_a", "text_b", "tension", "kind"} <= set(row)

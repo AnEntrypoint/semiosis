@@ -1,6 +1,0 @@
-core/test_encoder.py:29:33 test_random_encoder_deterministic
-def test_random_encoder_deterministic() -> None:
-    enc = RandomEncoder(seed=42)
-    a = enc.encode(["semiosis"])
-    b = enc.encode(["semiosis"])
-    np.testing.assert_array_equal(a, b)

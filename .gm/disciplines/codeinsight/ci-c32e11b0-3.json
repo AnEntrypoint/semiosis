@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:899:901 test_tension_scan_under_two_nodes_empty
-def test_tension_scan_under_two_nodes_empty() -> None:
-    engine, nodes = _fitted_nodes()
-    assert engine.tension_scan(nodes[:1]) == []

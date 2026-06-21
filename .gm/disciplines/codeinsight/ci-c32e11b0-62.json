@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:197:199 test_encoder_satisfies_protocol
-def test_encoder_satisfies_protocol() -> None:
-    enc = RandomEncoder()
-    assert isinstance(enc, Encoder)

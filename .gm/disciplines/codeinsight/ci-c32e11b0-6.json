@@ -1,5 +1,0 @@
-core/test_manifold_invariants.py:882:885 test_tension_is_symmetric
-def test_tension_is_symmetric() -> None:
-    engine, nodes = _fitted_nodes()
-    a, b = nodes[0], nodes[1]
-    assert abs(engine.tension(a, b) - engine.tension(b, a)) < 1e-6

@@ -1,6 +1,0 @@
-core/api.py:16:20 _get_settings
-def _get_settings() -> Settings:
-    global _settings
-    if _settings is None:
-        _settings = Settings()
-    return _settings

@@ -1,6 +1,0 @@
-core/test_context_pack.py:52:56 test_empty_kb_returns_empty_pack
-def test_empty_kb_returns_empty_pack() -> None:
-    kb = KnowledgeBase()
-    pack = kb.build_context_pack("anything", max_tokens=128)
-    assert isinstance(pack, ContextPack)
-    assert pack.entries == ()

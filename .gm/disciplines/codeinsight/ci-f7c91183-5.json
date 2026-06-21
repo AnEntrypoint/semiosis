@@ -1,6 +1,0 @@
-core/test_context_pack.py:39:43 test_budget_zero_is_empty_truncated
-def test_budget_zero_is_empty_truncated() -> None:
-    kb = _kb()
-    pack = kb.build_context_pack("draw call", max_tokens=0)
-    assert pack.entries == ()
-    assert pack.truncated is True

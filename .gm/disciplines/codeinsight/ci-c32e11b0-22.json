@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:681:683 test_api_module_importable
-def test_api_module_importable() -> None:
-    from core import api  # noqa: F401 -- verifies the module parses cleanly
-    assert hasattr(api, "create_app")

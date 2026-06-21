@@ -1,4 +1,0 @@
-core/dag.py:22:24 cone_nodes
-def cone_nodes(cluster_tree):  # noqa: F811
-        """Fit hyperbolic cones; wire HyperbolicConeEngine.fit here."""
-        raise NotImplementedError("wire HyperbolicConeEngine.fit here")

@@ -1,4 +1,0 @@
-core/dag.py:12:14 embeddings
-def embeddings():
-        """Encode texts to Matryoshka vectors; wire a real Encoder here."""
-        raise NotImplementedError("wire RandomEncoder or real Matryoshka encoder")

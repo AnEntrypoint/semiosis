@@ -1,9 +1,0 @@
-core/test_manifold_invariants.py:555:562 test_in_memory_query_satisfies_protocol
-def test_in_memory_query_satisfies_protocol() -> None:
-    cfg = ConeFitConfig(epochs=5, dim=4, seed=0)
-    engine = HyperbolicConeEngine(cfg)
-    nodes = list(engine.fit(_two_node_tree()))
-    store = InMemoryStore()
-    store.write(nodes, CommitId("c1"))
-    query = InMemoryQuery(store, engine)
-    assert isinstance(query, Query)
