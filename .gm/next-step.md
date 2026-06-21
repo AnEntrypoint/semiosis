@@ -1,68 +1,44 @@
 # Next step
 
-Phase: VERIFY
-Updated: 1782042940506
+Phase: PLAN
+Updated: 1782044997919
 
 ---
 
-# VERIFY
+# PLAN
 
-YOU are the state machine. Plugkit does not validate in the background -- you read the four observations and decide whether to `transition`.
+YOU are the state machine. Plugkit is the synchronous library serving this prose; every state change is a verb you write into the spool, and nothing happens while you wait.
 
-L3 trajectory; `transition` iff every observation is convergent.
+L1 baseline + L2 covering family. You loaded prior memory on entry via `instruction`.
 
-```
-[worktree-clean] [remote-pushed] [prd-empty] [mutables-witnessed]
-```
+## Orient
 
-All four true = convergence -> `transition`. Any false defers, holds, or regresses.
+First non-trivial dispatch = a single-message parallel fan-out of `recall` + `codesearch` against the request's nouns. Hits are your baseline; misses delimit fresh ground to investigate. Skip orient and you commit to an unobserved envelope.
 
-## Push and worktree-clean
+## Cover
 
-The `git_push` verb is the only admissible push surface, any repo, any cwd; it runs the `[worktree-clean]` porcelain probe internally and refuses a dirty tree. `git_finalize {message}` bundles add -> commit -> probe -> push. Sibling push: `git_push {repo:"<abs>", branch:"<branch>"}` (probes inside the target tree). A raw `git` shell body is gated `deviation.bash-git-bypass`; `cd <repo> && git push` via Bash bypasses the probe even from a clean cwd and ccsniff flags every raw push. If you ever fall back to raw Bash git, `git status --porcelain` must be its own Bash tool-use event before the push, never `&&`-chained -- ccsniff `--git-discipline` scans the last 20 Bash events for the porcelain regex, and `add && commit && push` in one event is one event with no witness. Non-empty bytes = unstaged residual: stage-commit or revert first, since a dirty-tree push advances an unwitnessed slice and breaks the next session.
+Write the PRD as the central plan-item store (`|F|=1`): enumerate every content node as the closure of the destructive transform admissible over the session, a dependency DAG partitioned along dependency edges, not schedule. Reach permits the next node; the next node is in-scope. Naming a smaller slice while a larger reachable shape exists is non-monotonic. Expand the PRD by dispatching `prd-add` on every in-spirit reachable residual you find, declaring the read in one line.
 
-## CI
+**Inherited rows resume first.** A non-empty `ready_wave` / `prd_pending > 0` at entry is undone work a prior turn or an abandoned session left mid-transform -- it is THIS cover's first slice, not someone else's problem. Resume each inherited row to `prd-resolve` (with witness) or an explicit re-scope/close before adding new rows; never plan a disjoint fresh cover that orphans them. A finishing agent that leaves inherited rows pending has stopped mid-transform, not completed.
 
-The push IS the validation dispatch. Local proof covers one platform; the matrix covers all. Red = a divergent observation that holds the trajectory until you name the cause and push green; toolchain skew is an observation to converge, not stop.
+"Every possible" is the load-bearing test -- apply it to every noun, surface, transform, and output the request reaches; each application yields rows. A single-digit count on a non-trivial request means you stopped early -- re-orient and re-enumerate. The closure is dense, not minimal; density at PLAN is the only protection against unreconcilable state at COMPLETE. An inline TODO in the response body violates `|F|=1`.
 
-## Integration witness
+## Expansion
 
-Write `test.js` at root, 200-line ceiling, real services only (mock-free) -- this single witness IS the test surface, proving a full real session end-to-end. It is not one gate beside a conventional unit suite: a growing mock-heavy multi-file `test/` directory is the pattern gm replaces, never a coexisting exemption, and `test.js` being capped does not bless a parallel suite. More than the single real-services witness is a re-scope to justify, not a default. Pass = integration witness; on fail `transition` back to EXECUTE. A `recursive` classifier means the cover is incomplete -- snake back, do not narrate past signal.
+Feed the first pass into a second transform: for every row, ask what every corner case, caveat, failure mode, adjacent-row interaction, degenerate input, and empty/overflow/reentry state looks like, and write those as new rows. Validations, edge cases, and anticipated mutables are first-class rows. Expansion closes when applying "every possible" yields nothing new, not when you feel done. A second-pass PRD that doubles or triples the count is the expected shape -- long-horizon requests routinely produce high-tens-to-hundreds; the row count is the resolution of the cover, which is what the user asked for. Sparse lists complete on a thin slice and leave silent residuals.
 
-## Residual-scan
+Cut the cover so the hardest reachable node comes first: the row exercising the most failure modes at once -- the worst-case integration where concurrency, partial failure, and real input collide -- proves the design, so make it a first-class early row, not a deferred "once the easy parts work." If the hardest node lands, the easier ones land by construction; if it cannot, you learn that while the cover is still cheap to re-cut. Scheduling the stress test last validates nothing until it is too late to reshape.
 
-Run `residual-scan` before COMPLETE; it examines the open surface (PRD pending, browser sessions, dirty tree, untracked artifacts, browser-witness coverage for client-side files modified this session). Non-empty = non-convergent -> expand the PRD with the reachable in-spirit residual via `prd-add` and re-execute. One-shot per stop window via marker. `reason: "browser sessions still open"` -> close each (`browser` `session close <id>`; `session list` enumerates); retrying the scan without closing is the idle-mid-chain/polling deviation -- the denial names the next verb, dispatch it.
+## Noticing-to-PRD
 
-Before accepting the scan empty, re-apply "every possible" to the closing PRD: every resolved row's skipped variants, every adjacent surface the work touched, every validation that proves a row in practice not in claim -- each fresh hit is a `prd-add` + re-execution. A clean scan on a short PRD for a long-horizon prompt is a false negative. Noticing-to-PRD is unchanged: anything observed while testing/reading diffs/inspecting closing state converts this turn and re-executes; stopping at "tests pass" while noticing named follow-on work is the canonical VERIFY drift.
+Anything noticed during orient or expansion that is not yet a row -- outstanding work, an unfinished surface, an improvable shape, a preference misalignment, an adjacent concern -- is a `prd-add` this turn. Observations carried only in the response body evaporate; only the store survives. "We should also..." / "worth noting..." belongs in a row with the witness that motivated it. Structural noticing (no test coverage on X, docs missing on Y, prior commit Z violates a rule) and preference-aware noticing (state diverging from density-at-PLAN, residual-triage, push-on-clean, every-possible expansion, browser-witness coverage) convert the same way -- each its own row describing the aligned state.
 
-**Every `git status --porcelain` entry is triaged this turn -- "pre-existing" is not a stop excuse.** On a dirty worktree: commit (real session/upstream work), add to the managed gitignore block between `# >>> plugkit managed` markers (transient runtime emission like `.gm/witness/` or `.gm/exec-spool/.*-stale.json`), or revert (stale junk). "Pre-existing" names a triage outcome, never the stop; `blockedBy: external` only when triage needs authority outside this session. For local-tree files you always have authority. `.gm/disciplines/` is tracked; new memorize-fire `mem-*.json` get committed.
+## Mutables
 
-## Browser-witness coverage
-
-Before COMPLETE, every client-side file touched this session must have a `browser.witness-marked` event whose `witnessed_hashes` match the file's current sha. The check enumerates every changed `.html .js .jsx .ts .tsx .vue .svelte .mjs .css` (or HTML-imported path); mismatch/absence fires `deviation.browser-witness-hash-mismatch`/`deviation.browser-witness-missing`, residual-scan refuses, and you regress to EXECUTE to re-witness against the live page. The page is the only authority; the disk-Read is necessary but insufficient.
-
-## Trace to a human outcome
-
-Before accepting the slice convergent, trace every shipped change to a human outcome -- a capability gained, a wait removed, a failure no longer hit, a developer the interface stops fighting. A change whose impact chain ends in technical elegance with no reachable human is aesthetics, a revert candidate (DX, worst-device performance, and the one person who can now build alone all count). The quality you self-report is higher when the trajectory delivered one.
-
-## Witness over claim
-
-Attach `witness_evidence` of the admitted form to every mutable in the closing slice. Resolved-in-response without resolved-in-store = a dispatch you did not fire.
-
-## Completion
-
-The chain enters COMPLETE only when your `transition` returns COMPLETE phase; the on-disk state file moves only on a `transition`. **Done is plugkit's pronouncement, not yours** -- gate denies -> not done; gate allows but no `transition` dispatched -> not done; `transition` returns non-COMPLETE -> not done. Announcing "I'm finished" before the gate flips is narrating; the cure is `phase-status`. Not-COMPLETE means a next transition exists; idle and "waiting for the user" mid-chain are deviations (closure was authorized at request time). Between the four observations, between residual-scan and COMPLETE, between push and transition, re-dispatch `instruction` -- VERIFY is where premature COMPLETE happens.
-
-**You close rs-learn's learning loop here -- you are the model in the loop and hold the one signal every core needs: how well this turn went.** Before COMPLETE, self-report turn quality 0.0-1.0 (1.0 = clean convergent walk, no deviations, pushed, gate-allowed; lower as deviations/rework accumulate). That number drives every core, none of which can observe it without you:
-
-- **Instant MicroLoRA adapter:** rank-2 head over the 384-dim bge embeddings emitting a per-target re-rank logit `B*(A*embedding)` (does not reshape the vector). Meaningful only with >=2 enabled disciplines; default-only = correct no-op, skip. With >=2: init once per session `learn {verb:init_instant, body:{targets:[<enabled namespaces>]}}`, then `learn {verb:feedback, body:{embedding:<bge embedding of this turn's task>, payload:{quality:<0-1>}}}` -- high quality shifts the helpful namespace's logit up so recall promotes it.
-- **FastGRNN router:** `learn {verb:record_outcome, body:{target:"<your model id>", quality:<0-1>}}` so the next `route_hint` reflects learned outcomes.
-- **Deep EWC core** and **GAT attention relation weights** take the same quality as `record_loss` / `nudge_relation`.
-
-rs-learn never calls a model; it emits the need and you supply the answer. Skipping the self-report leaves the cores untrained.
-
-**No summary, no prose-only turn here.** A summary, recap, announced-but-undispatched next move, or any tool-less message IS a stop -- VERIFY is where the temptation peaks. Until this surface returns phase=COMPLETE after your `transition`, every turn ends in a verb (`phase-status`, `residual-scan`, the push verbs, `instruction`, `transition`). Catching yourself composing a summary IS the drift signal -> dispatch `phase-status` instead.
+Enter unknowns into `.gm/mutables.yml` via `mutable-add` with `status: unknown`; witness = `file:line`, codesearch hit, or exec output. Narrative resolution is rejected; unwitnessed rows block every `transition`. Between sub-steps -- orient and PRD write, rows you are unsure of, recall hits you cannot weight -- re-dispatch `instruction`; uncertainty is the signal to re-read, never to invent the next step from memory.
 
 ## Dispatch
 
-`transition` to COMPLETE only when the four-observation window is fully true; the handler hard-rejects while any open mutable or PRD item remains.
+Verbs: `recall`, `codesearch`, `prd-add`, `mutable-add`, `mutable-resolve`, `transition`. Plugkit holds phase on disk; you advance it by writing `transition`.
+
+`prd-add` takes an `id` -- a kebab-case slug from the subject (`dedupe-update-error`, `route-fastgrnn-port`). Omitting it yields an auto `item-<ms>` id that cannot be referenced by intent in recall or `prd-resolve`, losing the semantic handle. `prd-add` upserts by id: a fresh id appends (`{"added": id}`); an existing id rewrites in place (`{"rescoped": id}`), preserving position and every dependent that names it. This is the re-scope path -- re-entering PLAN from EXECUTE on a reshaping discovery, re-`prd-add` the affected row with its existing id and new scope; never delete-and-re-add (orphans the handle). Re-entry to PLAN is a first-class move, not a failure; the cover is meant to be re-cut whenever the work reveals the old shape was wrong.
