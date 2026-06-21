@@ -49,6 +49,26 @@ class RecursiveAnswerEngine:
             parts = nxt
         return [c.strip() for c in parts if c.strip()] or [query.strip()]
 
+    def decompose_by_octaves(self, query: str) -> dict[int, list[str]]:
+        """Decompose query clauses by octave affinity: route each clause to its best-matching octave level."""
+        clauses = self.decompose(query)
+        octaves = self._octaves()
+        result: dict[int, list[str]] = {i: [] for i in range(len(octaves))}
+        pipeline = self._pipeline
+        for clause in clauses:
+            q_vec = self._encode(clause)
+            best_octave = 0
+            best_score = -1.0
+            for octave_idx, prefix in enumerate(octaves):
+                knn_results = pipeline.store.knn_scored(q_vec[:prefix], k=1, prefix=prefix)
+                if knn_results:
+                    _, score = knn_results[0]
+                    if score > best_score:
+                        best_score = score
+                        best_octave = octave_idx
+            result[best_octave].append(clause)
+        return result
+
     def descend(self, q_vec, octave_idx: int, beam_k: int, max_depth: int,
                 visited: "set[NodeId] | None" = None, trace: "list | None" = None,
                 depth: int = 0) -> list[NodeId]:

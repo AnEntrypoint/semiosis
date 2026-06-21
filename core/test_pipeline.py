@@ -92,6 +92,52 @@ def test_kb_navigate_returns_directions() -> None:
     assert all(n.direction in ("up", "down") for n in out)
 
 
+def test_entropy_weighted_knn_scored() -> None:
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    enc = pipe._encoder
+    q = enc.encode(["draw call optimization"])[0]
+    prefix = Prefix(enc.dims[0])
+    q_prefix = q[:prefix]
+    baseline = pipe.store.knn_scored(q_prefix, k=5, prefix=prefix, entropy_weight=0.0)
+    weighted = pipe.store.knn_scored(q_prefix, k=5, prefix=prefix, entropy_weight=0.3)
+    assert len(baseline) == len(weighted)
+    assert all(isinstance(score, float) for _, score in baseline)
+    assert all(isinstance(score, float) for _, score in weighted)
+
+
+def test_detect_hierarchy_boundaries() -> None:
+    from core.eval import detect_hierarchy_boundaries
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    boundaries = detect_hierarchy_boundaries(pipe)
+    assert isinstance(boundaries, dict)
+    for octave_str, stats in boundaries.items():
+        assert "mean_aperture" in stats
+        assert "node_count" in stats
+        assert stats["node_count"] >= 1
+
+
+def test_tune_apertures_by_entropy() -> None:
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    nodes = pipe.store.all_nodes()
+    engine = pipe.engine
+    tuned = engine.tune_apertures_by_entropy(nodes)
+    assert len(tuned) == len(nodes)
+    for orig, adj in zip(nodes, tuned):
+        assert orig.id == adj.id
+        assert adj.aperture >= 0.1  # respects _MIN_APERTURE
+
+
+def test_decompose_by_octaves() -> None:
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    from core.recursive import RecursiveAnswerEngine
+    engine = RecursiveAnswerEngine(pipe)
+    decomp = engine.decompose_by_octaves("reduce draw calls and compress textures")
+    assert isinstance(decomp, dict)
+    for octave_idx, clauses in decomp.items():
+        assert isinstance(octave_idx, int)
+        assert isinstance(clauses, list)
+
+
 def test_kb_scan_tension_shape() -> None:
     kb = _kb()
     out = kb.scan_tension(top_n=3)

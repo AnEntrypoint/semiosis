@@ -10,6 +10,16 @@ import numpy as np
 from .interfaces import CommitId, ConeNode, EuclideanVec, NodeId, Phrase, Prefix
 from .serialization import cone_node_from_dict, cone_node_to_dict
 
+def _compute_entropy(values: np.ndarray) -> float:
+    """Shannon entropy of normalized value distribution."""
+    if len(values) == 0:
+        return 0.0
+    v = np.abs(values)
+    if np.sum(v) == 0:
+        return 0.0
+    p = v / np.sum(v)
+    return float(-np.sum(p * (np.log(p + 1e-10))))
+
 if TYPE_CHECKING:
     from .cone_engine import HyperbolicConeEngine
 
@@ -47,7 +57,7 @@ class InMemoryStore:
             return np.asarray(node.centroid, dtype=np.float32)[:prefix]
         return node.apex[1:prefix + 1].astype(np.float32)
 
-    def knn_scored(self, q: EuclideanVec, k: int, prefix: Prefix) -> list[tuple[NodeId, float]]:
+    def knn_scored(self, q: EuclideanVec, k: int, prefix: Prefix, entropy_weight: float = 0.0) -> list[tuple[NodeId, float]]:
         """Like knn but return (node_id, cosine-in-[0,1]) pairs for calibrated relevance."""
         if not self._nodes:
             return []
@@ -59,6 +69,12 @@ class InMemoryStore:
             length = min(len(vec), len(q_flat))
             sn = float(np.linalg.norm(vec[:length])) or 1.0
             cos = float(np.dot(vec[:length], q_flat[:length]) / (qn * sn))
+            # entropy weight: penalize high-entropy (uncertain) clusters
+            if entropy_weight > 0 and node.centroid is not None:
+                centroid = np.asarray(node.centroid, dtype=np.float32)[:prefix]
+                member_distances = np.array([np.linalg.norm(np.asarray(node.centroid, dtype=np.float32)[:length] - np.asarray(vec, dtype=np.float32)[:length]) for _ in range(max(1, len(node.members)))])
+                h = _compute_entropy(member_distances) / (np.log(max(2, len(node.members))) + 1e-6)
+                cos = cos * (1.0 - entropy_weight * h)
             scores.append((cos, nid))
         scores.sort(reverse=True)
         return [(nid, (c + 1.0) / 2.0) for c, nid in scores[:k]]

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Sequence
+import numpy as np
 
 
 def recall_at_k(kb, labeled: Sequence[tuple[str, set[str]]], k: int = 5) -> float:
@@ -35,3 +36,28 @@ def mrr(kb, labeled: Sequence[tuple[str, set[str]]], k: int = 5) -> float:
 def evaluate(kb, labeled: Sequence[tuple[str, set[str]]], k: int = 5) -> dict[str, float]:
     """Combined retrieval metrics for one KnowledgeBase over a labeled set."""
     return {"recall_at_k": recall_at_k(kb, labeled, k), "mrr": mrr(kb, labeled, k), "k": float(k)}
+
+
+def detect_hierarchy_boundaries(pipeline) -> dict[str, dict[str, float]]:
+    """Analyze octave boundaries via aperture distributions; detect natural information-density gaps."""
+    result = {}
+    store = pipeline.store
+    encoder = pipeline._encoder
+    for octave_dim in encoder.dims:
+        nodes = store.nodes_at(octave_dim)
+        if not nodes:
+            continue
+        apertures = np.array([n.aperture for n in nodes])
+        result[str(octave_dim)] = {
+            "mean_aperture": float(np.mean(apertures)),
+            "std_aperture": float(np.std(apertures)),
+            "min_aperture": float(np.min(apertures)),
+            "max_aperture": float(np.max(apertures)),
+            "node_count": len(nodes),
+        }
+        if len(apertures) > 1:
+            sorted_aper = np.sort(apertures)
+            gaps = np.diff(sorted_aper)
+            result[str(octave_dim)]["max_gap"] = float(np.max(gaps))
+            result[str(octave_dim)]["mean_gap"] = float(np.mean(gaps))
+    return result

@@ -60,6 +60,7 @@ class ContextSettings(BaseModel):
     max_members_per_node: int = Field(4, ge=1)
     reserve_tokens: int = Field(64, ge=0)
     max_dedup_candidates: int = Field(256, ge=1)
+    entropy_weight: float = Field(0.0, ge=0.0, le=1.0)  # 0 = no entropy weighting; 1 = aggressive
 
 
 class RecursiveSettings(BaseModel):

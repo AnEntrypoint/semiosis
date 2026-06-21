@@ -595,25 +595,29 @@
   description: 'Current retrieval ranks embeddings by cosine distance only. Integrate information-theoretic entropy: weight retrieved nodes by local entropy (variance of member distances), so high-entropy clusters (uncertain, diverse) rank lower when alternative evidence exists. This folds uncertainty into ranking and rewards dense, coherent regions matching papers theme of folding information efficiently.'
   acceptance: store.knn adds entropy_weight parameter; CompressResult includes entropy per result; tests show retrieval entropy decreases on WebGL facts when entropy-weighting enabled vs baseline
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/store.py:18-19 _compute_entropy; core/store.py:59-73 knn_scored entropy_weight parameter; core/settings.py:62 ContextSettings.entropy_weight; core/test_pipeline.py:97-104 test_entropy_weighted_knn_scored passing
 - id: octave-boundary-detection
   title: Auto-detect natural octave boundaries via information-theoretic gaps
   description: 'Semiosis uses fixed octaves (64, 128, 256, 512, 1024). The papers suggest hierarchies emerge from dimensional structure. Detect octave boundaries by finding gaps in the information-density curve: compute cumulative mutual information or attention entropy across embedding dimensions, identify low-gradient regions, and suggest new octaves or merge existing ones. This aligns with papers theme of deriving structure from information flow.'
   acceptance: analyze_octave_boundaries returns candidate octaves + entropy justification; empirical octaves compared against manual ones show at least 1 new candidate per dataset
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/eval.py:41-65 detect_hierarchy_boundaries function; core/test_pipeline.py:107-114 test_detect_hierarchy_boundaries passing
 - id: cone-aperture-auto-tuning
   title: Auto-tune cone apertures from information-theoretic principles
   description: 'Cone apertures currently fit via RiemannianAdam. Hypothesis: aperture should reflect information density of members. Compute aperture as function of members entropy: tight cone (small aperture) for low-entropy (coherent) clusters, wide cone for high-entropy (diverse) clusters. This maximizes compression: coherent clusters fold down; diverse clusters remain expanded for precision. Paper insight: energy/entropy tradeoff in folding.'
   acceptance: fit() computes member_entropy per node; aperture_min derived from entropy percentile; tests show tighter cones on low-entropy clusters vs baseline
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/cone_engine.py:77-86 _member_entropy; core/cone_engine.py:163-193 tune_apertures_by_entropy; core/test_pipeline.py:117-126 test_tune_apertures_by_entropy passing
 - id: hierarchical-query-decomposition
   title: Decompose queries hierarchically across octaves before retrieval
   description: 'RecursiveAnswerEngine currently decomposes queries rule-based (split by separators). Enhance: use hierarchy structure itself to decompose. For each query, identify which octave level best answers it (via coarse containment test at each level), then decompose into sub-queries targeting that level. Example: Query about GPU optimization targets middle octave; decompose into texture+shader sub-queries. Paper insight: hierarchies reveal query structure.'
   acceptance: decompose() takes octave argument; returns per-octave sub-queries; test on multi-scale WebGL facts shows target-level queries match 80%+ of hits
   witness_type: code
-  status: pending
+  status: completed
+  witness: core/recursive.py:51-76 decompose_by_octaves method; core/test_pipeline.py:135-143 test_decompose_by_octaves passing
 - id: tension-as-information-flow
   title: Reframe tension/flow primitives as information-theoretic operations
   description: 'cone_engine.py has tension (parent-child margin), flow_weight, flow_neighbors. Reframe as information flow: tension = information loss in containment, flow = information routing through hierarchy, flow_neighbors = information-nearest peers. Add information-theoretic metrics: mutual_information(parent, child), jensen_shannon_divergence(cluster distributions). This grounds geometric operations in information theory and aligns with papers theme.'

@@ -62,6 +62,8 @@ class DiagnoseReport:
     mean_tension: float
     total_energy: float
     redundant_pairs: int
+    retrieval_entropy: float = 0.0
+    entropy_divergence: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

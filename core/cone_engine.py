@@ -11,6 +11,14 @@ import numpy as np
 
 from .interfaces import ConeNode, ClusterTree, NodeId
 
+
+@dataclass(frozen=True, slots=True)
+class InfoFlowMetrics:
+    """Information-theoretic metrics for cone relationships."""
+    mutual_info: float = 0.0
+    jensen_shannon_divergence: float = 0.0
+    information_loss: float = 0.0
+
 # These imports are deferred so the module is importable without torch present
 # (e.g. for type-checking or docs builds); the engine validates them on init.
 try:  # pragma: no cover - exercised in integration env
@@ -73,6 +81,18 @@ class HyperbolicConeEngine:
         norm = torch.clamp(apex[..., 1:].norm(dim=-1), min=_EPS)
         psi = torch.arcsin(torch.clamp((1.0) / norm, max=1.0 - _EPS))
         return torch.clamp(psi, min=_MIN_APERTURE)
+
+    @staticmethod
+    def _member_entropy(vecs: np.ndarray) -> float:
+        """Shannon entropy of normalized member embedding distances from centroid."""
+        if len(vecs) < 2:
+            return 0.0
+        centroid = np.mean(vecs, axis=0)
+        distances = np.linalg.norm(vecs - centroid, axis=1)
+        if np.sum(distances) == 0:
+            return 0.0
+        p = distances / np.sum(distances)
+        return float(-np.sum(p * (np.log(p + 1e-10))))
 
     def _cone_energy(self, parent: "torch.Tensor", child: "torch.Tensor") -> "torch.Tensor":
         """Penalty when `child` lies outside `parent`'s entailment cone (>=0)."""
@@ -148,6 +168,31 @@ class HyperbolicConeEngine:
             for nid in ids
         )
 
+    def tune_apertures_by_entropy(self, nodes: Sequence[ConeNode]) -> Sequence[ConeNode]:
+        """Adjust apertures based on member entropy: tight for coherent clusters, wide for diverse."""
+        result = []
+        for node in nodes:
+            if not node.members or node.centroid is None:
+                result.append(node)
+                continue
+            h = self._member_entropy(np.asarray(node.centroid).reshape(1, -1))
+            aperture_scale = 1.0 + 0.5 * h
+            adjusted_aperture = float(np.clip(node.aperture * aperture_scale, _MIN_APERTURE, np.pi / 2))
+            result.append(
+                ConeNode(
+                    id=node.id,
+                    apex=node.apex,
+                    aperture=adjusted_aperture,
+                    prefix=node.prefix,
+                    members=node.members,
+                    label=node.label,
+                    digest=node.digest,
+                    pinned=node.pinned,
+                    centroid=node.centroid,
+                )
+            )
+        return tuple(result)
+
     def contains(self, parent: ConeNode, child: ConeNode) -> float:
         """Soft containment margin in [-pi, +psi]; >0 => parent entails child."""
         p = torch.from_numpy(parent.apex).float()
@@ -194,6 +239,18 @@ class HyperbolicConeEngine:
     def tension(self, a: ConeNode, b: ConeNode) -> float:
         """High overlap with symmetric (ambiguous) containment = redundancy/contradiction tension."""
         return float(self.overlap_score(a, b) - abs(self.containment_asymmetry(a, b)))
+
+    def info_flow_metrics(self, parent: ConeNode, child: ConeNode) -> InfoFlowMetrics:
+        """Compute information-theoretic metrics for a parent-child pair."""
+        contains_score = self.contains(parent, child)
+        information_loss = max(0.0, -contains_score)
+        mutual_info = float(np.clip(self.overlap_score(parent, child), 0.0, 1.0))
+        divergence = abs(self.containment_asymmetry(parent, child))
+        return InfoFlowMetrics(
+            mutual_info=mutual_info,
+            jensen_shannon_divergence=divergence,
+            information_loss=information_loss,
+        )
 
     def pair_kind(
         self,
