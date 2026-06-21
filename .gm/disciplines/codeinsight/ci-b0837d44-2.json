@@ -1,6 +1,0 @@
-core/settings.py:65:69 RecursiveSettings
-class RecursiveSettings(BaseModel):
-    max_depth: int = Field(4, ge=1)
-    max_breadth: int = Field(8, ge=1)
-    beam_k: int = Field(3, ge=1)
-    min_aperture_stop: float = Field(0.1, ge=0.0)

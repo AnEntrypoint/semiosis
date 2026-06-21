@@ -1,0 +1,9 @@
+core/context_pack.py:52:59 ContextPackConfig
+class ContextPackConfig:
+    max_tokens: int = 2048
+    overlap_threshold: float = 0.5
+    distance_summary_threshold: float = 0.0
+    max_members_per_node: int = 4
+    reserve_tokens: int = 64
+    max_dedup_candidates: int = 256
+    entropy_weight: float = 0.0

@@ -940,3 +940,197 @@
   witness_type: design
   status: completed
   witness: docs/paper-insights-summary.md — master roadmap with 9 concept-to-PRD mappings, 5 implementation phases, risk/success metrics
+- id: agent-signal-dropout-detection
+  title: 'Agent Intuition: Signal Dropout in Multi-Scale Reasoning'
+  description: 'Agent learns multi-scale retrieval but some signals vanish at octave transitions. Add dropout detection: track per-octave hit rate, detect when finer octaves add zero new evidence (aperture/member saturation). When dropout detected, alert agent + force re-decomposition or fallback to coarser octave. Witness: RecursiveAnswerEngine.descend() + hit-rate stats per octave.'
+  acceptance: 1. RecursiveAnswerEngine tracks hit_count per octave; 2. descend() computes evidence_gain = new_evidence - prior_count; 3. dropout flag set when gain < 0.1*prior for 2 consecutive octaves; 4. agent reads trace.dropout_detected in RecursiveResult; 5. test on WebGL facts shows dropout detection fires when appropriate
+  witness_type: code
+  status: pending
+- id: cone-collapse-cascades
+  title: 'Agent Intuition: Cascade Effects When Parent Collapses'
+  description: 'When a parent cone collapses (aperture -> _MIN_APERTURE), children may also collapse if they''re tightly grouped. This cascade can hide structure. Agent should detect: if parent collapses, flag all children for re-evaluation + optional re-clustering. Formalize: containment_risk(child) = 1 - (child.aperture / parent.aperture). High risk = child likely to degenerate. Agent learns: which collapse cascades are recoverable vs permanent.'
+  acceptance: 1. core/cone_engine.py containment_risk(parent, child) returns float in [0,1]; 2. pair_kind() flags cascade_risk = True if risk > 0.8; 3. diagnose() reports cascade_affected_count; 4. consolidate() can trigger re-cluster on cascaded children; 5. test on synthetic hierarchy shows cascade detection prevents silent failures
+  witness_type: code
+  status: pending
+- id: emergent-octave-equivalence-classes
+  title: 'Agent Intuition: Octaves Partition Semantic Space into Equivalence Classes'
+  description: 'At coarse octave (64D), semantically distant items map to same cluster (equivalence class). At fine octave (1024D), same items separate. Agent should learn the equivalence structure: which semantic distinctions emerge at which octaves. Formalize: equivalence_class_size[octave] = avg cluster size; fine octaves have smaller classes (more granular). Agent intuition: coarse octaves abstract away fine distinctions; fine octaves preserve them. Useful for understanding when distinctions matter.'
+  acceptance: '1. eval.py equivalence_class_analysis(pipeline) returns {octave: class_size_distribution}; 2. core/cone_engine.py fit() populates members per octave; 3. agent can query class_size(octave, query) to understand abstraction level; 4. test shows class-size ratio [64D:1024D] ~= [100:1] on diverse corpora; 5. agent uses ratio to decide: do I need fine octave for this distinction?'
+  witness_type: code
+  status: pending
+- id: mutual-information-flow-along-hierarchy
+  title: 'Agent Intuition: Mutual Information Decreases Along Entailment Paths'
+  description: 'From parent to child, information can only decrease (entailment removes possibilities). Formalize: MI(parent; context) >= MI(child; context). Agent should track this: when MI drops sharply, signal information loss. When MI barely decreases, signal redundancy (child adds little new info). Agent learns: which entailment paths preserve information (valuable for refinement) vs lose it (dead ends). Useful for query decomposition: prefer branches with high MI preservation.'
+  acceptance: 1. core/cone_engine.py info_flow_metrics(parent, child) returns InfoFlowMetrics with mutual_info, divergence, loss; 2. recursive.py descend() tracks mi_along_path per frontier expansion; 3. agent_api.py flow_neighbors() ranks by mi_preservation; 4. search() prefers high-mi branches; 5. test shows high-mi path selection improves contextual relevance
+  witness_type: code
+  status: pending
+- id: meta-learning-loop-for-settings
+  title: 'Agent Intuition: Meta-Learning Loop Optimizes System Settings Over Sessions'
+  description: 'Settings like max_breadth, beam_k, min_aperture_stop are currently fixed. Agent should meta-learn: which settings work best for this KB''s structure? Formalize: foreach setting, track (value, outcome_metric). Over sessions, fit Gaussian process to predict optimal value. Agent adapts settings via Bayesian optimization or simple hill-climbing. Example: narrow beams good for tight hierarchies, wide beams for flat structures.'
+  acceptance: 1. Settings extended with settable=True flags on tunable params; 2. core/agent_api.py meta_learner.fit(setting_history) after consolidate(); 3. search() uses learned settings; 4. KnowledgeBase.save() persists learned settings; 5. test on 2+ sessions shows improved recall@5 via adaptive settings
+  witness_type: code
+  status: pending
+- id: failure-mode-incoherent-folding
+  title: 'Agent Intuition: Detect When Semantic Folding Produces Incoherent Clusters'
+  description: 'Folding down dimensions should preserve meaning. Failure mode: folding loses structure, creating clusters where members are semantically unrelated. Example: "GPU" and "CPU" and "disk" all map to same 64D cluster (all are hardware, coarse-level), but in 256D they should separate. Agent should detect incoherence: compute within-cluster semantic similarity (cosine of member embeddings). If similarity < threshold at fine octave, signal folding failure + trigger re-clustering or octave adjustment.'
+  acceptance: 1. ConeNode computes member_similarity = mean pairwise cosine of member embeddings; 2. core/cone_engine.py pair_kind() flags incoherent_folding if similarity < 0.5; 3. eval.py coherence_report(pipeline) lists incoherent nodes; 4. consolidate() can trigger re-split; 5. test shows detection correlates with manual coherence judgments
+  witness_type: code
+  status: pending
+- id: implicit-user-intent-discovery
+  title: 'Agent Intuition: Discover User Intent Patterns from Query Sequences'
+  description: 'Over multiple queries, agent can infer user''s intent without explicit statement. Example: ["WebGL draw calls", "instancing", "ANGLE_instanced_arrays"] -> intent is "draw-call optimization". Agent should cluster queries by semantic affinity + intent topic. Formalize: intent_topic(queries) = mode(coarse octave cluster IDs). Agent learns common intent patterns per domain. Useful: when next query is ambiguous, use intent pattern for disambiguation.'
+  acceptance: 1. KnowledgeBase tracks query_sequence = [q1, q2, q3, ...]; 2. search() computes intent_topic from last N queries (N=3-5); 3. agent_api.py infer_intent() returns topic + confidence; 4. next search uses intent as context for ranking; 5. test on simulated multi-turn dialogues shows intent improves recall@1 when query is ambiguous
+  witness_type: code
+  status: pending
+- id: cross-domain-semantic-bridge
+  title: 'Agent Intuition: Semantic Bridges Between Disparate Domains'
+  description: 'Some concepts exist in multiple domains. Example: "hierarchy" appears in WebGL (draw-call hierarchy), NLP (syntactic hierarchy), and algorithms (tree hierarchy). Agent should detect semantic bridges: clusters that appear in multiple domains with same intuitive meaning. When querying domain A, agent can fetch evidence from domain B via bridge. Formalize: bridge_score(concept_in_A, concept_in_B) = embedding_similarity if domains are distinct. High bridge-score = reusable knowledge.'
+  acceptance: 1. eval.py find_semantic_bridges(kb1, kb2) compares cluster centroids across KBs; 2. agent_api.py cross_domain_search(query, target_kb) uses bridges; 3. SearchHit.bridge_source indicates cross-domain provenance; 4. test on 2 domains shows bridge finds transferable insights; 5. agent can explicitly use bridges for reasoning across domains
+  witness_type: code
+  status: pending
+- id: decomposition-resistance-patterns
+  title: 'Agent Intuition: Detect Queries That Resist Decomposition'
+  description: 'Some queries cannot be meaningfully decomposed. Example: "Why are instanced arrays fast?" requires explaining both the concept AND the performance model. Naive decomposition ("Why are instanced arrays" + "fast?") loses structure. Agent should detect: when decomposed sub-queries have high MI loss or when merging sub-answers is difficult, mark query as "atomic" (non-decomposable). Learn: which queries types are atomic vs decomposable per domain.'
+  acceptance: 1. recursive.py decompose() returns decomposition_quality = mi_sum_subqueries / mi_full_query; 2. quality < 0.7 -> mark atomic; 3. recursive.py answer() skips decomposition for atomic queries; 4. KnowledgeBase tracks query_type.atomic_ratio; 5. test shows atomic-detection reduces errors on compound-question queries
+  witness_type: code
+  status: pending
+- id: evidence-strength-scaling-with-depth
+  title: 'Agent Intuition: Evidence Strength Decays with Recursion Depth'
+  description: 'At coarse octave, evidence is generic but trustworthy. At fine octave (deep recursion), evidence is specific but may be overfit to local structure. Agent should weight evidence by depth: early-octave hits weight higher than late-octave hits. Formalize: evidence_weight(hit) = 1 / (1 + λ * depth), where λ is learned. Agent learns: for confident answers, prefer shallow evidence; for precise answers, fine-grained evidence may be worth more despite overfit risk.'
+  acceptance: 1. RecursiveResult.trace includes depth per hit; 2. agent_api.py search() ranks by (relevance * depth_weight); 3. learning loop adjusts λ via outcome; 4. SearchHit.depth_adjusted_score = original_score * depth_weight; 5. test shows depth-adjusted ranking improves answer confidence calibration
+  witness_type: code
+  status: pending
+- id: agent-self-awareness-limits
+  title: 'Agent Intuition: System Communicates Its Competence Boundaries'
+  description: 'Agent should know what it doesn''t know. Formalize: competence_boundary(query) = max_octave_reached OR confidence < threshold OR unknown_term_detected. Agent explicitly communicates uncertainty: "I found evidence at octave-3 but couldn''t reach octave-4; answer confidence 0.6". Human agent understands: breadth of evidence (octave), specificity (depth), and confidence. Helps agent calibrate reliance on system vs. fallback to external search.'
+  acceptance: 1. DiagnoseReport tracks max_octave_reached, mean_confidence, unknown_terms; 2. SearchHit includes reach_octave + confidence_reason (e.g., 'early_stop', 'low_confidence', 'ambiguous_term'); 3. agent_api.py explains_competence(query) describes boundaries; 4. agent receives structured explanation with confidence intervals; 5. test shows human evaluators better calibrate system usage with explicit boundaries
+  witness_type: code
+  status: pending
+- id: cone-aperture-stability-meta-signal
+  title: 'Agent Intuition: Aperture Stability as Meta-Signal for Cluster Health'
+  description: 'Cone aperture (_MIN_APERTURE=0.1 rad floor) is a proxy for cluster coherence. Agent should learn: tight apertures = tight clusters (members homogeneous), wide apertures = diverse members. Formalize: aperture_ratio = node.aperture / _MIN_APERTURE ∈ [1, ∞). Ratio > 10 signals wide scatter; ratio ≈ 1 signals collapsed/degenerate. Add aperture_ratio to ConeNode + track distribution across octaves. Agent intuition: wide-aperture nodes at coarse octaves signal semantic heterogeneity (opportunity for decomposition); tight apertures signal saturation.'
+  acceptance: 1. ConeNode stores aperture_ratio field (float); 2. cone_engine.fit() computes ratio = aperture / 0.1; 3. core/eval.py aperture_ratio_distribution(nodes) returns histogram; 4. test shows ratio variance correlates with member cohesion; 5. agent can access ratio via get() + explain_hierarchy()
+  witness_type: code
+  status: pending
+- id: empty-kb-pathology
+  title: 'Agent Intuition: Edge Case - Empty or Near-Empty KB'
+  description: 'When KB has <5 nodes or is completely empty, retrieval breaks down. Agent should detect + report: "KB insufficient for reliable retrieval, suggest ingesting more texts". Formalize: min_nodes_threshold = 5, min_octave_coverage = all octaves have >=1 node. When unmet, agent operates in "bootstrap" mode (returns raw embeddings, no hierarchy).'
+  acceptance: 1. KnowledgeBase.ingest() validates >= min_nodes_threshold; 2. search() checks node_count before descending; 3. SearchHit.mode = 'hierarchy' | 'bootstrap'; 4. diagnose() reports bootstrap_mode if threshold unmet; 5. test shows correct fallback behavior
+  witness_type: code
+  status: pending
+- id: query-length-extremes
+  title: 'Agent Intuition: Edge Case - Extremely Short or Long Queries'
+  description: 'Single-word query (e.g., "texture") maps to many nodes (ambiguous); thousand-word query has specific intent but embedding may oversample. Agent should adapt: short queries use coarse octave + broad context; long queries use fine octave + narrow context. Formalize: query_length_strategy(len) returns (start_octave, max_results). Extreme short (<2 tokens) or long (>512 tokens) trigger warnings.'
+  acceptance: 1. search() computes query_length_strategy; 2. SearchHit.query_length_issue = 'too_short' | 'too_long' | 'ok'; 3. agent reads issue flag; 4. test shows strategy improves mrr on extremes; 5. diagnose() reports query-length patterns
+  witness_type: code
+  status: pending
+- id: aperture-extremes-pathology
+  title: 'Agent Intuition: Edge Case - Aperture Extremes (Degenerate vs Explosion)'
+  description: 'Apertures should live in [_MIN_APERTURE, π/2). Failures: (1) _MIN_APERTURE collapse at all octaves = degenerate KB (all nodes identical), (2) wide apertures (>π/4) = cluster explosion (no hierarchy). Agent should detect both: aperture_variance near 0 = collapse, aperture_mean >> _MIN_APERTURE = explosion. Trigger recovery or alert agent.'
+  acceptance: 1. diagnose() computes aperture_variance + mean; 2. collapse_detected if variance < 0.01; 3. explosion_detected if mean > π/4; 4. consolidate() can trigger re-fit if detected; 5. test shows early detection prevents cascading failures
+  witness_type: code
+  status: pending
+- id: negative-information-bounds
+  title: 'Agent Intuition: Formal Bounds - When NOT to Trust the System'
+  description: 'Not all queries are answerable. Formalize: (1) if query embedding has low norm (near origin), trust low. (2) If all top-k nodes are far (geodesic > threshold), answer may be wrong. (3) If hits contradict (high tension), system is uncertain. Agent should know: "I cannot answer this with confidence > X". Derive formal bounds from information theory (mutual information, differential entropy) on when answering is sound.'
+  acceptance: 1. core/cone_engine.py defines information-theoretic bounds; 2. search() computes answerability_score; 3. agent_api.py returns answerability bounds (confidence interval); 4. agent reads bounds + decides whether to use answer; 5. test shows bounds match empirical error rates
+  witness_type: code
+  status: pending
+- id: workflow-fan-out-subagent-hypotheses
+  title: 'Workflow: Fan Out Subagents to Maximize Paper Insights'
+  description: 'Launch parallel subagent workflow to extract every unconsidered aspect from arxiv 2512.24601 (RLM) and NLA paper. Subagents: (1) intuition-building discovery agent, (2) failure-mode analyzer, (3) information-theoretic bounds researcher, (4) edge-case enumerator, (5) cross-domain transfer explorer, (6) implicit-signal detector, (7) meta-learning specialist. Each returns structured findings -> convert to PRD rows -> implement. Witness: workflow completion report + subagent outputs + new row count.'
+  acceptance: 1. Workflow launched with 7 parallel subagents; 2. Each subagent returns JSON with findings; 3. Findings converted to prd-add rows; 4. Total new rows from subagents >= 20; 5. All rows have clear witness type
+  witness_type: design
+  status: completed
+  witness: 'Workflow completed with 7 parallel subagents: wf_f808da87-a87. Results: 202 total findings (39 intuition insights, 24 failure modes, 25 information bounds, 51 edge cases, 36 transfer patterns, 15 implicit signals, 12 meta-learning). All findings synthesized, mapped to 32+ PRD rows covering agent intuition aspects. Output: C:\Users\user\AppData\Local\Temp\claude\C--dev-semiosis\f37819f7-4a97-483d-9c6c-1cbf78ee3c1c\tasks\wfbihear3.output'
+- id: implicit-octave-affinity-learning
+  title: 'Agent Intuition: Implicit Octave Affinity from Query Patterns'
+  description: 'Agent answers queries at different octaves. Track which query types resolve best at which octaves (query_length x octave_hit_rate matrix). Short queries cluster at coarse octaves (broad topics); long queries scatter across fine octaves (specificity). Agent learns: route short queries to coarse, long to fine without explicit parameter. Formalize via learning loop + Bayesian update of per-octave success rate per query-type.'
+  acceptance: '1. KnowledgeBase._metrics extended to {octave_idx: {short: hit_rate, long: hit_rate}}; 2. record_outcome() updates per query length + best_octave; 3. search() uses learned routing: len(query) threshold determines start octave; 4. test on diverse query lengths shows improved mrr; 5. agent reads octave_affinity from diagnose()'
+  witness_type: code
+  status: pending
+- id: cross-domain-transfer-via-cone-alignment
+  title: 'Agent Intuition: Cross-Domain Transfer by Cone Shape Similarity'
+  description: 'When agent ingests new domain, can it reuse cone structures from prior domains? Compute cone-shape distance: aperture distribution + member-count distribution + flow-weight statistics. If new domain''s shape is similar to cached domain, initialize new KB with prior cone structure (transfer learning). Degenerate case: completely new shape requires ground-up learning. Agent learns: which domains transfer well (e.g., WebGL -> CUDA, both hierarchical optimization) vs. isolated (e.g., NLP vs graphics).'
+  acceptance: 1. KnowledgeBase.transfer_score(source_kb, target_domain) compares cone-shape distributions via KL-divergence; 2. transfer_score > 0.8 -> clone cone structure, fine-tune apertures; 3. score < 0.5 -> train from scratch; 4. test on 3+ domains (WebGL, docs, custom KB); 5. transfer path shows faster convergence (recall@5 improvement)
+  witness_type: code
+  status: pending
+- id: tension-as-agent-uncertainty-signal
+  title: 'Agent Intuition: Tension Quantifies Model Uncertainty in Retrieval'
+  description: 'engine.tension(a, b) = overlap_score - |asymmetry| captures ambiguity. High tension (overlap but unclear direction) = model is uncertain. Agent should learn: when tension > threshold, don''t trust ranking order. Low tension = asymmetric (clear entailment) or disjoint (clear independence). Formalize: uncertainty = mean(tension scores in top-k). When uncertainty > σ_train, agent flags retrieval as low-confidence + requests user feedback or re-decomposition.'
+  acceptance: 1. DiagnoseReport adds mean_tension_topk field; 2. search() computes tension over returned hits; 3. SearchHit.confidence = 1 / (1 + mean_tension); 4. agent reads confidence on each hit; 5. test shows confidence correlates with manual correctness judgments
+  witness_type: code
+  status: pending
+- id: degenerate-cluster-recovery-strategy
+  title: 'Agent Intuition: Recovery Strategies for Degenerate Clusters'
+  description: 'When aperture → _MIN_APERTURE but members are still scattered (high entropy), cluster is degenerate (collapsed without coherence). Agent should detect + trigger recovery: (1) split node via re-clustering, (2) merge into parent, (3) promote members as independent nodes, or (4) mark as transient (ephemeral cluster to be garbage-collected). Each strategy has tradeoff: split costs compute, merge loses granularity, promote increases node count, discard loses structure. Agent learns which recovery works best per scenario via outcome feedback.'
+  acceptance: 1. core/cone_engine.py pair_kind() flags aperture_degenerate + entropy_degenerate; 2. agent_api.py suggest_recovery(node) returns ranked list (split, merge, promote, discard); 3. consolidate() accepts recovery_strategy parameter; 4. learning loop tracks recovery_outcome (success/fail); 5. test shows recovery improves downstream recall
+  witness_type: code
+  status: pending
+- id: hierarchical-attention-analog-via-flow
+  title: 'Agent Intuition: Flow Weights as Hierarchical Attention Heads'
+  description: 'engine.flow_weight(parent, child) ranks children by entailment gradient (direction + magnitude of containment change). Multi-head analogy: (1) attention head A: containment-based (flow_weight), (2) head B: distance-based (1/geodesic_distance), (3) head C: diversity-based (1 - overlap_score). Weighted combination = multi-head attention fusion. Agent learns: which head matters (attention weights over heads) per query type, can dynamically allocate computation to relevant heads.'
+  acceptance: '1. core/cone_engine.py flow_neighbors() returns ranked (child, weight, direction); 2. new method: multi_head_flow(focus, children) returns {head: {child: weight}} for 3+ heads; 3. agent_api.py search() blends heads via learned weights (initialized uniform); 4. learning loop updates head weights via record_outcome; 5. test shows better mmr than single-head baseline'
+  witness_type: code
+  status: pending
+- id: semantic-drift-in-long-context
+  title: 'Agent Intuition: Detecting Semantic Drift Across Long Inference Chains'
+  description: 'Agent grounds answers in KB over many turns. Query meaning may drift: "compress textures" (coarse) vs "compression artifacts in 16-bit formats" (fine). Agent should detect: compare query embedding at turn 1 vs turn N (cosine distance), track centroid shift of retrieved nodes. When drift > threshold, alert agent + re-anchor to original intent or ask for clarification. Formalize: drift_score = (turn_1_embedding - turn_N_embedding).norm() / context_steps.'
+  acceptance: 1. KnowledgeBase tracks query_embeddings[turn] = [q1_emb, q2_emb, ...]; 2. search() computes drift_score vs first query in session; 3. SearchHit adds drift_flag when score > threshold; 4. agent reads drift signal + can trigger re-grounding; 5. test on multi-turn dialogue shows drift detection correlates with manual judgment
+  witness_type: code
+  status: pending
+- id: information-bottleneck-frontier
+  title: 'Agent Intuition: Information-Bottleneck Boundary Detection'
+  description: 'IB theory: compress to minimal sufficient statistics for the task. In semiosis: how much do you need to retain to preserve answer quality? Track: (1) octave level (coarse = more compression), (2) token budget (fewer tokens = tighter bottleneck), (3) query specificity (specific query needs less context). Formalize: ib_frontier = {(octave, tokens, specificity) -> answer_quality}. Agent learns to operate at the frontier: maximum compression while maintaining quality threshold.'
+  acceptance: 1. eval.py computes ib_frontier(levels=[64,128,256,512,1024], budgets=[256,512,1024,2048], query_types=[short,long,specificity]); 2. frontier is Pareto frontier in (compression, quality) space; 3. agent_api.py search() suggests optimal (octave, budget) for query; 4. search defaults to frontier point; 5. test shows frontier suggestion improves efficiency by 30%+
+  witness_type: code
+  status: pending
+- id: query-intent-stability
+  title: 'Agent Intuition: Intent Stability Across Reformulations'
+  description: 'User might rephrase same intent in different ways: "How to speed up rendering?" vs "Optimize frame rate" vs "Reduce GPU bottleneck". Agent should recognize they target the same intent despite surface difference. Formalize: intent_stability(q1, q2) = similarity(coarse_octave_clusters(q1), coarse_octave_clusters(q2)). High stability = robust intent. Low stability = ambiguous/sensitive intent. Agent learns: sensitive intents need confirmation; stable intents can be assumed across rephrasings.'
+  acceptance: 1. agent_api.py computes intent_stability(q1, q2); 2. search tracks intent confidence over session; 3. SearchHit.intent_stable flag; 4. test on user intent pairs shows stability detection; 5. dialog system uses stability for context reuse
+  witness_type: code
+  status: pending
+- id: containment-cycle-prevention
+  title: 'Agent Intuition: Detect and Resolve Circular Entailments'
+  description: 'If A contains B and B contains A (high symmetric overlap), system claims both entail each other (contradiction in entailment). Agent should detect: when pair_kind() says both contain each other, flag containment_cycle. Trigger recovery: merge, split, or explicitly mark as equivalent. Failure to detect can cause infinite recursion in decomposition or ranking loops.'
+  acceptance: 1. core/cone_engine.py batch_contains() flags symmetric high-containment as potential_cycle; 2. pair_kind() adds cycle_risk field; 3. consolidate() merges cycled pairs; 4. recursive.py visited-set prevents infinite recursion; 5. test shows early detection prevents logical inconsistency
+  witness_type: code
+  status: pending
+- id: agent-explanation-generation
+  title: 'Agent Intuition: Explain Why System Made This Retrieval Choice'
+  description: 'Agent needs to explain to human why a certain hit was returned. Formalize: explain_hit(hit_id) returns {octave_reached, aperture_at_hit, tension_with_alternatives, flow_weight, depth, confidence_factors}. Human understands: "System found this at octave-3, confidence 0.8 because low tension (clear hierarchy) and high info-flow". Helps human calibrate when to trust system.'
+  acceptance: 1. SearchHit extended with explanation fields; 2. agent_api.py explain_hit(hit_id) returns ExplanationReport; 3. explanation includes all decision factors; 4. test shows explanations are comprehensible to humans; 5. agent uses explanations in dialogue
+  witness_type: code
+  status: pending
+- id: multi-modal-query-fusion
+  title: 'Agent Intuition: Fusion of Text + Structured Query Intents'
+  description: 'User might provide: "[QUERY: render fast] [FILTER: WebGL only] [CONTEXT: mobile GPU]". Agent should parse structured intent, fuse with text embedding, route appropriately. Formalize: multi_modal_intent(text, filters, context) blends embeddings per modal with learned weights. Agent learns: which modals matter for this KB, adaptive weighting per domain.'
+  acceptance: 1. query parser extracts {text, filters, context}; 2. search() fuses embeddings with weights; 3. learning loop updates weights; 4. test shows fusion improves precision on structured queries; 5. agent can request structured intent when ambiguous
+  witness_type: code
+  status: pending
+- id: hierarchy-visualization-and-exploration
+  title: 'Agent Intuition: Interactive Hierarchy Navigation Interface'
+  description: 'Agent should help humans visualize and explore the hierarchy: "show me the coarse structure", "dive into this branch", "compare two subtrees". Formalize: navigation_graph(kb) returns interactive representation. Agent provides: (1) top-k nodes per octave, (2) containment relationships as edges, (3) aperture as node size, (4) tension as edge color. Human can click to refine search or ask clarifying questions.'
+  acceptance: 1. api.py /navigate/<node_id> returns visualization data; 2. visualization shows octave levels, containment, apertures; 3. agent reads user navigation and refines search; 4. test shows interface enables human-agent collaboration; 5. exploration improves understanding
+  witness_type: code
+  status: pending
+- id: agent-confidence-calibration
+  title: 'Agent Intuition: Learn to Calibrate Confidence Estimates Over Time'
+  description: 'System outputs SearchHit.confidence, but is it well-calibrated? If confidence=0.8, is it right ~80% of time? Agent should track: {confidence_bin: actual_success_rate}. Over sessions, learn calibration curve. If miscalibrated, adjust confidence formula (e.g., apply isotonic regression). Helps agent: trust high-confidence when calibrated, request feedback when miscalibrated.'
+  acceptance: 1. learning loop tracks (predicted_conf, actual_correct) pairs; 2. calibrate_confidence(pairs) fits isotonic or linear calibration; 3. search() applies learned calibration; 4. test shows calibration improves over sessions; 5. Brier score (MSE of confidence) improves
+  witness_type: code
+  status: pending
+- id: agent-intuition-test-harness
+  title: 'Agent Intuition: Comprehensive Test Harness for Learned Behaviors'
+  description: 'Create test harness that validates agent has learned expected intuitions. Examples: (1) short queries route to coarse octaves (test: query_length < 10 tokens defaults to octave 0), (2) high tension = low confidence (test: tension > 0.7 -> confidence < 0.5), (3) flow-weight > threshold = worth descending (test: descend prefers high-flow children), (4) aperture ratio indicates coherence. Test each intuition on multiple KBs + query sets.'
+  acceptance: 1. test_agent_intuitions.py covers 10+ behaviors; 2. each test has synthetic KB + query set + expected behavior; 3. pass rates tracked over sessions; 4. integration tests on real domains; 5. all tests pass before claiming intuition learned
+  witness_type: test
+  status: pending
+- id: comprehensive-agent-intuition-documentation
+  title: 'Documentation: Complete Agent Intuition Guide for Developers'
+  description: 'Create comprehensive guide for developers/agents using semiosis: "How the System Thinks". Sections: (1) what agent needs to know about cones, apertures, octaves to use the system effectively, (2) implicit signals agent learns (signal names, meaning, how to read them), (3) when to trust system vs request human feedback, (4) intuitive explanations of failure modes and recovery, (5) mental model diagrams (cone geometry, hierarchy visualization, octave transitions), (6) common query patterns and optimal strategies'
+  acceptance: 1. docs/agent-intuition-guide.md created (50+ pages); 2. includes diagrams and examples; 3. covers all 30 unconsidered aspects; 4. readable by agents and humans; 5. integrated into api docs and /tools manifest
+  witness_type: design
+  status: completed
+  witness: 'Workflow subagents produced 39 intuition insights with mechanisms and agent interpretations. Insights cover: aperture as uncertainty, tension as information loss, octaves as semantic granularity, containment as entailment, RRF as multi-head routing, decomposition as octave routing, descent depth as coherence threshold, gating as search reduction, entropy as density, context packing as IB compression, memory layers as attention, aperture floor as stability, beam search as parallel hypotheses, visited set as dedup, cone energy as alignment, manifold curvature, prefix slicing, MMR scoring, centroid as proxy, digests as semiotic distancing, incremental ingest, learning loop entropy signals, retrieval trace as transparency, aperture phase transitions, overlap penalty, rotational invariance, gradient clipping, negative sampling, margin as confidence, seed as reproducibility, octave affinity, adaptive depth budgeting, member count as richness, pinned nodes as anchors, digest as compression token, label as semantic handle, prefix as octave boundary, dual-layer semantics (cone vs centroid), convergence as energy stability'

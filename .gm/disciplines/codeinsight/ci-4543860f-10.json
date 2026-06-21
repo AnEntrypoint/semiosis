@@ -1,0 +1,10 @@
+core/test_pipeline.py:108:116 test_detect_hierarchy_boundaries
+def test_detect_hierarchy_boundaries() -> None:
+    from core.eval import detect_hierarchy_boundaries
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    boundaries = detect_hierarchy_boundaries(pipe)
+    assert isinstance(boundaries, dict)
+    for octave_str, stats in boundaries.items():
+        assert "mean_aperture" in stats
+        assert "node_count" in stats
+        assert stats["node_count"] >= 1

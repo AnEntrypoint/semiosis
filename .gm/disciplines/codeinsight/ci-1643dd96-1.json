@@ -1,0 +1,8 @@
+core/agent_api.py:70:76 RetrievalStep
+class RetrievalStep:
+    text: str
+    score: float
+    node_id: str
+    octave: int
+    containment_to_top: float
+    tension: float

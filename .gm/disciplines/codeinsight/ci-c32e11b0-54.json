@@ -1,8 +1,0 @@
-core/test_manifold_invariants.py:282:288 test_find_entailments_after_training
-def test_find_entailments_after_training() -> None:
-    cfg = ConeFitConfig(epochs=500, dim=4, seed=7, lr=5e-3)
-    engine = HyperbolicConeEngine(cfg)
-    nodes = list(engine.fit(_two_node_tree()))
-    pairs = engine.find_entailments(nodes, threshold=0.0)
-    # After sufficient training at least one pair should be entailed
-    assert len(pairs) >= 0  # structural: returns list of tuples

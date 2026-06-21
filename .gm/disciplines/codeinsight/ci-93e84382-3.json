@@ -1,6 +1,0 @@
-core/test_pipeline.py:117:121 test_kb_compress_context_reduces_energy
-def test_kb_compress_context_reduces_energy() -> None:
-    kb = _kb()
-    out = kb.compress_context("gpu memory", k=2)
-    assert len(out.texts) <= 2
-    assert out.energy_reduction >= 0.0

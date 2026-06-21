@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:68:74 test_fit_returns_valid_cones
+def test_fit_returns_valid_cones() -> None:
+    cfg = ConeFitConfig(epochs=10, dim=4, seed=42)
+    engine = HyperbolicConeEngine(cfg)
+    nodes = engine.fit(_two_node_tree())
+    assert len(nodes) == 2
+    for node in nodes:
+        assert node.aperture >= 0.1  # _MIN_APERTURE floor

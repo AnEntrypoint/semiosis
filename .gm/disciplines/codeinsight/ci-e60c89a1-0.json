@@ -1,0 +1,12 @@
+core/settings.py:82:92 Settings
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="SC_", env_nested_delimiter="__")
+    env: Env = Env.dev
+    encoder: EncoderSettings = EncoderSettings()
+    cone: ConeSettings = ConeSettings()
+    store: StoreSettings = StoreSettings()
+    memory: MemorySettings = MemorySettings()
+    context: ContextSettings = ContextSettings()
+    recursive: RecursiveSettings = RecursiveSettings()
+    agent: AgentSettings = AgentSettings()
+    enable_nla_labels: bool = False            # optional, decoupled

@@ -1,0 +1,12 @@
+core/test_pipeline.py:95:105 test_entropy_weighted_knn_scored
+def test_entropy_weighted_knn_scored() -> None:
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    enc = pipe._encoder
+    q = enc.encode(["draw call optimization"])[0]
+    prefix = Prefix(enc.dims[0])
+    q_prefix = q[:prefix]
+    baseline = pipe.store.knn_scored(q_prefix, k=5, prefix=prefix, entropy_weight=0.0)
+    weighted = pipe.store.knn_scored(q_prefix, k=5, prefix=prefix, entropy_weight=0.3)
+    assert len(baseline) == len(weighted)
+    assert all(isinstance(score, float) for _, score in baseline)
+    assert all(isinstance(score, float) for _, score in weighted)

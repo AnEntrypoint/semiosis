@@ -1,0 +1,12 @@
+core/eval.py:8:18 recall_at_k
+def recall_at_k(kb, labeled: Sequence[tuple[str, set[str]]], k: int = 5) -> float:
+    """Mean fraction of each query's relevant texts present in the top-k hits."""
+    if not labeled:
+        return 0.0
+    total = 0.0
+    for query, relevant in labeled:
+        if not relevant:
+            continue
+        hits = set(kb.search_texts(query, k))
+        total += len(hits & relevant) / len(relevant)
+    return total / len(labeled)

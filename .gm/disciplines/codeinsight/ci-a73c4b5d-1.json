@@ -1,0 +1,6 @@
+core/test_encoder.py:55:59 test_agglomerative_clusterer_all_assigned
+def test_agglomerative_clusterer_all_assigned() -> None:
+    enc = RandomEncoder(octaves=(32,))
+    vecs = enc.encode([f"x{i}" for i in range(5)])
+    tree = AgglomerativeClusterer(n_clusters=2).fit(vecs, Prefix(32))
+    assert set(tree.assignments.keys()) == {f"doc_{i}" for i in range(5)}  # type: ignore[arg-type]
