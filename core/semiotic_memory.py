@@ -1,19 +1,30 @@
-"""Layered memory over the cone store: session metadata, long-term facts, summaries, working window."""
+"""Layered memory over the cone store: session, long-term facts, summaries, working window."""
+
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Sequence
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
-from .context_pack import ContextPackBuilder, ContextPackConfig, HeuristicTokenCounter
+from .context_pack import (
+    ContextPackBuilder,
+    ContextPackConfig,
+    HeuristicTokenCounter,
+    TokenCounter,
+)
+
+if TYPE_CHECKING:
+    from .pipeline import KnowledgePipeline
+    from .settings import Settings
 
 
-class MemoryKind(str, Enum):
-    session = "session"          # ephemeral environment metadata
-    fact = "fact"                # explicit long-term pinned fact
-    summary = "summary"          # lightweight cluster digest (semiotic distancing)
-    working = "working"          # sliding window of recent ingests
+class MemoryKind(StrEnum):
+    session = "session"  # ephemeral environment metadata
+    fact = "fact"  # explicit long-term pinned fact
+    summary = "summary"  # lightweight cluster digest (semiotic distancing)
+    working = "working"  # sliding window of recent ingests
 
 
 @dataclass
@@ -29,7 +40,7 @@ class SessionMetadata:
 
     def render(self) -> str:
         foci = ", ".join(self.recent_foci) if self.recent_foci else "none"
-        return f"[session] queries={self.query_count} octave={self.active_octave} recent_foci={foci}"
+        return f"[session] queries={self.query_count} octave={self.active_octave} foci={foci}"
 
 
 @dataclass
@@ -42,7 +53,13 @@ class Fact:
 class SemioticMemory:
     """Assemble a token-bounded 4-layer context block (facts, summaries, working, session)."""
 
-    def __init__(self, pipeline, texts: Sequence[str], settings, counter=None) -> None:
+    def __init__(
+        self,
+        pipeline: KnowledgePipeline | None,
+        texts: Sequence[str],
+        settings: Settings,
+        counter: TokenCounter | None = None,
+    ) -> None:
         self._pipeline = pipeline
         self._texts = list(texts)
         self._mem = settings.memory
@@ -52,7 +69,7 @@ class SemioticMemory:
         self.session = SessionMetadata()
 
     # --- long-term fact layer ------------------------------------------------
-    def remember(self, text: str, fact_id: "str | None" = None) -> str:
+    def remember(self, text: str, fact_id: str | None = None) -> str:
         """Pin an explicit long-term fact; LRU-evicts the oldest when over max_pinned."""
         self._clock += 1
         fid = fact_id or f"fact_{self._clock}"
@@ -71,31 +88,38 @@ class SemioticMemory:
     def facts(self) -> list[Fact]:
         return list(self._facts)
 
-    def snapshot(self) -> dict:
+    def snapshot(self) -> dict[str, Any]:
         """Serialize facts, session metadata, and clock for cross-session persistence."""
         return {
-            "facts": [{"id": f.id, "text": f.text, "last_access": f.last_access} for f in self._facts],
-            "session": {"query_count": self.session.query_count,
-                        "recent_foci": list(self.session.recent_foci),
-                        "active_octave": self.session.active_octave},
+            "facts": [
+                {"id": f.id, "text": f.text, "last_access": f.last_access} for f in self._facts
+            ],
+            "session": {
+                "query_count": self.session.query_count,
+                "recent_foci": list(self.session.recent_foci),
+                "active_octave": self.session.active_octave,
+            },
             "clock": self._clock,
         }
 
-    def restore(self, data: dict) -> None:
+    def restore(self, data: dict[str, Any]) -> None:
         """Rehydrate facts, session, and clock from a snapshot()."""
-        self._facts = [Fact(d["id"], d["text"], int(d.get("last_access", 0)))
-                       for d in data.get("facts", [])]
+        self._facts = [
+            Fact(d["id"], d["text"], int(d.get("last_access", 0))) for d in data.get("facts", [])
+        ]
         s = data.get("session", {})
-        self.session = SessionMetadata(int(s.get("query_count", 0)),
-                                       list(s.get("recent_foci", [])),
-                                       int(s.get("active_octave", 0)))
+        self.session = SessionMetadata(
+            int(s.get("query_count", 0)),
+            list(s.get("recent_foci", [])),
+            int(s.get("active_octave", 0)),
+        )
         self._clock = int(data.get("clock", 0))
 
     def decay_weight(self, age: int) -> float:
         return math.exp(-self._mem.recency_lambda * max(0, age))
 
     # --- assembly ------------------------------------------------------------
-    def assemble_context(self, query: str, budget_tokens: "int | None" = None) -> str:
+    def assemble_context(self, query: str, budget_tokens: int | None = None) -> str:
         """Layered block: pinned facts, cone summaries/members, working window, session line."""
         budget = self._mem.budget_tokens if budget_tokens is None else budget_tokens
         self._clock += 1

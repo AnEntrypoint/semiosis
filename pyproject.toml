@@ -13,12 +13,38 @@ core = ["py.typed"]
 name = "semantic-cones"
 version = "0.1.0"
 description = "Mature hyperbolic-cone semantic structure over Matryoshka octaves"
+readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "semiosis maintainers" }]
+keywords = [
+  "hyperbolic",
+  "entailment-cones",
+  "matryoshka",
+  "embeddings",
+  "retrieval",
+  "knowledge-base",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
 dependencies = [
   "numpy>=1.26",
   "pydantic>=2.6",
   "pydantic-settings>=2.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/AnEntrypoint/semiosis"
+Repository = "https://github.com/AnEntrypoint/semiosis"
+Issues = "https://github.com/AnEntrypoint/semiosis/issues"
 
 [project.optional-dependencies]
 hyperbolic = ["torch>=2.2", "geoopt>=0.5"]
@@ -35,6 +61,19 @@ all = ["semantic-cones[hyperbolic,store,encoder,serving,eval,orchestration]"]
 strict = true
 warn_unreachable = true
 disallow_any_generics = true
+plugins = ["pydantic.mypy"]
+exclude = ['core/test_.*\.py$', 'core/conftest\.py$']
+
+[[tool.mypy.overrides]]
+module = ["geoopt.*", "scipy.*", "sentence_transformers.*", "dagster.*", "torch.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Dagster's untyped @asset/@op decorators and Config base defeat strict checks here.
+module = ["core.dag"]
+disallow_untyped_defs = false
+disallow_untyped_decorators = false
+disable_error_code = ["misc", "no-untyped-def", "type-arg", "index"]
 
 [tool.ruff]
 line-length = 100

@@ -1,7 +1,8 @@
-"""Encoder implementations: RandomEncoder stub + SentenceTransformerEncoder + AgglomerativeClusterer."""
+"""Encoders: RandomEncoder stub, SentenceTransformerEncoder, AgglomerativeClusterer."""
+
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -46,30 +47,30 @@ class FixedClusterer:
 
 
 class SentenceTransformerEncoder:
-    """Encoder wrapping a sentence-transformers model; renormalizes Matryoshka sub-vectors on slice."""
+    """Wraps a sentence-transformers model; renormalizes Matryoshka sub-vectors on slice."""
 
     def __init__(
         self,
         model_name: str = "nomic-ai/nomic-embed-text-v1.5",
         octaves: tuple[int, ...] = (64, 128, 256, 512, 1024),
-        device: "str | None" = None,
+        device: str | None = None,
         normalize: bool = True,
     ) -> None:
         try:
             from sentence_transformers import SentenceTransformer as _ST
-        except ImportError:
+        except ImportError as err:
             raise RuntimeError(
                 "sentence-transformers is required; install with: pip install sentence-transformers"
-            )
+            ) from err
         self._model = _ST(model_name, device=device)
         self._octaves = octaves
         self._normalize = normalize
 
     @property
-    def dims(self) -> "list[Prefix]":
+    def dims(self) -> list[Prefix]:
         return [Prefix(d) for d in self._octaves]
 
-    def encode(self, texts: "Sequence[str]") -> EuclideanVec:
+    def encode(self, texts: Sequence[str]) -> EuclideanVec:
         vecs = self._model.encode(
             list(texts),
             normalize_embeddings=self._normalize,
@@ -88,7 +89,7 @@ class SentenceTransformerEncoder:
 
 
 class AgglomerativeClusterer:
-    """HierarchicalClusterer via scipy Ward agglomeration; builds a root-over-k-clusters star tree."""
+    """HierarchicalClusterer via scipy Ward; builds a root-over-k-clusters star tree."""
 
     def __init__(self, n_clusters: int = 16, linkage: str = "ward") -> None:
         self._n_clusters = n_clusters
@@ -96,9 +97,12 @@ class AgglomerativeClusterer:
 
     def fit(self, vecs: EuclideanVec, prefix: Prefix) -> ClusterTree:
         try:
-            from scipy.cluster.hierarchy import fcluster, linkage as _linkage
-        except ImportError:
-            raise RuntimeError("scipy is required for AgglomerativeClusterer; pip install scipy")
+            from scipy.cluster.hierarchy import fcluster
+            from scipy.cluster.hierarchy import linkage as _linkage
+        except ImportError as err:
+            raise RuntimeError(
+                "scipy is required for AgglomerativeClusterer; pip install scipy"
+            ) from err
         X = np.asarray(vecs, dtype=np.float64)[..., :prefix]
         n = len(X)
         k = min(self._n_clusters, max(1, n - 1))
@@ -107,7 +111,5 @@ class AgglomerativeClusterer:
         cluster_ids = {int(c): NodeId(f"cluster_{c}@{int(prefix)}") for c in np.unique(labels)}
         root = NodeId(f"root@{int(prefix)}")
         edges = tuple((root, cid) for cid in cluster_ids.values())
-        assignments = {
-            PhraseId(f"doc_{i}"): cluster_ids[int(labels[i])] for i in range(n)
-        }
+        assignments = {PhraseId(f"doc_{i}"): cluster_ids[int(labels[i])] for i in range(n)}
         return ClusterTree(edges=edges, assignments=assignments, prefix=prefix)

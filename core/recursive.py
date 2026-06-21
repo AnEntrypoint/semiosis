@@ -1,8 +1,10 @@
-"""Recursive octave-descent retrieval; treats the cone hierarchy as an external environment (RLM)."""
+"""Recursive octave-descent retrieval; treats the cone hierarchy as an environment (RLM)."""
+
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any
 
 from .interfaces import NodeId, Prefix, phrase_to_text_index
 
@@ -11,19 +13,25 @@ _SPLITS = (" and ", ";", " vs ", " versus ", " compare ")
 
 @dataclass
 class RecursiveResult:
-    answer: "str | None" = None
+    answer: str | None = None
     evidence_node_ids: tuple[NodeId, ...] = ()
     evidence_texts: tuple[str, ...] = ()
     depth_reached: int = 0
-    sub_answers: tuple["RecursiveResult", ...] = ()
+    sub_answers: tuple[RecursiveResult, ...] = ()
     trace: tuple[tuple[int, str, float], ...] = ()
 
 
 class RecursiveAnswerEngine:
     """Decompose a query, recurse coarse-to-fine over octaves, merge bounded evidence."""
 
-    def __init__(self, pipeline, max_depth: int = 4, max_breadth: int = 8,
-                 beam_k: int = 3, min_aperture_stop: float = 0.1) -> None:
+    def __init__(
+        self,
+        pipeline: Any,
+        max_depth: int = 4,
+        max_breadth: int = 8,
+        beam_k: int = 3,
+        min_aperture_stop: float = 0.1,
+    ) -> None:
         self._pipeline = pipeline
         self._max_depth = max(1, max_depth)
         self._max_breadth = max(1, max_breadth)
@@ -34,7 +42,7 @@ class RecursiveAnswerEngine:
     def _octaves(self) -> list[Prefix]:
         return [Prefix(d) for d in sorted(self._pipeline._encoder.dims)]
 
-    def _encode(self, text: str):
+    def _encode(self, text: str) -> Any:
         if text not in self._encode_cache:
             self._encode_cache[text] = self._pipeline._encoder.encode([text])[0]
         return self._encode_cache[text]
@@ -49,10 +57,17 @@ class RecursiveAnswerEngine:
             parts = nxt
         return [c.strip() for c in parts if c.strip()] or [query.strip()]
 
-    def descend(self, q_vec, octave_idx: int, beam_k: int, max_depth: int,
-                visited: "set[NodeId] | None" = None, trace: "list | None" = None,
-                depth: int = 0) -> list[NodeId]:
-        """Recurse octave_idx coarse->fine, gathering evidence node ids under depth/breadth bounds."""
+    def descend(
+        self,
+        q_vec: Any,
+        octave_idx: int,
+        beam_k: int,
+        max_depth: int,
+        visited: set[NodeId] | None = None,
+        trace: list[tuple[int, str, float]] | None = None,
+        depth: int = 0,
+    ) -> list[NodeId]:
+        """Recurse octave_idx coarse->fine, gathering evidence ids under depth/breadth bounds."""
         pipeline = self._pipeline
         octaves = self._octaves()
         if visited is None:
@@ -80,16 +95,20 @@ class RecursiveAnswerEngine:
                 evidence.append(nid)
                 continue
             child_ids = {member_map[m] for m in node.members if m in member_map}
-            gated = [c for c in child_ids if c not in visited
-                     and engine.contains(node, store.get(c)) > 0.0]
+            gated = [
+                c
+                for c in child_ids
+                if c not in visited and engine.contains(node, store.get(c)) > 0.0
+            ]
             if not gated:
                 gated = [c for c in child_ids if c not in visited]
             if not gated:
                 evidence.append(nid)
                 continue
             for c in gated[:beam_k]:
-                sub = self.descend(q_vec, octave_idx + 1, beam_k, max_depth,
-                                   visited, trace, depth + 1)
+                sub = self.descend(
+                    q_vec, octave_idx + 1, beam_k, max_depth, visited, trace, depth + 1
+                )
                 evidence.extend(sub or [c])
         return list(dict.fromkeys(evidence))
 
@@ -110,8 +129,11 @@ class RecursiveAnswerEngine:
 
     def answer(self, query: str) -> RecursiveResult:
         pipeline = self._pipeline
-        if pipeline is None or getattr(pipeline, "store", None) is None \
-                or not pipeline.store.all_nodes():
+        if (
+            pipeline is None
+            or getattr(pipeline, "store", None) is None
+            or not pipeline.store.all_nodes()
+        ):
             return RecursiveResult()
         clauses = self.decompose(query)
         if len(clauses) == 1:
@@ -131,12 +153,14 @@ class RecursiveAnswerEngine:
             sub_answers=tuple(subs),
         )
 
-    def _answer_one(self, query: str, beam_k: "int | None" = None,
-                    max_depth: "int | None" = None) -> RecursiveResult:
+    def _answer_one(
+        self, query: str, beam_k: int | None = None, max_depth: int | None = None
+    ) -> RecursiveResult:
         q_vec = self._encode(query)
-        trace: list = []
-        ids = self.descend(q_vec, 0, beam_k or self._beam_k,
-                           max_depth or self._max_depth, set(), trace)
+        trace: list[tuple[int, str, float]] = []
+        ids = self.descend(
+            q_vec, 0, beam_k or self._beam_k, max_depth or self._max_depth, set(), trace
+        )
         return RecursiveResult(
             answer=query if ids else None,
             evidence_node_ids=tuple(ids),

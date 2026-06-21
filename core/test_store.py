@@ -1,8 +1,8 @@
 """Tests for InMemoryStore and InMemoryQuery."""
+
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from core.interfaces import CommitId, ConeNode, NodeId, PhraseId, Prefix
 from core.store import InMemoryStore

@@ -1,15 +1,16 @@
 """End-to-end knowledge pipeline: encode -> cluster -> fit cones -> store -> query."""
+
 from __future__ import annotations
 
 import dataclasses
 import uuid
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
 from .cone_engine import ConeFitConfig, HyperbolicConeEngine
 from .encoder import AgglomerativeClusterer, RandomEncoder
-from .interfaces import CommitId, Prefix, phrase_to_text_index
+from .interfaces import CommitId, ConeNode, Encoder, Prefix, phrase_to_text_index
 from .settings import Settings
 from .store import InMemoryQuery, InMemoryStore
 
@@ -25,8 +26,10 @@ class KnowledgePipeline:
         cfg = settings or Settings()
         self._settings = cfg
         self._texts: list[str] = list(texts)
+        self._encoder: Encoder
         try:
             from .encoder import SentenceTransformerEncoder
+
             self._encoder = SentenceTransformerEncoder(
                 model_name=cfg.encoder.model,
                 octaves=cfg.encoder.octaves,
@@ -59,7 +62,7 @@ class KnowledgePipeline:
         missing = [t for t in dict.fromkeys(texts) if t not in self._vec_cache]
         if missing:
             vecs = self._encoder.encode(missing)
-            for t, v in zip(missing, vecs):
+            for t, v in zip(missing, vecs, strict=False):
                 self._vec_cache[t] = np.asarray(v, dtype=np.float32)
         return np.stack([self._vec_cache[t] for t in texts])
 
@@ -71,26 +74,28 @@ class KnowledgePipeline:
         self._store = InMemoryStore()
         self._query = InMemoryQuery(self._store, self._engine)
         commit_id = CommitId(str(uuid.uuid4()))
-        all_nodes: list = []
+        all_nodes: list[ConeNode] = []
         for prefix in self._encoder.dims:
             tree = self._clusterer.fit(vecs, Prefix(prefix))
-            nodes = [self._centroid(self._digest(n), vecs, Prefix(prefix))
-                     for n in self._engine.fit(tree)]
+            nodes = [
+                self._centroid(self._digest(n), vecs, Prefix(prefix))
+                for n in self._engine.fit(tree)
+            ]
             all_nodes.extend(nodes)
         self._store.write(all_nodes, commit_id)
         self._commit = commit_id
         return commit_id
 
-    def _centroid(self, node, vecs: np.ndarray, prefix: Prefix):
+    def _centroid(self, node: ConeNode, vecs: np.ndarray, prefix: Prefix) -> ConeNode:
         """Attach the embedding-space mean of a node's members (prefix-sliced) for retrieval."""
-        idxs = [phrase_to_text_index(m, len(self._texts)) for m in node.members]
-        idxs = [i for i in idxs if i is not None]
+        maybe = [phrase_to_text_index(m, len(self._texts)) for m in node.members]
+        idxs = [i for i in maybe if i is not None]
         if not idxs:
             return node
-        c = vecs[idxs, :int(prefix)].mean(axis=0)
+        c = vecs[np.asarray(idxs), : int(prefix)].mean(axis=0)
         return dataclasses.replace(node, centroid=tuple(float(x) for x in c))
 
-    def _digest(self, node):
+    def _digest(self, node: ConeNode) -> ConeNode:
         """Backfill a lightweight digest for multi-member cones; lazy member-text fallback."""
         mem = self._settings.memory
         if len(node.members) <= mem.digest_min_members:
@@ -105,14 +110,14 @@ class KnowledgePipeline:
         head = parts[0] if parts else ""
         extra = len(node.members) - 1
         text = f"{head} (+{extra} more)" if extra > 0 else head
-        return dataclasses.replace(node, digest=text[:mem.summary_max_chars])
+        return dataclasses.replace(node, digest=text[: mem.summary_max_chars])
 
     @property
     def texts(self) -> list[str]:
         return list(self._texts)
 
     @property
-    def commit(self) -> "CommitId | None":
+    def commit(self) -> CommitId | None:
         return self._commit
 
     def ingest(self, texts: Sequence[str]) -> CommitId:

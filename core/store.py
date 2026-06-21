@@ -1,13 +1,15 @@
 """In-memory Store and Query stubs satisfying the Store/Query protocols; for testing only."""
+
 from __future__ import annotations
 
 import json
 import os
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .interfaces import CommitId, ConeNode, EuclideanVec, NodeId, Phrase, Prefix
+from .interfaces import CommitId, ConeNode, EuclideanVec, NodeId, PhraseId, Prefix
 from .serialization import cone_node_from_dict, cone_node_to_dict
 
 if TYPE_CHECKING:
@@ -45,7 +47,7 @@ class InMemoryStore:
         """Embedding centroid (prefix-sliced) when present, else the cone apex spatial dims."""
         if node.centroid is not None:
             return np.asarray(node.centroid, dtype=np.float32)[:prefix]
-        return node.apex[1:prefix + 1].astype(np.float32)
+        return node.apex[1 : prefix + 1].astype(np.float32)
 
     def knn_scored(self, q: EuclideanVec, k: int, prefix: Prefix) -> list[tuple[NodeId, float]]:
         """Like knn but return (node_id, cosine-in-[0,1]) pairs for calibrated relevance."""
@@ -86,13 +88,13 @@ class InMemoryStore:
                 out[m] = n.id
         return out
 
-    def save(self, path: "str | os.PathLike[str]") -> None:
+    def save(self, path: str | os.PathLike[str]) -> None:
         """Write all nodes to a JSON file; lossless via cone_node_to_dict."""
         data = [cone_node_to_dict(n) for n in self._nodes.values()]
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
 
-    def load(self, path: "str | os.PathLike[str]") -> None:
+    def load(self, path: str | os.PathLike[str]) -> None:
         """Read nodes from a JSON file written by save(); merges into existing store."""
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -104,7 +106,7 @@ class InMemoryStore:
 class InMemoryQuery:
     """Satisfies the Query protocol backed by InMemoryStore + HyperbolicConeEngine."""
 
-    def __init__(self, store: InMemoryStore, engine: "HyperbolicConeEngine") -> None:
+    def __init__(self, store: InMemoryStore, engine: HyperbolicConeEngine) -> None:
         self._store = store
         self._engine = engine
 
@@ -124,7 +126,8 @@ class InMemoryQuery:
         """Return nodes whose symmetric overlap with node exceeds threshold."""
         n = self._store.get(node)
         return [
-            c.id for c in self._store.all_nodes()
+            c.id
+            for c in self._store.all_nodes()
             if c.id != node and self._engine.overlap_score(n, c) > threshold
         ]
 
@@ -132,6 +135,7 @@ class InMemoryQuery:
         """Return same-octave nodes whose semantic tension with node exceeds threshold."""
         n = self._store.get(node)
         return [
-            c.id for c in self._store.all_nodes()
+            c.id
+            for c in self._store.all_nodes()
             if c.id != node and c.prefix == n.prefix and self._engine.tension(n, c) > threshold
         ]

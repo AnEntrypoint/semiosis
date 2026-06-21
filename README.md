@@ -1,5 +1,7 @@
 # semantic-cones (semiosis)
 
+[![ci](https://github.com/AnEntrypoint/semiosis/actions/workflows/ci.yml/badge.svg)](https://github.com/AnEntrypoint/semiosis/actions/workflows/ci.yml)
+
 Hyperbolic entailment-cone semantic structure over Matryoshka octaves. A
 protocol-typed, swappable-module knowledge base: Matryoshka prefix-octaves plus a
 single hyperbolic entailment-cone structure that unifies hierarchy, overlap, and
@@ -59,15 +61,22 @@ Without `torch`/`sentence-transformers` installed, the pipeline falls back to a
 Settings load from env with prefix `SC_` and nested delimiter `__`
 (e.g. `SC_ENCODER__MODEL=sentence-transformers/all-MiniLM-L6-v2`).
 
-## Test
+## Develop
 
 ```
-pytest core/
+make install        # core + ruff, mypy, pytest
+make install-full   # adds torch (cpu) + all extras for the full suite
+make lint type test # ruff check, mypy strict, pytest
+make ci             # everything CI runs, including ruff format --check
 ```
 
-Requires `torch` + `geoopt`; tests auto-skip when optional deps are absent.
+`pytest core/` is the test command directly. Tests `importorskip` heavy deps
+(`torch`, `geoopt`, ...) and auto-skip when those are absent, so the core suite
+runs on a numpy-only install. See `CONTRIBUTING.md` for the full workflow and
+project rules.
 
 ## See also
 
 - `ARCHITECTURE.md` -- production design and per-decision rationale.
 - `docs/agent-guide.md` -- agent integration guide.
+- `CONTRIBUTING.md` -- dev setup, gates, and hard project rules.

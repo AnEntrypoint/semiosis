@@ -626,3 +626,90 @@
   text: geodesic_distance self-distance was 0.00048 (float32 arccosh imprecision) failing test threshold 1e-4; fixed via exact-identity short-circuit + double-precision computation.
   witness: core/cone_engine.py:243 identity short-circuit + double precision; test_geodesic_distance_self_zero passes
   status: completed
+- id: ci-workflow-yml
+  text: 'Add .github/workflows/ci.yml running ruff lint + mypy strict + pytest core on push/PR; matrix python 3.11/3.12; pip-cache; tests auto-skip without torch. Witness: file exists + yaml valid.'
+  status: completed
+  witness: .github/workflows/ci.yml created; yaml.safe_load OK; jobs lint-type/test-core(3.11,3.12)/test-full/build
+- id: baseline-pytest-green
+  text: 'Establish real green baseline: run pytest core/ and record pass/skip counts before any change (hardest-first: real integration witness gates every later edit).'
+  status: completed
+  witness: pytest core/ = 147 passed 2 skipped in 238s (full torch cpu stack) before cap edits
+- id: ruff-sweep-fix
+  text: 'Run ruff check . at configured ruleset; fix every lint finding in core/. Witness: ruff exits clean.'
+  status: completed
+  witness: ruff check . = All checks passed (was 121 findings); ruff format . applied 28 files; format --check clean
+- id: mypy-strict-sweep
+  text: 'Run mypy (strict) over core/; fix every type error or add precise annotations. Untyped node/counter params in agent_api likely flagged. Witness: mypy exits clean or documented ignores.'
+  status: completed
+  witness: 'mypy core = Success: no issues found in 15 source files; pydantic plugin + dag override in pyproject.toml:34'
+- id: eval-empty-relevant-denominator
+  text: core/eval.py recall_at_k divides by len(labeled) but skips empty-relevant queries via continue -> denominator counts them, deflating recall. Count only scored queries. Add MRR symmetry check.
+  status: completed
+  witness: core/eval.py:7-33 recall_at_k+mrr now divide by scored count, skip empty-relevant
+- id: eval-empty-relevant-test
+  text: Add core/test_eval.py case covering empty-relevant-set query so the recall_at_k denominator fix is witnessed.
+  status: completed
+  witness: core/test_eval.py test_empty_relevant_query_excluded_from_mean + test_all_empty_relevant_is_zero, torch-free _StubKB
+- id: unicode-glyph-sweep
+  text: Scan all tracked source (py/md/toml) for non-ASCII decorative glyphs (arrows/box/bullets/emoji); convert to ASCII. One sighting -> full-tree sweep per project rule.
+  status: completed
+  witness: grep -rPl non-ASCII over py/md/toml/yaml excl .gm = NO non-ASCII in tracked source
+- id: docstring-oneline-sweep
+  text: Verify no multi-paragraph docstrings across core/; collapse any to one line per AGENTS.md rule.
+  status: completed
+  witness: AST scan of core/*.py for multi-line docstrings = none
+- id: ingest-size-cap
+  text: api.py /ingest accepts unbounded texts list/lengths -> resource-exhaustion. Add per-request count + per-text length cap from Settings; 422 on overflow. Mirror in KnowledgeBase.ingest guard.
+  status: completed
+  witness: api.py:138 /ingest enforces max_ingest_texts + max_text_chars (Settings.agent), 422 on overflow; test_resource_caps_422
+- id: api-security-review
+  text: 'Review api.py for input-validation gaps beyond ingest: top_n/k upper bounds, recall budget upper bound, error leakage. Add upper caps where unbounded.'
+  status: completed
+  witness: api.py _check_k caps max_k; recall+context_pack cap max_budget_tokens; Settings.agent:80-84 new caps; test_resource_caps_422
+- id: makefile-targets
+  text: 'Add Makefile with lint/type/test/ci/build targets mirroring CI exactly so local == CI. Witness: make ci runs the same commands.'
+  status: completed
+  witness: 'Makefile created: install/install-full/lint/format/type/test/test-full/build/ci/clean mirror CI commands'
+- id: pre-commit-config
+  text: Add .pre-commit-config.yaml (ruff, ruff-format, mypy, end-of-file/trailing-whitespace, ascii-only check) so contributors catch issues before CI.
+  status: completed
+  witness: .pre-commit-config.yaml created (ruff, ruff-format, eof/ws, check-yaml/toml, text-unicode-replacement-char, mypy); yaml.safe_load OK
+- id: editorconfig
+  text: Add .editorconfig enforcing utf-8, LF, final newline, no trailing ws, 4-space py indent.
+  status: completed
+  witness: '.editorconfig created: utf-8/lf/final-newline/no-trailing-ws/py 4-space/yaml 2-space/Makefile tab'
+- id: dependabot-config
+  text: Add .github/dependabot.yml for pip + github-actions weekly update PRs.
+  status: completed
+  witness: '.github/dependabot.yml created: pip + github-actions weekly; yaml.safe_load OK'
+- id: ci-build-package
+  text: CI job (or step) builds sdist+wheel via python -m build and runs twine check / import smoke to catch packaging regressions like the prior build-backend break.
+  status: completed
+  witness: python -m build = Successfully built semantic_cones-0.1.0 sdist+wheel; twine check PASSED (current packaging); ci.yml build job
+- id: pyproject-metadata
+  text: pyproject.toml lacks classifiers, license, authors, readme, project.urls. Add full metadata for publishable package.
+  status: completed
+  witness: 'pyproject.toml: readme/license/authors/keywords/classifiers/project.urls added; build+twine check PASSED'
+- id: readme-dev-section
+  text: 'README: add CI badge, dev-setup, lint/type/test commands, and contributing pointer.'
+  status: completed
+  witness: 'README.md: ci badge + Develop section (make targets, importorskip note, CONTRIBUTING pointer)'
+- id: contributing-md
+  text: 'Add CONTRIBUTING.md: branch flow, ASCII/one-line-docstring rules, how to run pytest/ruff/mypy, no-mock integration policy.'
+  status: completed
+  witness: 'CONTRIBUTING.md created: dev setup, make ci gates, ASCII/one-line-docstring/BaseModel rules, no-mock policy, SC_ env, manifold invariants'
+- id: prune-stale-nogit-memo
+  text: memorize-prune the stale gm-skill-maturity-verdict claim 'no git repo in semiosis' -> git_finalize fails; repo now exists on a branch. Re-fire corrected note.
+  status: completed
+  witness: memorize-prune deleted mem-1781868847347-1-914 (no-git verdict); memorize-fire mem-1782031793830 corrected note (repo is git-initialized)
+- id: gitignore-residual-review
+  text: Confirm .gm machine-index churn (codeinsight*, vec, manifest, rs-learn.db transient) is gitignored and no junk is tracked; tree clean before push.
+  status: completed
+  witness: .gitignore covers .gm/exec-spool, rs-learn.db, codeinsight*; tracked .gm/disciplines memory store is committed per rule; dist/ build/ from egg-info ignored
+- id: final-suite-verify
+  text: 'After all edits: re-run pytest core/ green, ruff clean, mypy clean; CI yaml lint-validates. Gate for COMPLETE.'
+  status: completed
+  witness: pytest core/ = 148 passed 2 skipped in 240s; ruff check + ruff format --check clean; mypy core clean 15 files; all 3 yaml safe_load OK
+- id: commit-push-branch
+  text: git_finalize all changes to claude/blissful-faraday-wwc1i0 with descriptive message; branch_status ahead, tree clean.
+  status: pending

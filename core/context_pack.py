@@ -1,11 +1,16 @@
 """Token-budgeted context-pack builder; mitigates context rot via dedup and semiotic distancing."""
+
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, Sequence, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from .interfaces import NodeId, Prefix, phrase_to_text_index
+from .interfaces import ConeNode, NodeId, Prefix, phrase_to_text_index
+
+if TYPE_CHECKING:
+    from .pipeline import KnowledgePipeline
 
 
 @runtime_checkable
@@ -14,7 +19,7 @@ class TokenCounter(Protocol):
 
 
 class HeuristicTokenCounter:
-    """Dependency-free token estimate at ~4 chars per token; override via Settings for a real tokenizer."""
+    """Dependency-free token estimate at ~4 chars/token; override via Settings for a real one."""
 
     def count(self, text: str) -> int:
         return max(1, math.ceil(len(text) / 4))
@@ -61,8 +66,13 @@ class ContextPackConfig:
 class ContextPackBuilder:
     """Assemble a budget-bounded, redundancy-free context pack over a fitted cone store."""
 
-    def __init__(self, pipeline, texts: Sequence[str], config: ContextPackConfig,
-                 counter: "TokenCounter | None" = None) -> None:
+    def __init__(
+        self,
+        pipeline: KnowledgePipeline | None,
+        texts: Sequence[str],
+        config: ContextPackConfig,
+        counter: TokenCounter | None = None,
+    ) -> None:
         self._pipeline = pipeline
         self._texts = list(texts)
         self._cfg = config
@@ -72,7 +82,7 @@ class ContextPackBuilder:
         enc = getattr(self._pipeline, "_encoder", None)
         return type(enc).__name__ == "RandomEncoder"
 
-    def _node_text(self, node) -> str:
+    def _node_text(self, node: ConeNode) -> str:
         """Resolve up to max_members_per_node distinct member texts for a node."""
         seen: list[str] = []
         for m in node.members:
@@ -86,7 +96,7 @@ class ContextPackBuilder:
                 break
         return " ".join(seen)
 
-    def _summary_text(self, node) -> str:
+    def _summary_text(self, node: ConeNode) -> str:
         """Cheap stand-in for a distant cone: its digest, label, or a bounded cluster marker."""
         if node.digest:
             return node.digest
@@ -95,7 +105,7 @@ class ContextPackBuilder:
         head = self._node_text(node).split(" ")[:8]
         return f"[cluster of {len(node.members)}: {' '.join(head)}]"
 
-    def build(self, query: str, max_tokens: "int | None" = None) -> ContextPack:
+    def build(self, query: str, max_tokens: int | None = None) -> ContextPack:
         cfg = self._cfg
         budget = cfg.max_tokens if max_tokens is None else max_tokens
         pipeline = self._pipeline
@@ -107,8 +117,7 @@ class ContextPackBuilder:
         enc = pipeline._encoder
         prefix = Prefix(enc.dims[0])
         q_vec = enc.encode([query])[0]
-        over_fetch = min(len(pipeline.store.all_nodes()),
-                         max(cfg.max_dedup_candidates, 1))
+        over_fetch = min(len(pipeline.store.all_nodes()), max(cfg.max_dedup_candidates, 1))
         ids = list(pipeline.query.knn(q_vec[:prefix], k=over_fetch, prefix=prefix))
         if not ids:
             return ContextPack(truncated=False, degraded=self._degraded())
@@ -119,7 +128,7 @@ class ContextPackBuilder:
         n = len(nodes)
         ranked = [(node, 1.0 - i / n) for i, node in enumerate(nodes)]
 
-        kept: list = []
+        kept: list[tuple[ConeNode, float]] = []
         dropped: list[NodeId] = []
         for node, rel in ranked:
             redundant = any(engine.overlap_score(k, node) > cfg.overlap_threshold for k, _ in kept)
@@ -138,9 +147,16 @@ class ContextPackBuilder:
             )
             if distant:
                 text = self._summary_text(node)
-                entries.append(ContextEntry(node.id, text, self._counter.count(text), rel,
-                                            is_summary=True, represented=tuple(
-                                                [node.id])))
+                entries.append(
+                    ContextEntry(
+                        node.id,
+                        text,
+                        self._counter.count(text),
+                        rel,
+                        is_summary=True,
+                        represented=tuple([node.id]),
+                    )
+                )
             else:
                 text = self._node_text(node)
                 if not text:
@@ -149,8 +165,9 @@ class ContextPackBuilder:
 
         return self._pack(entries, budget, dropped)
 
-    def _pack(self, entries: Sequence[ContextEntry], budget: int,
-              dropped: Sequence[NodeId]) -> ContextPack:
+    def _pack(
+        self, entries: Sequence[ContextEntry], budget: int, dropped: Sequence[NodeId]
+    ) -> ContextPack:
         cfg = self._cfg
         free = max(0, budget - cfg.reserve_tokens)
         out: list[ContextEntry] = []
@@ -168,7 +185,16 @@ class ContextPackBuilder:
             elif not out and e.tokens > free:
                 trunc = self._truncate(e.text, free)
                 tok = self._counter.count(trunc)
-                out.append(ContextEntry(e.node_id, trunc, tok, e.relevance, e.is_summary, e.represented))
+                out.append(
+                    ContextEntry(
+                        e.node_id,
+                        trunc,
+                        tok,
+                        e.relevance,
+                        e.is_summary,
+                        e.represented,
+                    )
+                )
                 total += tok
                 truncated = True
                 break

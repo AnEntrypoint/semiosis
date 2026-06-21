@@ -1,4 +1,5 @@
 """JSON-serializable dict conversion for ConeNode; lossless round-trip via float64 apex list."""
+
 from __future__ import annotations
 
 from typing import Any

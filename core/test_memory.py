@@ -1,4 +1,5 @@
 """Tests for the layered SemioticMemory."""
+
 from __future__ import annotations
 
 import pytest

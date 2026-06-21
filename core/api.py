@@ -1,4 +1,5 @@
 """FastAPI serving surface -- health, readiness, and agent-callable KnowledgeBase endpoints."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -7,6 +8,7 @@ from typing import Any
 try:
     from fastapi import FastAPI, HTTPException
     from fastapi.responses import JSONResponse
+
     _HAS_FASTAPI = True
 except ImportError:  # pragma: no cover
     _HAS_FASTAPI = False
@@ -18,26 +20,55 @@ _settings: Settings | None = None
 _kb: KnowledgeBase | None = None
 
 TOOL_MANIFEST: list[dict[str, Any]] = [
-    {"name": "search", "method": "POST", "path": "/search",
-     "description": "Diversified scored hits with provenance.",
-     "params": {"query": "str", "k": "int>0"}},
-    {"name": "recall", "method": "POST", "path": "/recall",
-     "description": "Layered memory block under a token budget.",
-     "params": {"query": "str", "budget_tokens": "int>=0?"}},
-    {"name": "context_pack", "method": "POST", "path": "/context_pack",
-     "description": "Token-budgeted, redundancy-free context pack.",
-     "params": {"query": "str", "max_tokens": "int>=0"}},
-    {"name": "navigate", "method": "POST", "path": "/navigate",
-     "description": "Neighbor cones ranked by entailment gradient.",
-     "params": {"query": "str", "k": "int>0"}},
-    {"name": "deep_search", "method": "POST", "path": "/deep_search",
-     "description": "Recursive octave-descent retrieval.",
-     "params": {"query": "str", "k": "int>0"}},
-    {"name": "tension", "method": "POST", "path": "/tension",
-     "description": "Worst redundancy/contradiction pairs.",
-     "params": {"top_n": "int>0"}},
-    {"name": "diagnose", "method": "GET", "path": "/diagnose",
-     "description": "KB health snapshot.", "params": {}},
+    {
+        "name": "search",
+        "method": "POST",
+        "path": "/search",
+        "description": "Diversified scored hits with provenance.",
+        "params": {"query": "str", "k": "int>0"},
+    },
+    {
+        "name": "recall",
+        "method": "POST",
+        "path": "/recall",
+        "description": "Layered memory block under a token budget.",
+        "params": {"query": "str", "budget_tokens": "int>=0?"},
+    },
+    {
+        "name": "context_pack",
+        "method": "POST",
+        "path": "/context_pack",
+        "description": "Token-budgeted, redundancy-free context pack.",
+        "params": {"query": "str", "max_tokens": "int>=0"},
+    },
+    {
+        "name": "navigate",
+        "method": "POST",
+        "path": "/navigate",
+        "description": "Neighbor cones ranked by entailment gradient.",
+        "params": {"query": "str", "k": "int>0"},
+    },
+    {
+        "name": "deep_search",
+        "method": "POST",
+        "path": "/deep_search",
+        "description": "Recursive octave-descent retrieval.",
+        "params": {"query": "str", "k": "int>0"},
+    },
+    {
+        "name": "tension",
+        "method": "POST",
+        "path": "/tension",
+        "description": "Worst redundancy/contradiction pairs.",
+        "params": {"top_n": "int>0"},
+    },
+    {
+        "name": "diagnose",
+        "method": "GET",
+        "path": "/diagnose",
+        "description": "KB health snapshot.",
+        "params": {},
+    },
 ]
 
 
@@ -66,10 +97,12 @@ def _check_query(query: Any) -> str:
 def _check_k(k: Any, name: str = "k") -> int:
     if not isinstance(k, int) or isinstance(k, bool) or k <= 0:
         raise HTTPException(status_code=422, detail=f"{name} must be a positive int")
+    if k > _get_settings().agent.max_k:
+        raise HTTPException(status_code=422, detail=f"{name} too large")
     return k
 
 
-def create_app(settings: Settings | None = None, kb: KnowledgeBase | None = None) -> "FastAPI":
+def create_app(settings: Settings | None = None, kb: KnowledgeBase | None = None) -> FastAPI:
     """Return a configured FastAPI app exposing health, readiness, and agent KB endpoints."""
     if not _HAS_FASTAPI:
         raise RuntimeError("FastAPI is required; install the 'serving' extra.")
@@ -102,52 +135,63 @@ def create_app(settings: Settings | None = None, kb: KnowledgeBase | None = None
         return JSONResponse({"tools": TOOL_MANIFEST})
 
     @app.post("/ingest")
-    async def ingest(body: dict) -> JSONResponse:
+    async def ingest(body: dict[str, Any]) -> JSONResponse:
         texts = body.get("texts")
         if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
             raise HTTPException(status_code=422, detail="texts must be a list of strings")
+        a = _get_settings().agent
+        if len(texts) > a.max_ingest_texts:
+            raise HTTPException(status_code=422, detail="too many texts in one request")
+        if any(len(t) > a.max_text_chars for t in texts):
+            raise HTTPException(status_code=422, detail="a text exceeds the length cap")
         _get_kb().ingest(texts)
         return JSONResponse({"ingested": len(texts)})
 
     @app.post("/search")
-    async def search(body: dict) -> JSONResponse:
+    async def search(body: dict[str, Any]) -> JSONResponse:
         q = _check_query(body.get("query"))
         k = _check_k(body.get("k", 5))
         return JSONResponse({"hits": [dataclasses.asdict(h) for h in _get_kb().search(q, k)]})
 
     @app.post("/recall")
-    async def recall(body: dict) -> JSONResponse:
+    async def recall(body: dict[str, Any]) -> JSONResponse:
         q = _check_query(body.get("query"))
         bt = body.get("budget_tokens")
         if bt is not None and (not isinstance(bt, int) or isinstance(bt, bool) or bt < 0):
             raise HTTPException(status_code=422, detail="budget_tokens must be a non-negative int")
+        if isinstance(bt, int) and bt > _get_settings().agent.max_budget_tokens:
+            raise HTTPException(status_code=422, detail="budget_tokens too large")
         return JSONResponse({"block": _get_kb().recall(q, bt)})
 
     @app.post("/context_pack")
-    async def context_pack(body: dict) -> JSONResponse:
+    async def context_pack(body: dict[str, Any]) -> JSONResponse:
         q = _check_query(body.get("query"))
         mt = body.get("max_tokens")
         if not isinstance(mt, int) or isinstance(mt, bool) or mt < 0:
             raise HTTPException(status_code=422, detail="max_tokens must be a non-negative int")
+        if mt > _get_settings().agent.max_budget_tokens:
+            raise HTTPException(status_code=422, detail="max_tokens too large")
         pack = _get_kb().build_context_pack(q, mt)
         return JSONResponse({"pack": dataclasses.asdict(pack)})
 
     @app.post("/navigate")
-    async def navigate(body: dict) -> JSONResponse:
+    async def navigate(body: dict[str, Any]) -> JSONResponse:
         q = _check_query(body.get("query"))
         k = _check_k(body.get("k", 5))
-        return JSONResponse({"neighbors": [dataclasses.asdict(n) for n in _get_kb().navigate(q, k)]})
+        neighbors = [dataclasses.asdict(n) for n in _get_kb().navigate(q, k)]
+        return JSONResponse({"neighbors": neighbors})
 
     @app.post("/deep_search")
-    async def deep_search(body: dict) -> JSONResponse:
+    async def deep_search(body: dict[str, Any]) -> JSONResponse:
         q = _check_query(body.get("query"))
         k = _check_k(body.get("k", 5))
         return JSONResponse({"result": dataclasses.asdict(_get_kb().deep_search(q, k))})
 
     @app.post("/tension")
-    async def tension(body: dict) -> JSONResponse:
+    async def tension(body: dict[str, Any]) -> JSONResponse:
         top_n = _check_k(body.get("top_n", 10), "top_n")
-        return JSONResponse({"pairs": [dataclasses.asdict(p) for p in _get_kb().scan_tension(top_n)]})
+        pairs = [dataclasses.asdict(p) for p in _get_kb().scan_tension(top_n)]
+        return JSONResponse({"pairs": pairs})
 
     @app.get("/diagnose")
     async def diagnose() -> JSONResponse:

@@ -1,4 +1,5 @@
 """Integration tests for KnowledgePipeline and KnowledgeBase."""
+
 from __future__ import annotations
 
 import pytest
@@ -9,7 +10,6 @@ geoopt = pytest.importorskip("geoopt")
 from core.agent_api import KnowledgeBase  # noqa: E402
 from core.interfaces import Prefix  # noqa: E402
 from core.pipeline import KnowledgePipeline  # noqa: E402
-
 
 WEBGL_FACTS = [
     "instanced drawing reduces draw calls from 400 to 1 using ANGLE_instanced_arrays",
