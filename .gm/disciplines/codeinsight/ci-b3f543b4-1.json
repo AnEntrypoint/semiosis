@@ -1,0 +1,3 @@
+core/test_serving.py:56:57 test_diagnose_endpoint
+def test_diagnose_endpoint() -> None:
+    assert _client().get("/diagnose").json()["report"]["nodes"] > 0

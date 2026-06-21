@@ -1,0 +1,6 @@
+core/test_agent_surface.py:107:111 test_empty_kb_surface_safe
+def test_empty_kb_surface_safe() -> None:
+    kb = KnowledgeBase()
+    assert kb.search("x") == []
+    assert kb.diagnose().nodes == 0
+    assert kb.consolidate()["reason"] == "empty"

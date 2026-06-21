@@ -1,0 +1,14 @@
+core/eval.py:20:32 mrr
+def mrr(kb, labeled: Sequence[tuple[str, set[str]]], k: int = 5) -> float:
+    """Mean reciprocal rank of the first relevant hit across queries."""
+    if not labeled:
+        return 0.0
+    total = 0.0
+    for query, relevant in labeled:
+        rank = 0.0
+        for i, text in enumerate(kb.search_texts(query, k), start=1):
+            if text in relevant:
+                rank = 1.0 / i
+                break
+        total += rank
+    return total / len(labeled)

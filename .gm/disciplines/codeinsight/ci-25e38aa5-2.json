@@ -1,0 +1,10 @@
+core/agent_api.py:56:64 DiagnoseReport
+class DiagnoseReport:
+    nodes: int
+    octaves: int
+    texts: int
+    facts: int
+    mean_aperture: float
+    mean_tension: float
+    total_energy: float
+    redundant_pairs: int

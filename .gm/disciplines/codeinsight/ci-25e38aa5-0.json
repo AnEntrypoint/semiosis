@@ -1,0 +1,182 @@
+core/agent_api.py:77:433 KnowledgeBase
+class KnowledgeBase:
+    """Ingest texts, search, navigate meaning flow, learn from outcomes, persist across sessions."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        self._settings = settings or Settings()
+        self._pipeline: KnowledgePipeline | None = None
+        self._texts: list[str] = []
+        self._memory = SemioticMemory(None, [], self._settings)
+        self._usage: dict[str, int] = {}
+        self._metrics: dict[str, int] = {
+            "queries": 0, "ingests": 0, "record_outcomes": 0, "consolidations": 0,
+        }
+
+    def ingest(self, texts: list[str]) -> None:
+        """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
+        if not texts:
+            return
+        self._texts.extend(texts)
+        self._metrics["ingests"] += 1
+        if self._pipeline is not None and self._settings.agent.incremental_ingest:
+            self._pipeline.ingest(texts)
+        else:
+            self._pipeline = KnowledgePipeline(self._texts, self._settings)
+        self._memory._pipeline = self._pipeline
+        self._memory._texts = list(self._texts)
+
+    # --- helpers -------------------------------------------------------------
+    def _member_texts(self, node) -> list[str]:
+        out: list[str] = []
+        for m in node.members:
+            idx = phrase_to_text_index(m, len(self._texts))
+            if idx is not None and self._texts[idx] not in out:
+                out.append(self._texts[idx])
+        return out
+
+    def _primary_text(self, node) -> str:
+        mt = self._member_texts(node)
+        return mt[0] if mt else (node.digest or node.label or "")
+
+    def _node_uses(self, node) -> int:
+        return sum(self._usage.get(t, 0) for t in self._member_texts(node))
+
+    def _resolve_top(self, query: str):
+        enc = self._pipeline._encoder
+        q_vec = enc.encode([query])[0]
+        prefix = Prefix(enc.dims[0])
+        ids = self._pipeline.query.knn(q_vec[:prefix], k=1, prefix=prefix)
+        return self._pipeline.store.get(ids[0]) if ids else None
+
+    def _ranked(self, query: str, k: int) -> list[tuple[Any, float]]:
+        """Candidate nodes with blended (relevance + usage) score, MMR-diversified to k."""
+        enc = self._pipeline._encoder
+        store = self._pipeline.store
+        a = self._settings.agent
+        q_vec = enc.encode([query])[0]
+        scored: dict[str, float] = {}
+        if a.octave_fusion:
+            for prefix in (Prefix(d) for d in enc.dims):
+                for rank, (nid, _s) in enumerate(store.knn_scored(q_vec[:prefix], k * 4, prefix)):
+                    scored[nid] = scored.get(nid, 0.0) + 1.0 / (60 + rank)
+        else:
+            prefix = Prefix(enc.dims[0])
+            for nid, s in store.knn_scored(q_vec[:prefix], k * 4, prefix):
+                scored[nid] = s
+        cands = []
+        for nid, base in scored.items():
+            node = store.get(nid)
+            if not node.members:
+                continue
+            cands.append((node, base + a.usage_weight * math.log1p(self._node_uses(node))))
+        cands.sort(key=lambda t: t[1], reverse=True)
+        return self._mmr(cands, k, a.mmr_lambda)
+
+    def _mmr(self, cands: list[tuple[Any, float]], k: int, lam: float) -> list[tuple[Any, float]]:
+        engine = self._pipeline.engine
+        selected: list[tuple[Any, float]] = []
+        seen_text: set[str] = set()
+        pool = list(cands)
+        while pool and len(selected) < k:
+            best, best_mmr, best_i = None, -1e18, -1
+            for i, (node, rel) in enumerate(pool):
+                pt = self._primary_text(node)
+                if pt in seen_text:
+                    best_i = i if best_i < 0 else best_i
+                    continue
+                div = max((engine.overlap_score(s, node) for s, _ in selected), default=0.0)
+                mmr = lam * rel - (1.0 - lam) * div
+                if mmr > best_mmr:
+                    best, best_mmr, best_i = (node, rel), mmr, i
+            if best is None:
+                break
+            pool.pop(best_i)
+            seen_text.add(self._primary_text(best[0]))
+            selected.append(best)
+        return selected
+
+    # --- retrieval -----------------------------------------------------------
+    def search(self, query: str, k: int = 5) -> list[SearchHit]:
+        """Return up to k diversified, scored hits with provenance (the agent retrieval surface)."""
+        if k <= 0:
+            raise ValueError("k must be positive")
+        if self._pipeline is None or not query:
+            return []
+        self._metrics["queries"] += 1
+        hits: list[SearchHit] = []
+        for node, score in self._ranked(query, k):
+            members = self._member_texts(node)
+            hits.append(SearchHit(
+                text=members[0] if members else self._primary_text(node),
+                score=float(score), node_id=str(node.id), octave=int(node.prefix),
+                members=tuple(members),
+            ))
+        return hits
+
+    def search_texts(self, query: str, k: int = 5) -> list[str]:
+        """Back-compat: just the hit texts as a flat list."""
+        return [h.text for h in self.search(query, k)]
+
+    def batch_search(self, queries: list[str], k: int = 5) -> list[list[SearchHit]]:
+        """Encode all queries in one model call; per-query diversified hits."""
+        if k <= 0:
+            raise ValueError("k must be positive")
+        return [self.search(q, k) for q in queries]
+
+    def deep_search(self, query: str, k: int = 5) -> DeepSearchResult:
+        """Recursive octave-descent retrieval over the cone hierarchy (RLM-style)."""
+        if k <= 0:
+            raise ValueError("k must be positive")
+        if self._pipeline is None or not query:
+            return DeepSearchResult((), (), ())
+        r = self._settings.recursive
+        engine = RecursiveAnswerEngine(
+            self._pipeline, max_depth=r.max_depth, max_breadth=r.max_breadth,
+            beam_k=r.beam_k, min_aperture_stop=r.min_aperture_stop,
+        )
+        result: RecursiveResult = engine.answer(query)
+        return DeepSearchResult(
+            texts=tuple(result.evidence_texts[:k]),
+            evidence=tuple(str(n) for n in result.evidence_node_ids[:k]),
+            trace=tuple(tuple(t) for t in result.trace),
+        )
+
+    def explain_retrieval(self, query: str, k: int = 5) -> list[RetrievalStep]:
+        """Per-hit trace of WHY it surfaced: score, containment to the top node, tension."""
+        if k <= 0:
+            raise ValueError("k must be positive")
+        if self._pipeline is None or not query:
+            return []
+        ranked = self._ranked(query, k)
+        if not ranked:
+            return []
+        engine = self._pipeline.engine
+        top = ranked[0][0]
+        steps: list[RetrievalStep] = []
+        for node, score in ranked:
+            steps.append(RetrievalStep(
+                text=self._primary_text(node), score=float(score), node_id=str(node.id),
+                octave=int(node.prefix),
+                containment_to_top=float(engine.contains(top, node)),
+                tension=float(engine.tension(top, node)) if node.id != top.id else 0.0,
+            ))
+        return steps
+
+    def build_context_pack(self, query: str, max_tokens: int, counter=None) -> ContextPack:
+        """Budget-bounded, redundancy-free context pack mitigating context rot."""
+        if not isinstance(max_tokens, int):
+            raise ValueError("max_tokens must be an int")
+        if max_tokens < 0:
+            raise ValueError("max_tokens must be non-negative")
+        if self._pipeline is None or not query:
+            return ContextPack()
+        c = self._settings.context
+        cfg = ContextPackConfig(
+            max_tokens=max_tokens, overlap_threshold=c.overlap_threshold,
+            distance_summary_threshold=c.distance_summary_threshold,
+            max_members_per_node=c.max_members_per_node, reserve_tokens=c.reserve_tokens,
+            max_dedup_candidates=c.max_dedup_candidates,
+        )
+        return ContextPackBuilder(self._pipeline, self._texts, cfg, counter).build(query, max_tokens)
+
+    # --- learning loop ----------------

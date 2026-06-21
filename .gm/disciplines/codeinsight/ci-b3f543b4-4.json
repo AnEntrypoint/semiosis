@@ -1,0 +1,5 @@
+core/test_serving.py:40:43 test_search_endpoint
+def test_search_endpoint() -> None:
+    r = _client().post("/search", json={"query": "alpha unique term", "k": 2})
+    assert r.status_code == 200
+    assert len(r.json()["hits"]) <= 2

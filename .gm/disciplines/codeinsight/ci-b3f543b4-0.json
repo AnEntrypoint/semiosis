@@ -1,0 +1,6 @@
+core/test_serving.py:60:64 test_search_validation_422
+def test_search_validation_422() -> None:
+    c = _client()
+    assert c.post("/search", json={"query": "", "k": 2}).status_code == 422
+    assert c.post("/search", json={"query": "x", "k": 0}).status_code == 422
+    assert c.post("/context_pack", json={"query": "x", "max_tokens": -1}).status_code == 422

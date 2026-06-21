@@ -1,0 +1,11 @@
+core/test_eval.py:37:46 test_centroid_knn_beats_apex_baseline
+def test_centroid_knn_beats_apex_baseline() -> None:
+    kb = _kb()
+    labeled = [(f, {f}) for f in FACTS]
+    centroid = recall_at_k(kb, labeled, k=1)
+    # strip centroids to fall back to cone-apex ranking (the old behavior)
+    store = kb._pipeline.store
+    for nid, n in list(store._nodes.items()):
+        store._nodes[nid] = dataclasses.replace(n, centroid=None)
+    apex = recall_at_k(kb, labeled, k=1)
+    assert centroid >= apex

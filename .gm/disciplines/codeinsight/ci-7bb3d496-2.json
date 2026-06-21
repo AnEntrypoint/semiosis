@@ -1,0 +1,7 @@
+core/api.py:58:63 _check_query
+def _check_query(query: Any) -> str:
+    if not isinstance(query, str) or not query:
+        raise HTTPException(status_code=422, detail="query must be a non-empty string")
+    if len(query) > _get_settings().agent.max_query_chars:
+        raise HTTPException(status_code=422, detail="query too long")
+    return query

@@ -1,0 +1,4 @@
+core/test_serving.py:35:37 test_tools_manifest
+def test_tools_manifest() -> None:
+    tools = _client().get("/tools").json()["tools"]
+    assert any(t["name"] == "search" for t in tools)

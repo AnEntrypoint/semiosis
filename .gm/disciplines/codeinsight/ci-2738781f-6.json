@@ -1,0 +1,6 @@
+core/test_agent_surface.py:67:71 test_consolidate_idempotent
+def test_consolidate_idempotent() -> None:
+    kb = _kb()
+    r1 = kb.consolidate()
+    r2 = kb.consolidate()
+    assert "actions" in r1 and "actions" in r2

@@ -1,0 +1,7 @@
+core/test_eval.py:21:26 _kb
+def _kb() -> KnowledgeBase:
+    s = Settings()
+    s.cone.epochs = 4
+    kb = KnowledgeBase(s)
+    kb.ingest(FACTS)
+    return kb

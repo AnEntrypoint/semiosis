@@ -1,0 +1,10 @@
+core/test_persist.py:46:54 test_save_load_empty_kb
+def test_save_load_empty_kb() -> None:
+    kb = KnowledgeBase(_settings())
+    path = _tmp()
+    try:
+        kb.save(path)
+        kb2 = KnowledgeBase.load(path, _settings())
+        assert kb2.search("anything") == []
+    finally:
+        os.remove(path)

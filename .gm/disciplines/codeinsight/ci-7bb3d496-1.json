@@ -1,0 +1,5 @@
+core/api.py:66:69 _check_k
+def _check_k(k: Any, name: str = "k") -> int:
+    if not isinstance(k, int) or isinstance(k, bool) or k <= 0:
+        raise HTTPException(status_code=422, detail=f"{name} must be a positive int")
+    return k

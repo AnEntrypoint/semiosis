@@ -1,0 +1,5 @@
+core/test_agent_surface.py:41:44 test_exact_text_query_ranks_itself_first
+def test_exact_text_query_ranks_itself_first() -> None:
+    kb = _kb()
+    hits = kb.search("gamma separate idea", k=1)
+    assert hits[0].text == "gamma separate idea"

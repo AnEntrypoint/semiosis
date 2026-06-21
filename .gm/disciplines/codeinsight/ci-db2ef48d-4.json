@@ -1,0 +1,5 @@
+core/test_persist.py:18:21 _settings
+def _settings() -> Settings:
+    s = Settings()
+    s.cone.epochs = 4
+    return s

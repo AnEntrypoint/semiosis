@@ -1,0 +1,6 @@
+core/test_agent_surface.py:54:58 test_record_outcome_shifts_usage
+def test_record_outcome_shifts_usage() -> None:
+    kb = _kb(usage_weight=5.0)
+    kb.record_outcome("alpha", ["zeta extra item"])
+    kb.record_outcome("alpha", ["zeta extra item"])
+    assert kb._usage["zeta extra item"] == 2

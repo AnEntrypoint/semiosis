@@ -1,0 +1,4 @@
+core/eval.py:35:37 evaluate
+def evaluate(kb, labeled: Sequence[tuple[str, set[str]]], k: int = 5) -> dict[str, float]:
+    """Combined retrieval metrics for one KnowledgeBase over a labeled set."""
+    return {"recall_at_k": recall_at_k(kb, labeled, k), "mrr": mrr(kb, labeled, k), "k": float(k)}

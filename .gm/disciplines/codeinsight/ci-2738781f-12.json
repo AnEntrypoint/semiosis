@@ -1,0 +1,6 @@
+core/test_agent_surface.py:29:33 test_search_returns_typed_hits
+def test_search_returns_typed_hits() -> None:
+    kb = _kb()
+    hits = kb.search("alpha unique term", k=3)
+    assert hits and all(isinstance(h, SearchHit) for h in hits)
+    assert all(0.0 <= h.score for h in hits)

@@ -1,0 +1,14 @@
+core/serialization.py:11:23 cone_node_to_dict
+def cone_node_to_dict(node: ConeNode) -> dict[str, Any]:
+    """Convert ConeNode to a plain dict; apex stored as list[float] (float64)."""
+    return {
+        "id": str(node.id),
+        "apex": node.apex.tolist(),
+        "aperture": float(node.aperture),
+        "prefix": int(node.prefix),
+        "members": [str(m) for m in node.members],
+        "label": node.label,
+        "digest": node.digest,
+        "pinned": bool(node.pinned),
+        "centroid": list(node.centroid) if node.centroid is not None else None,
+    }

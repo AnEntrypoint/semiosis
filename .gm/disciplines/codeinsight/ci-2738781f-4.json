@@ -1,0 +1,5 @@
+core/test_agent_surface.py:82:85 test_batch_search
+def test_batch_search() -> None:
+    kb = _kb()
+    out = kb.batch_search(["alpha", "beta"], k=2)
+    assert len(out) == 2

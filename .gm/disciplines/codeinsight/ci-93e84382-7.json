@@ -1,0 +1,5 @@
+core/test_pipeline.py:89:92 test_kb_navigate_returns_directions
+def test_kb_navigate_returns_directions() -> None:
+    kb = _kb()
+    out = kb.navigate("texture", k=3)
+    assert all(n.direction in ("up", "down") for n in out)

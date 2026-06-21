@@ -1,0 +1,11 @@
+core/test_pipeline.py:132:141 test_incremental_ingest_octaves_distinct_and_cached
+def test_incremental_ingest_octaves_distinct_and_cached() -> None:
+    kb = KnowledgeBase()
+    kb.ingest(WEBGL_FACTS[:5])
+    octs = {n.prefix for n in kb._pipeline.store.all_nodes()}
+    assert len(octs) == len(kb._pipeline._encoder.dims)  # all octaves coexist (no id collision)
+    before = len(kb._pipeline._vec_cache)
+    kb.ingest(WEBGL_FACTS[5:])
+    # cache reused old embeddings, encoded only the new texts
+    assert len(kb._pipeline._vec_cache) == len(set(WEBGL_FACTS))
+    assert len(kb._pipeline._vec_cache) > before
