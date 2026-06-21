@@ -56,6 +56,7 @@ class ContextPackConfig:
     max_members_per_node: int = 4
     reserve_tokens: int = 64
     max_dedup_candidates: int = 256
+    entropy_weight: float = 0.0
 
 
 class ContextPackBuilder:

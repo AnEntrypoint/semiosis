@@ -138,6 +138,16 @@ def test_decompose_by_octaves() -> None:
         assert isinstance(clauses, list)
 
 
+def test_info_flow_metrics() -> None:
+    pipe = KnowledgePipeline(WEBGL_FACTS)
+    nodes = pipe.store.all_nodes()
+    engine = pipe.engine
+    if len(nodes) >= 2:
+        metrics = engine.info_flow_metrics(nodes[0], nodes[1])
+        assert metrics.mutual_info >= 0.0
+        assert metrics.jensen_shannon_divergence >= 0.0
+
+
 def test_kb_scan_tension_shape() -> None:
     kb = _kb()
     out = kb.scan_tension(top_n=3)
