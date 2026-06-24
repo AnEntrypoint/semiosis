@@ -1,0 +1,6 @@
+core/test_semantic_direction.py:122:126 test_search_with_reflection_low_confidence
+def test_search_with_reflection_low_confidence() -> None:
+    kb = _kb()
+    result = kb.search_with_reflection("zzz nonexistent query")
+    assert "original" in result
+    assert "reflected_query" in result

@@ -253,3 +253,66 @@ Without reflect_fn, search_with_reflection still returns the original hits with 
 2. top hit uncertainty_score=0.65 -> call search_with_reflection with reflect_fn
 3. LLM rephrases -> "quantum nonlocal correlation" -> retry
 4. New top hit uncertainty_score=0.22 -> use this answer
+
+## 9. Advanced Primitives: Compression, Recursion, and Analogy
+
+### 9.1 Info-bottleneck compression
+
+compress_hierarchy(query, max_nodes) retains only the highest-relevance nodes.
+Use before build_context_pack() when context window is limited.
+
+  result = kb.compress_hierarchy("neural architectures", max_nodes=5)
+  # result.info_retained_ratio < 0.5 means sparse KB; consider ingesting more
+
+### 9.2 Manifold complexity sensing
+
+sense_complexity(query) estimates intrinsic dimensionality of query neighborhood.
+Maps to RLM: task complexity = manifold dimension.
+
+  mc = kb.sense_complexity(query)
+  # constant -> 0-d, single concept, use octave 64
+  # linear -> 1-d, use 128
+  # quadratic -> 2-d, use 256
+  # exponential -> high-d, use 512+
+  hits = kb.search(query, k=10)  # use mc.suggested_octave when available
+
+### 9.3 Analogy reasoning
+
+find_analogy(text_a, text_b, text_c) solves A:B::C:X via direction arithmetic.
+embed(c) + (embed(b) - embed(a)) is the target; nearest nodes to target are returned.
+
+  result = kb.find_analogy("cat", "animal", "dog")
+  # result.hits are nodes near "what dog is to cat as animal is to cat"
+
+### 9.4 Concept boundary analysis
+
+concept_boundary(node_a, node_b) finds the decision surface between two clusters.
+Low margin (< 0.1) -> BOUNDARY_AMBIGUOUS FailureMode expected.
+
+  cb = kb.concept_boundary(nid_a, nid_b)
+  if cb.margin < 0.1:
+      # expect ambiguous retrieval between these two concepts
+
+### 9.5 Entropy management
+
+entropy_dispel(entropy_ceiling) auto-prunes nodes where entropy proxy > ceiling.
+High entropy = noise or over-general cluster. Call after bulk ingest.
+
+  report = kb.entropy_dispel(entropy_ceiling=1.5)
+  # report.dispelled_ids are pruned node ids
+
+### 9.6 Energy-aware fold budget
+
+fold_budget(query, max_tokens, candidates) greedily selects texts by query relevance.
+Implements RLM fold_budget(K, candidates): prefer high-relevance texts under token limit.
+
+  result = kb.fold_budget("neural networks", 500, long_candidate_list)
+  # result.included are the selected texts
+
+### 9.7 Attention weight proxy
+
+attention_score(node_id, query) approximates Transformer attention weight.
+Scaled dot-product: softmax(dot(q,k)/sqrt(d)) over all nodes.
+
+  a = kb.attention_score(node_id, "machine learning")
+  # a.weight in [0,1]; high = node likely attended by model given this query

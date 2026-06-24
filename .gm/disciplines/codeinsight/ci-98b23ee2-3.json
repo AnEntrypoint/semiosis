@@ -1,0 +1,12 @@
+core/test_semantic_direction.py:140:150 test_compute_trajectory_returns_trajectory
+def test_compute_trajectory_returns_trajectory() -> None:
+    kb = _kb()
+    nodes = [n for n in kb._pipeline.store.all_nodes() if n.members]
+    if not nodes:
+        pytest.skip("no nodes")
+    t = kb.compute_trajectory("alpha unique term", str(nodes[0].id))
+    from core.agent_api import SemanticTrajectory
+    assert isinstance(t, SemanticTrajectory)
+    assert t.total_distance >= 0.0
+    assert 0.0 <= t.coherence_score <= 1.0 + 1e-9
+    assert t.energy_cost >= 0.0

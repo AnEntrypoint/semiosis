@@ -1,0 +1,7 @@
+core/test_semantic_direction.py:153:158 test_compute_trajectory_empty_kb
+def test_compute_trajectory_empty_kb() -> None:
+    kb = KnowledgeBase()
+    from core.agent_api import SemanticTrajectory
+    t = kb.compute_trajectory("x", "nonexistent")
+    assert isinstance(t, SemanticTrajectory)
+    assert t.steps == ()

@@ -1,8 +1,8 @@
-core/agent_api.py:110:527 KnowledgeBase
+core/agent_api.py:163:822 KnowledgeBase
 class KnowledgeBase:
     """Ingest texts, search, navigate meaning flow, learn from outcomes, persist across sessions."""
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, settings: Settings | None = None, summarizer=None) -> None:
         self._settings = settings or Settings()
         self._pipeline: KnowledgePipeline | None = None
         self._texts: list[str] = []
@@ -11,6 +11,7 @@ class KnowledgeBase:
         self._metrics: dict[str, int] = {
             "queries": 0, "ingests": 0, "record_outcomes": 0, "consolidations": 0,
         }
+        self._summarizer = summarizer or StubSummarizer()
 
     def ingest(self, texts: list[str]) -> None:
         """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
@@ -169,5 +170,4 @@ class KnowledgeBase:
     def explain_retrieval(self, query: str, k: int = 5) -> list[RetrievalStep]:
         """Per-hit trace of WHY it surfaced: score, containment to the top node, tension."""
         if k <= 0:
-            raise ValueError("k must be positive")
-        if self._pipeline 
+  

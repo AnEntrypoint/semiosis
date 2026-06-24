@@ -1,0 +1,9 @@
+core/test_semantic_direction.py:81:88 test_compute_direction_zero_raises
+def test_compute_direction_zero_raises() -> None:
+    kb = _kb()
+    nodes = [n for n in kb._pipeline.store.all_nodes() if n.members]
+    if not nodes:
+        pytest.skip("no nodes")
+    nid = str(nodes[0].id)
+    with pytest.raises(SemanticDirectionError):
+        kb.compute_direction(nid, nid)

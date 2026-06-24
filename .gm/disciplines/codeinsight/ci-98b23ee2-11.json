@@ -1,0 +1,12 @@
+core/test_semantic_direction.py:68:78 test_compute_direction_unit_norm
+def test_compute_direction_unit_norm() -> None:
+    kb = _kb()
+    nodes = [n for n in kb._pipeline.store.all_nodes() if n.members]
+    if len(nodes) < 2:
+        pytest.skip("not enough nodes")
+    a, b = nodes[0], nodes[1]
+    import numpy as np
+    d = kb.compute_direction(str(a.id), str(b.id))
+    assert isinstance(d, SemanticDirection)
+    dv = np.array(d.direction_vec)
+    assert abs(np.linalg.norm(dv) - 1.0) < 1e-5

@@ -134,6 +134,31 @@ Adaptive pattern:
 2. compute_direction(node_a, node_b) -> direction_search to find what lies in that direction.
 3. uncertainty_score > 0.5 on search -> call search_with_reflection with a reflect_fn.
 
+## Advanced Primitives
+
+```python
+compress_hierarchy(query, max_nodes=10)     # info-bottleneck prune before context packing
+sense_complexity(query)                     # TwoNN intrinsic dim; mc.suggested_octave auto-selects
+fold_budget(query, max_tokens, texts)       # greedy relevance selection under token budget
+sparse_search(query, k, sparsity=0.9)      # NLA sparse attention; zero low-activation nodes
+contrastive_direction(text_a, text_b)      # direction vec: what separates A from B
+find_analogy(text_a, text_b, text_c)       # A:B::C:X direction arithmetic
+concept_boundary(node_a, node_b)           # decision surface; margin < 0.1 -> BOUNDARY_AMBIGUOUS
+entropy_dispel(entropy_ceiling=2.0)        # auto-prune high-entropy noise nodes
+build_digest_chain(summarizer=None)        # bottom-up hierarchy summarization
+attention_score(node_id, query)            # NLA scaled dot-product attention weight
+optimal_octave(query, entropy_budget=1.5)  # minimize energy s.t. entropy <= budget
+information_content(node_id)               # IC = -log2(aperture/pi); high=specific
+```
+
+Decision additions:
+- high local_entropy hits -> entropy_dispel then re-search
+- vague query -> sense_complexity -> use mc.suggested_octave
+- compound query -> decompose_query -> parallel sub-searches
+- analogy/transfer queries -> find_analogy
+- context overflow -> fold_budget to prune candidates
+- node pair ambiguity -> concept_boundary; low margin -> expect BOUNDARY_AMBIGUOUS
+
 ## Invariants
 
 - Manifold: Lorentz/hyperboloid; `_EPS=1e-7` arccos clamp, `_MIN_APERTURE=0.1` rad floor.

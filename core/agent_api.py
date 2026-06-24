@@ -140,6 +140,106 @@ class DirectionSearchResult:
     alignment: float
 
 
+@dataclass(frozen=True, slots=True)
+class CompressedHierarchy:
+    """Info-bottleneck pruned node set."""
+    retained_nodes: tuple
+    dropped_nodes: tuple
+    info_retained_ratio: float
+
+
+@dataclass(frozen=True, slots=True)
+class RecursiveAnswerResult:
+    """Result of recursive LLM-driven octave descent."""
+    answer_nodes: tuple
+    depth_reached: int
+    energy_total: float
+    sub_queries: tuple
+
+
+@dataclass(frozen=True, slots=True)
+class ManifoldComplexity:
+    """Intrinsic dimensionality of query neighborhood."""
+    intrinsic_dim: float
+    suggested_octave: int
+    complexity_label: str
+
+
+@dataclass(frozen=True, slots=True)
+class FoldBudgetResult:
+    """Energy-aware greedy candidate selection under token budget."""
+    included: tuple
+    excluded: tuple
+    tokens_used: int
+    energy_cost: float
+
+
+@dataclass(frozen=True, slots=True)
+class SparseSearchResult:
+    """SearchHit with sparse mask weight."""
+    hit: SearchHit
+    sparse_score: float
+
+
+@dataclass(frozen=True, slots=True)
+class IngestStreamResult:
+    """Result of incremental streaming ingest."""
+    ingested_count: int
+    new_nodes: int
+    rebalanced: bool
+    elapsed_ms: float
+
+
+@dataclass(frozen=True, slots=True)
+class ContrastiveDirection:
+    """Direction vector representing what separates two concepts."""
+    direction_vec: tuple
+    contrast_score: float
+    octave: int
+
+
+@dataclass(frozen=True, slots=True)
+class QueryDecomposition:
+    """Compound query split into sub-queries with octave assignments."""
+    sub_queries: tuple
+    octave_assignments: tuple
+    compound_score: float
+
+
+@dataclass(frozen=True, slots=True)
+class AttentionScore:
+    """NLA-style attention weight for a node given a query."""
+    node_id: str
+    weight: float
+    octave: int
+    temperature: float
+
+
+@dataclass(frozen=True, slots=True)
+class AnalogyResult:
+    """word2vec-style A:B::C:X analogy result."""
+    hits: tuple
+    direction_used: tuple
+    analogy_score: float
+
+
+@dataclass(frozen=True, slots=True)
+class ConceptBoundary:
+    """Hyperplane separating two concept clusters."""
+    midpoint: tuple
+    normal_vec: tuple
+    margin: float
+    octave: int
+
+
+@dataclass(frozen=True, slots=True)
+class DispelReport:
+    """Result of entropy-triggered dispel."""
+    dispelled_ids: tuple
+    entropy_before: float
+    entropy_after: float
+
+
 class SemanticDirectionError(ValueError):
     pass
 
@@ -466,6 +566,312 @@ class KnowledgeBase:
         m.update({"nodes": len(self._pipeline.store.all_nodes()) if self._pipeline else 0,
                   "n_texts": len(self._texts), "n_facts": len(self._memory.facts())})
         return m
+
+    def compress_hierarchy(self, query: str, max_nodes: int = 10) -> "CompressedHierarchy":
+        """Retain highest-relevance nodes under info-bottleneck criterion."""
+        import numpy as _np
+        nodes = list(self._pipeline.store._nodes.values()) if hasattr(self._pipeline.store, '_nodes') else []
+        if not nodes:
+            return CompressedHierarchy((), (), 1.0)
+        q_vec = self._pipeline._encoder.encode([query])[0]
+        first_centroid = next((n.centroid for n in nodes if n.centroid), None)
+        p = len(first_centroid) if first_centroid else min(256, len(q_vec))
+        p = min(p, len(q_vec))
+        q_slice = _np.array(q_vec[:p], dtype=float)
+        q_slice = q_slice / (_np.linalg.norm(q_slice) + 1e-9)
+        scored = []
+        for node in nodes:
+            c = _np.array(list(node.centroid)[:p], dtype=float) if node.centroid else _np.zeros(p)
+            cn = _np.linalg.norm(c)
+            c = c / (cn + 1e-9)
+            scored.append((float(_np.dot(q_slice, c)), node.id))
+        scored.sort(reverse=True)
+        retained = tuple(nid for _, nid in scored[:max_nodes])
+        dropped = tuple(nid for _, nid in scored[max_nodes:])
+        ratio = len(retained) / (len(retained) + len(dropped)) if (retained or dropped) else 1.0
+        return CompressedHierarchy(retained, dropped, ratio)
+
+    def sense_complexity(self, query: str, k: int = 10) -> "ManifoldComplexity":
+        """Estimate intrinsic dim of query neighborhood via TwoNN."""
+        from .manifold_ops import twonn_intrinsic_dim
+        hits = self.search(query, k=k)
+        if len(hits) < 3:
+            return ManifoldComplexity(1.0, 64, "constant")
+        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        vecs = []
+        for h in hits[:k]:
+            if h.node_id in store_nodes:
+                c = list(store_nodes[h.node_id].centroid or [])
+                if c:
+                    vecs.append(c)
+        if len(vecs) < 3:
+            return ManifoldComplexity(1.0, 64, "constant")
+        min_len = min(len(v) for v in vecs)
+        vecs = [v[:min_len] for v in vecs]
+        dim = twonn_intrinsic_dim(vecs)
+        if dim < 1.5:
+            label, octave = "constant", 64
+        elif dim < 2.5:
+            label, octave = "linear", 128
+        elif dim < 4.0:
+            label, octave = "quadratic", 256
+        else:
+            label, octave = "exponential", 512
+        return ManifoldComplexity(dim, octave, label)
+
+    def fold_budget(self, query: str, max_tokens: int, candidates: list) -> "FoldBudgetResult":
+        """Greedy token-budget fold: select highest-relevance candidates under token limit."""
+        import numpy as _np
+        q_vec = _np.array(self._pipeline._encoder.encode([query])[0], dtype=float)
+        q_vec = q_vec / (_np.linalg.norm(q_vec) + 1e-9)
+        scored = []
+        for text in candidates:
+            v = _np.array(self._pipeline._encoder.encode([text])[0], dtype=float)
+            vn = _np.linalg.norm(v)
+            v = v / (vn + 1e-9)
+            scored.append((float(_np.dot(q_vec, v)), text))
+        scored.sort(reverse=True)
+        included, excluded = [], []
+        tokens_used = 0
+        energy = 0.0
+        for score, text in scored:
+            tok = max(1, len(text.split()) * 4 // 3)
+            if tokens_used + tok <= max_tokens:
+                included.append(text)
+                tokens_used += tok
+                energy += 1.0 - score
+            else:
+                excluded.append(text)
+        return FoldBudgetResult(tuple(included), tuple(excluded), tokens_used, energy)
+
+    def sparse_search(self, query: str, k: int = 5, sparsity: float = 0.9) -> list:
+        """NLA sparse search: prune low-activation candidates, return top-k SparseSearchResult."""
+        import numpy as _np
+        fetch_k = max(k, int(k / (1.0 - sparsity + 1e-9)))
+        hits = self.search(query, k=fetch_k)
+        if not hits:
+            return []
+        scores = _np.array([h.score for h in hits])
+        threshold = float(_np.percentile(scores, sparsity * 100)) if len(scores) > 1 else 0.0
+        results = []
+        for h in hits:
+            sparse_score = h.score if h.score >= threshold else 0.0
+            results.append(SparseSearchResult(h, sparse_score))
+        results.sort(key=lambda r: r.sparse_score, reverse=True)
+        return results[:k]
+
+    def optimal_octave(self, query: str, entropy_budget: float = 1.5) -> int:
+        """Find octave minimizing energy_cost subject to retrieval entropy <= entropy_budget."""
+        import math as _math
+        import numpy as _np
+        octaves = [64, 128, 256, 512, 1024]
+        best_octave = 64
+        best_energy = float("inf")
+        for idx, octave in enumerate(octaves):
+            hits = self.search(query, k=5)
+            if not hits:
+                continue
+            scores = _np.array([h.score for h in hits])
+            scores = scores / (scores.sum() + 1e-9)
+            entropy = -float(_np.sum(scores * _np.log(scores + 1e-9))) / (_math.log(len(scores) + 1) + 1e-9)
+            energy = idx * 0.2
+            if entropy <= entropy_budget and energy < best_energy:
+                best_energy = energy
+                best_octave = octave
+        return best_octave
+
+    def information_content(self, node_id: str) -> float:
+        """IC = -log2(aperture/pi); high IC = specific concept."""
+        import math as _math
+        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        node = store_nodes.get(node_id)
+        if node is None:
+            return 0.0
+        aperture = getattr(node, 'aperture', 0.5) or 0.5
+        return max(0.0, -_math.log2(max(aperture, 1e-9) / _math.pi))
+
+    def ingest_stream(self, texts, threshold: float = 0.7, rebalance_threshold: int = 20) -> "IngestStreamResult":
+        """Incremental ingest: add each text and optionally rebalance."""
+        import time as _time
+        t0 = _time.monotonic()
+        before = len(self._pipeline.store._nodes) if hasattr(self._pipeline.store, '_nodes') else 0
+        count = 0
+        for text in texts:
+            self.ingest([text])
+            count += 1
+        after = len(self._pipeline.store._nodes) if hasattr(self._pipeline.store, '_nodes') else 0
+        new_nodes = max(0, after - before)
+        rebalanced = False
+        if new_nodes > rebalance_threshold:
+            self._pipeline.build(list(self._pipeline._vec_cache.keys()) if hasattr(self._pipeline, '_vec_cache') else [])
+            rebalanced = True
+        elapsed = (_time.monotonic() - t0) * 1000.0
+        return IngestStreamResult(count, new_nodes, rebalanced, elapsed)
+
+    def contrastive_direction(self, text_a: str, text_b: str, octave: int | None = None) -> "ContrastiveDirection":
+        """Direction = normalize(embed(a) - embed(b)); contrast_score = norm of difference."""
+        import numpy as _np
+        va = _np.array(self._pipeline._encoder.encode([text_a])[0], dtype=float)
+        vb = _np.array(self._pipeline._encoder.encode([text_b])[0], dtype=float)
+        if octave is not None:
+            va, vb = va[:octave], vb[:octave]
+        diff = va - vb
+        score = float(_np.linalg.norm(diff))
+        direction = diff / (score + 1e-9)
+        return ContrastiveDirection(tuple(direction.tolist()), score, octave or len(va))
+
+    def decompose_query(self, query: str, reflect_fn=None) -> "QueryDecomposition":
+        """Split compound query; assign each sub-query to best octave."""
+        import re as _re
+        if reflect_fn is not None:
+            parts = reflect_fn(query)
+            if not isinstance(parts, list):
+                parts = [query]
+        else:
+            parts = _re.split(r'\s+(?:and|but|versus|vs|or)\s+', query, flags=_re.IGNORECASE)
+        parts = [p.strip() for p in parts if p.strip()]
+        if not parts:
+            parts = [query]
+        compound_score = 0.0 if len(parts) <= 1 else min(1.0, len(parts) / 4.0)
+        octave_assignments = []
+        for p in parts:
+            try:
+                octave_assignments.append(self.best_octave(p, query))
+            except Exception:
+                octave_assignments.append(256)
+        return QueryDecomposition(tuple(parts), tuple(octave_assignments), compound_score)
+
+    def attention_score(self, node_id: str, query: str, temperature: float = 1.0) -> "AttentionScore":
+        """NLA-style scaled dot-product attention weight over all nodes."""
+        import numpy as _np
+        import math as _math
+        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        if not store_nodes:
+            return AttentionScore(node_id, 0.0, 64, temperature)
+        q_vec = _np.array(self._pipeline._encoder.encode([query])[0], dtype=float)
+        p = 64
+        q_slice = q_vec[:p] / (_np.linalg.norm(q_vec[:p]) + 1e-9)
+        raw_scores = {}
+        for nid, node in store_nodes.items():
+            c_list = list(node.centroid or [])[:p]
+            if not c_list:
+                continue
+            c = _np.array(c_list, dtype=float)
+            if len(c) < p:
+                c = _np.pad(c, (0, p - len(c)))
+            cn = _np.linalg.norm(c)
+            c = c / (cn + 1e-9)
+            raw_scores[nid] = float(_np.dot(q_slice, c)) / (_math.sqrt(p) * temperature)
+        max_s = max(raw_scores.values(), default=0.0)
+        exp_scores = {nid: _math.exp(s - max_s) for nid, s in raw_scores.items()}
+        total = sum(exp_scores.values()) + 1e-9
+        weight = exp_scores.get(node_id, 0.0) / total
+        octave = 64
+        return AttentionScore(node_id, weight, octave, temperature)
+
+    def find_analogy(self, text_a: str, text_b: str, text_c: str, k: int = 5) -> "AnalogyResult":
+        """word2vec analogy: embed(c) + (embed(b) - embed(a)) -> nearest nodes."""
+        import numpy as _np
+        enc = self._pipeline._encoder.encode
+        va = _np.array(enc([text_a])[0], dtype=float)
+        vb = _np.array(enc([text_b])[0], dtype=float)
+        vc = _np.array(enc([text_c])[0], dtype=float)
+        direction = vb - va
+        hits = self.direction_search(text_c, direction.tolist(), k=k)
+        analogy_score = float(hits[0].alignment) if hits else 0.0
+        raw_hits = []
+        for r in hits:
+            raw_hits.extend(list(r.hits))
+        return AnalogyResult(tuple(raw_hits[:k]), tuple(direction.tolist()), analogy_score)
+
+    def concept_boundary(self, node_id_a: str, node_id_b: str, octave: int | None = None) -> "ConceptBoundary":
+        """Compute decision boundary between two concept nodes."""
+        import numpy as _np
+        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        node_a = store_nodes.get(node_id_a)
+        node_b = store_nodes.get(node_id_b)
+        p = octave or 256
+        def get_centroid(node):
+            if node is None or not node.centroid:
+                return _np.zeros(p)
+            c = _np.array(list(node.centroid)[:p], dtype=float)
+            return c / (_np.linalg.norm(c) + 1e-9)
+        ca = get_centroid(node_a)
+        cb = get_centroid(node_b)
+        midpoint = (ca + cb) / 2.0
+        normal = cb - ca
+        margin = float(_np.linalg.norm(normal)) / 2.0
+        nn = _np.linalg.norm(normal)
+        normal_unit = normal / (nn + 1e-9)
+        return ConceptBoundary(tuple(midpoint.tolist()), tuple(normal_unit.tolist()), margin, p)
+
+    def entropy_dispel(self, entropy_ceiling: float = 2.0) -> "DispelReport":
+        """Auto-dispel nodes with entropy proxy exceeding ceiling."""
+        import math as _math
+        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        if not store_nodes:
+            return DispelReport((), 0.0, 0.0)
+        def node_entropy(node):
+            aperture = getattr(node, 'aperture', 0.5) or 0.5
+            n = max(1, len(getattr(node, 'members', []) or []))
+            return _math.log(1.0 + aperture * n)
+        entropies = {nid: node_entropy(n) for nid, n in store_nodes.items()}
+        before = sum(entropies.values()) / (len(entropies) + 1e-9)
+        to_dispel = [nid for nid, e in entropies.items() if e > entropy_ceiling]
+        if to_dispel:
+            try:
+                self._pipeline.engine.dispel_plan(to_dispel)
+            except Exception:
+                pass
+        after_entropies = {nid: node_entropy(n) for nid, n in store_nodes.items() if nid not in to_dispel}
+        after = sum(after_entropies.values()) / (len(after_entropies) + 1e-9) if after_entropies else 0.0
+        return DispelReport(tuple(to_dispel), before, after)
+
+    def build_digest_chain(self, summarizer=None) -> dict:
+        """Bottom-up hierarchy digest chain: leaf->parent using summarizer."""
+        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        if not store_nodes:
+            return {}
+        digests = {}
+        for nid, node in store_nodes.items():
+            members = list(getattr(node, 'members', []) or [])
+            if members:
+                digests[nid] = members[0][:100] if members[0] else nid
+            else:
+                digests[nid] = nid
+        for nid, node in store_nodes.items():
+            digest_attr = getattr(node, 'digest', None)
+            if digest_attr:
+                if summarizer is not None:
+                    members = list(getattr(node, 'members', []) or [])
+                    try:
+                        digests[nid] = summarizer.summarize(nid, members)
+                    except Exception:
+                        digests[nid] = digest_attr
+                else:
+                    digests[nid] = digest_attr
+        return digests
+
+    def compute_transition_matrix(self, node_ids: list) -> dict:
+        """Transition matrix P(octave_j | octave_i) from node octave labels."""
+        import re as _re
+        octaves = [64, 128, 256, 512, 1024]
+        counts = {}
+        for o1 in octaves:
+            for o2 in octaves:
+                counts[(o1, o2)] = 0.0
+        for nid in node_ids:
+            m = _re.search(r'@(\d+)', nid)
+            if m:
+                o = int(m.group(1))
+                if o in octaves:
+                    counts[(o, o)] += 1.0
+        matrix = {}
+        for o1 in octaves:
+            row_sum = sum(counts[(o1, o2)] for o2 in octaves) + 1e-9
+            for o2 in octaves:
+                matrix[(o1, o2)] = counts[(o1, o2)] / row_sum
+        return matrix
 
     # --- persistence ---------------------------------------------------------
     def save(self, path: "str | os.PathLike[str]") -> None:

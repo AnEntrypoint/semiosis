@@ -1,0 +1,8 @@
+core/test_semantic_direction.py:45:51 test_semantic_distance_octave_dict
+def test_semantic_distance_octave_dict() -> None:
+    kb = _kb()
+    d = kb.semantic_distance("alpha unique term", "beta distinct phrase")
+    assert isinstance(d, dict)
+    assert len(d) > 0
+    for v in d.values():
+        assert 0.0 <= v <= 2.1  # cosine in [0,2], hyperbolic can be larger but bounded

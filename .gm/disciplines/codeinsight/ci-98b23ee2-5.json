@@ -1,0 +1,4 @@
+core/test_semantic_direction.py:129:131 test_semantic_distance_empty_kb
+def test_semantic_distance_empty_kb() -> None:
+    kb = KnowledgeBase()
+    assert kb.semantic_distance("x", "y", octave=64) == 0.0

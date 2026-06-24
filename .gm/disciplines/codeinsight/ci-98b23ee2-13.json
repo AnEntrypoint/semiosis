@@ -1,0 +1,5 @@
+core/test_semantic_direction.py:54:57 test_semantic_distance_hyperbolic
+def test_semantic_distance_hyperbolic() -> None:
+    kb = _kb()
+    d = kb.semantic_distance("alpha unique term", "beta distinct phrase", octave=64, use_hyperbolic=True)
+    assert float(d) >= 0.0

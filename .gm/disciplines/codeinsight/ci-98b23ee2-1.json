@@ -1,0 +1,6 @@
+core/test_semantic_direction.py:161:165 test_categorization_summarizer_stub_no_key
+def test_categorization_summarizer_stub_no_key() -> None:
+    from core.summarizer import CategorizationSummarizer
+    s = CategorizationSummarizer(api_key="")
+    out = s.summarize("node1", ["alpha unique term", "beta distinct phrase"])
+    assert isinstance(out, str) and len(out) > 0

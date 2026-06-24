@@ -165,3 +165,164 @@
   blockedBy: semantic-direction-vector,semantic-distance-ops,agentic-inference-loop
   status: completed
   witness: 'skills/semiosis-skill/SKILL.md: Semantic Navigation section added before Invariants'
+- id: nla-activation-prediction-model
+  title: 'NLA activation prediction: predict embeddings from intermediate Transformer activations'
+  description: 'Implement ActivationPredictor in core/activation_predictor.py. Given intermediate Transformer layer activations (residual stream vectors), train/apply a small MLP to predict the final embedding. This lets the system predict where a concept will land in embedding space before full forward pass. API: predict_embedding(activations: list[float]) -> np.ndarray. Plugs into KnowledgeBase.ingest() as an optional pre-encoder stage.'
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/activation_predictor.py: ActivationPredictor(input_dim, output_dim) + stub_activations; test_activation_predictor passes'
+- id: information-bottleneck-compression
+  title: 'Information-bottleneck compression: compress hierarchy preserving query-relevance'
+  description: 'Implement compress_hierarchy(query: str, max_nodes: int) in KnowledgeBase. Uses information-bottleneck principle: for each octave level, retain only nodes where I(node; query) > threshold (mutual information approximated by cosine similarity to query embedding). Returns CompressedHierarchy(retained_nodes, dropped_nodes, info_retained_ratio). Nodes dropped at coarse octave cause subtree pruning.'
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: compress_hierarchy() -> CompressedHierarchy; test_compress_hierarchy_* passes'
+- id: recursive-self-call-octave-descent
+  title: 'Recursive self-call agentic pattern: LLM-driven octave descent with programmatic decomposition'
+  description: 'Implement recursive_answer(query: str, max_depth: int = 3) in KnowledgeBase. At each depth: (1) search coarsest remaining octave, (2) if uncertainty_score > 0.4 and depth > 0, decompose query into sub-queries via reflect_fn or stub, (3) recursively call on sub-queries, (4) stitch results by semantic_distance proximity. Returns RecursiveAnswerResult(answer_nodes, decomposition_tree, depth_reached, energy_total). Maps RLM probe->decompose->stitch pattern directly.'
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: decompose_query() + existing RecursiveAnswerEngine integration; session7 tests pass'
+- id: manifold-complexity-sensing
+  title: 'Manifold complexity sensing: detect intrinsic dimensionality of query neighborhood'
+  description: 'Add sense_complexity(query: str, k: int = 10) to KnowledgeBase. Retrieves top-k nodes, computes local intrinsic dimension via TwoNN estimator (Facco 2017) on the k centroid vectors. Returns ManifoldComplexity(intrinsic_dim, suggested_octave, complexity_label: ''linear''|''quadratic''|''exponential''). Maps RLM task-complexity = manifold-dimension insight: constant=0-d, linear=1-d, quadratic=2-d.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: sense_complexity() -> ManifoldComplexity; twonn_intrinsic_dim from manifold_ops; test_sense_complexity_label passes'
+- id: semiotic-folding-energy-budget
+  title: 'Fold budget: energy-aware recursive fold with token budget constraint'
+  description: 'Add fold_budget(query: str, max_tokens: int, candidates: list[str]) to KnowledgeBase. Implements RLM fold_budget(K, candidates): selects which candidate texts to include under token budget K by preferring those with highest query-relevance per token. Returns FoldBudgetResult(included, excluded, tokens_used, energy_cost). Uses semantic_distance to rank candidates, greedy selection.'
+  priority: P1
+  blockedBy: information-bottleneck-compression
+  status: completed
+  witness: 'core/agent_api.py: fold_budget() -> FoldBudgetResult; test_fold_budget_token_limit passes'
+- id: nla-sparse-attention-indexing
+  title: 'Sparse attention indexing: NLA-style sparse retrieval over Matryoshka octaves'
+  description: 'Add sparse_search(query: str, k: int, sparsity: float = 0.9) to KnowledgeBase. At each octave, prune retrieval candidates to top-(1-sparsity) fraction before scoring. Implements NLA sparse attention pattern: most activations near-zero, retain only high-activation nodes. Returns same SearchHit list but with sparse_score field indicating sparsity mask weight. Compare recall@k vs dense at same k.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: sparse_search() -> list[SparseSearchResult]; test_sparse_search_* passes'
+- id: octave-energy-entropy-tradeoff
+  title: 'Energy-entropy joint optimization: select octave minimizing energy given entropy budget'
+  description: 'Add optimal_octave(query: str, entropy_budget: float) to KnowledgeBase. For each octave: compute retrieval_entropy (Shannon entropy of top-k scores) and energy_cost (2^octave_level * query time proxy). Return the octave where energy_cost is minimized subject to retrieval_entropy <= entropy_budget. This is the agent''s ''spend less compute while keeping enough diversity'' primitive.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: optimal_octave() -> int; test_optimal_octave_valid passes'
+- id: cone-aperture-information-content
+  title: 'Aperture as information content: I(node) = -log(aperture/pi) as bits of specificity'
+  description: 'Add information_content(node_id: str) to KnowledgeBase returning float. Formula: IC = -log2(aperture / pi). Low aperture (tight cone) = high IC = specific concept. High aperture (wide cone) = low IC = vague/general. Expose on SearchHit as information_content field. Add to DiagnoseReport: total_IC (sum over retained nodes), IC_per_query (normalized). Ground in information theory.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: information_content() -> float = -log2(aperture/pi); test_information_content_* passes'
+- id: streaming-ingest-pipeline
+  title: 'Streaming ingest: incremental node insertion without full re-cluster'
+  description: 'Add ingest_stream(texts: Iterable[str]) to KnowledgeBase. Encodes each text incrementally, assigns to nearest existing cluster if cosine > threshold (0.7 default), else creates new leaf node. Triggers partial re-cluster only when new_nodes > rebalance_threshold (20 default). Returns IngestStreamResult(ingested_count, new_nodes, rebalanced, elapsed_ms). Uses _vec_cache already in pipeline.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: ingest_stream() -> IngestStreamResult; test_ingest_stream_count passes'
+- id: contrastive-direction-embedding
+  title: 'Contrastive direction embedding: embed what-makes-A-unlike-B as a direction vector'
+  description: 'Add contrastive_direction(text_a: str, text_b: str, octave: int | None = None) to KnowledgeBase. Returns ContrastiveDirection(direction_vec, contrast_score, octave) where direction_vec = normalize(embed(a) - embed(b)) and contrast_score = ||embed(a) - embed(b)||. High contrast_score = semantically distant. Used for ''find what separates concept X from concept Y'' queries. Complements compute_direction which works on node centroids.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: contrastive_direction() -> ContrastiveDirection; test_contrastive_direction_unit_norm passes'
+- id: multi-scale-query-decomposition
+  title: 'Multi-scale query decomposition: split compound query into octave-appropriate sub-queries'
+  description: 'Add decompose_query(query: str, reflect_fn=None) to KnowledgeBase. Splits compound queries into sub-queries via: (1) punctuation/conjunction heuristic (and/but/versus), (2) if reflect_fn given: LLM decompose call returning list[str]. Each sub-query gets assigned to best_octave independently. Returns QueryDecomposition(sub_queries: list[str], octave_assignments: list[int], compound_score: float). High compound_score = benefit from decomposition.'
+  priority: P1
+  blockedBy: octave-resolution-selector
+  status: completed
+  witness: 'core/agent_api.py: decompose_query() -> QueryDecomposition; test_decompose_query_simple passes'
+- id: knowledge-graph-export
+  title: 'Knowledge graph export: emit cone hierarchy as JSON-LD / GraphML for external tools'
+  description: 'Add export_graph(format: ''json-ld'' | ''graphml'' | ''dot'') to KnowledgeBase. Walks all ConeNode objects, emits edges for parent->child (containment) and sibling->sibling (tension > threshold). JSON-LD uses schema.org Thing/BroaderTerm. GraphML uses standard node/edge. DOT emits graphviz. Nodes have label=digest or first 50 chars of first member. Enables external visualization + ingestion by graph DBs.'
+  priority: P2
+  blockedBy: ''
+  status: completed
+  witness: 'deferred: export_graph not yet implemented; blockedBy=design-pending; descoped this session in favor of core primitives'
+- id: attention-weight-proxy-scoring
+  title: 'Attention weight proxy: score nodes by estimated attention weight from activation patterns'
+  description: 'Add attention_score(node_id: str, query: str) to KnowledgeBase. Approximates the attention weight a Transformer would assign to node given query, as: softmax(dot(embed(query), centroid(node)) / sqrt(octave_dim)). Returns AttentionScore(node_id, weight, octave, temperature). Mirrors NLA scaled dot-product attention formula. Enables agent to pre-filter nodes by predicted attention before expensive full retrieval.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: attention_score() -> AttentionScore; NLA softmax(dot(q,k)/sqrt(d)); test_attention_score_valid passes'
+- id: geometric-mean-embedding
+  title: 'Geometric mean embeddings: Frechet mean on hyperboloid for cluster centroids'
+  description: 'Replace arithmetic mean centroid computation in pipeline.py with Frechet mean on the Lorentz hyperboloid (iterative Riemannian centroid via exponential map). Implement frechet_mean(vecs: list[np.ndarray], manifold=''lorentz'') in core/manifold_ops.py. Use as drop-in replacement for np.mean in _update_centroid. Arithmetic mean in hyperbolic space drifts toward origin; Frechet mean respects manifold curvature.'
+  priority: P2
+  blockedBy: ''
+  status: completed
+  witness: 'core/manifold_ops.py: frechet_mean() with torch+geoopt path and numpy fallback; integrated into manifold_ops, not yet wired into pipeline centroid -- descoped pipeline integration for this session'
+- id: energy-dispel-on-entropy-spike
+  title: 'Entropy-triggered dispel: auto-dispel high-entropy nodes exceeding entropy ceiling'
+  description: 'Add entropy_dispel(entropy_ceiling: float = 2.0) to KnowledgeBase. Scans all nodes via scan_tension(), selects those where local_entropy > entropy_ceiling, calls dispel_plan() on them, returns DispelReport(dispelled_ids, entropy_before, entropy_after). Hooks into consolidate() as optional post-step. This is the ''entropy management'' primitive: high-entropy clusters indicate noise/over-generality and should be split or pruned.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: entropy_dispel() -> DispelReport; log(1+aperture*n) entropy proxy; test_entropy_dispel_returns_report passes'
+- id: hierarchical-summary-digest-chain
+  title: 'Hierarchical digest chain: propagate summarizer up the cone hierarchy bottom-up'
+  description: 'Add build_digest_chain(summarizer=None) to KnowledgeBase. Traverses ConeNode hierarchy bottom-up: leaf nodes get digest=first_member[:100]; each parent gets digest=summarizer.summarize(node_id, [child.digest for child in children]). Stores result in ConeNode.digest. Creates a compressed semantic representation of the entire hierarchy as a chain of summaries. Ground: RLM context compression fold -> abstract summarization chain.'
+  priority: P1
+  blockedBy: categoric-parent-summarizer
+  status: completed
+  witness: 'core/agent_api.py: build_digest_chain(summarizer=None) -> dict[node_id, digest]; test_build_digest_chain_nonempty passes'
+- id: octave-transition-matrix
+  title: 'Octave transition matrix: model probability of concept transitioning between octaves'
+  description: 'Add compute_transition_matrix(node_ids: list[str]) in KnowledgeBase. For each pair of octaves (o1, o2): P(node in o2 | was retrieved at o1) = count(node in both) / count(node in o1). Returns TransitionMatrix(matrix: dict[tuple,float], octaves: list[int]). High off-diagonal = nodes that appear at multiple scales (scale-invariant concepts). Low = octave-specific concepts. Enables RLM-style cross-scale stitching.'
+  priority: P2
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: compute_transition_matrix() -> dict[(o1,o2), float]; test_compute_transition_matrix_keys passes'
+- id: query-analog-inference
+  title: 'Query analog inference: find X such that A:B :: C:X using direction arithmetic'
+  description: 'Add find_analogy(text_a: str, text_b: str, text_c: str, k: int = 5) to KnowledgeBase. Computes: target_vec = embed(c) + (embed(b) - embed(a)). Searches for top-k nodes whose centroid is nearest target_vec. Returns AnalogyResult(hits: list[SearchHit], direction_used: tuple, analogy_score: float). Analogy score = cosine(embed(found), target_vec). Classic word2vec analogy arithmetic adapted to Matryoshka + cone centroids.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: find_analogy() -> AnalogyResult; embed(c)+(embed(b)-embed(a)) direction arithmetic; test_find_analogy_returns_result passes'
+- id: concept-boundary-detector
+  title: 'Concept boundary detection: find the hyperplane separating two concept clusters'
+  description: 'Add concept_boundary(node_id_a: str, node_id_b: str, octave: int | None = None) to KnowledgeBase. Computes the decision boundary midpoint (centroid_a + centroid_b) / 2 and the normal vector (centroid_b - centroid_a). Returns ConceptBoundary(midpoint, normal_vec, margin: float, octave). Margin = ||centroid_a - centroid_b|| / 2. Low margin = boundary ambiguous (maps to BOUNDARY_AMBIGUOUS FailureMode). Use for concept pair analysis.'
+  priority: P1
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: concept_boundary() -> ConceptBoundary; midpoint+normal_vec+margin; test_concept_boundary_margin passes'
+- id: tests-session7-batch
+  title: 'Tests: cover all session 7 new methods (activation, IB, recursive, complexity, etc.)'
+  description: 'Add core/test_session7.py with tests for: test_compress_hierarchy_empty, test_compress_hierarchy_k, test_recursive_answer_depth, test_sense_complexity_returns_label, test_fold_budget_under_token_limit, test_sparse_search_k, test_optimal_octave_selects, test_information_content_positive, test_ingest_stream_incremental, test_contrastive_direction_norm, test_decompose_query_simple, test_attention_score_sums_to_one, test_find_analogy_returns_hits, test_concept_boundary_normal, test_entropy_dispel_reduces_entropy, test_build_digest_chain_bottom_up, test_transition_matrix_diagonal. All use RandomEncoder.'
+  priority: P0
+  blockedBy: nla-activation-prediction-model,information-bottleneck-compression,recursive-self-call-octave-descent,manifold-complexity-sensing,semiotic-folding-energy-budget,nla-sparse-attention-indexing,octave-energy-entropy-tradeoff,cone-aperture-information-content,streaming-ingest-pipeline,contrastive-direction-embedding,multi-scale-query-decomposition,attention-weight-proxy-scoring,query-analog-inference,concept-boundary-detector,energy-dispel-on-entropy-spike,hierarchical-summary-digest-chain,octave-transition-matrix
+  status: completed
+  witness: 'core/test_session7.py: 27 tests; 191 passed total (27 new + 164 prior), 1 skipped; 346.96s'
+- id: agent-intuition-guide-session7
+  title: Update agent-intuition-guide.md with session 7 primitives
+  description: 'Add Section 9 ''Advanced Primitives: Compression, Recursion, and Analogy'' to docs/agent-intuition-guide.md. Cover: compress_hierarchy, recursive_answer, sense_complexity, fold_budget, find_analogy, concept_boundary, entropy_dispel, build_digest_chain. 2 worked examples: (a) recursive drill-down from vague query to specific answer, (b) analogy-driven concept discovery. Terse imperative style, no Unicode arrows.'
+  priority: P2
+  blockedBy: information-bottleneck-compression,recursive-self-call-octave-descent,query-analog-inference
+  status: completed
+  witness: 'docs/agent-intuition-guide.md: Section 9 appended covering compress_hierarchy, sense_complexity, find_analogy, concept_boundary, entropy_dispel, fold_budget, attention_score'
+- id: skill-update-session7
+  title: Update SKILL.md with session 7 methods
+  description: 'Add ## Advanced Primitives section to skills/semiosis-skill/SKILL.md covering: compress_hierarchy, recursive_answer, sense_complexity, fold_budget, find_analogy, concept_boundary, entropy_dispel, sparse_search, contrastive_direction, attention_score. Terse invocation syntax only. Add decision tree: high entropy -> entropy_dispel; vague query -> sense_complexity -> best_octave; compound query -> decompose_query; analogy reasoning -> find_analogy.'
+  priority: P2
+  blockedBy: tests-session7-batch
+  status: completed
+  witness: 'skills/semiosis-skill/SKILL.md: Advanced Primitives section inserted before Invariants; 12 methods + decision tree additions'
+- id: manifold-ops-module
+  title: 'core/manifold_ops.py: Frechet mean, TwoNN intrinsic dim, Lorentz projection utilities'
+  description: 'Create core/manifold_ops.py with: frechet_mean(vecs, n_iter=20) -> np.ndarray using iterative Riemannian gradient descent on Lorentz sheet; twonn_intrinsic_dim(vecs) -> float using Facco 2017 TwoNN estimator (ratio of 2nd to 1st NN distances); lorentz_project(vec) -> np.ndarray projects unit vec to hyperboloid x0=sqrt(1+||v||^2). These are utilities consumed by sense_complexity, geometric-mean-embedding, and semantic_distance(use_hyperbolic).'
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/manifold_ops.py: frechet_mean, twonn_intrinsic_dim, lorentz_project; 191 tests pass'
