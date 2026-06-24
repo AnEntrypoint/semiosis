@@ -370,6 +370,7 @@
   witness: docs/agent-intuition-guide.md Section 10 added; skills/semiosis-skill/SKILL.md updated; wf_ff6d7da6-bef
 - id: git-commit-push-session8
   title: git commit and push all session 8 changes
-  status: todo
+  status: completed
   priority: 8
   notes: Stage all changed/new/deleted files; commit with session 8 summary; push to origin. Depends on all prior rows complete.
+  witness: 'git_finalize: sha=e6778a8, branch=master, pushed=true'
