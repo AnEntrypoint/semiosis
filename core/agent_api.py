@@ -107,10 +107,63 @@ class RetrievalStep:
     tension: float
 
 
+@dataclass(frozen=True, slots=True)
+class SemanticDirection:
+    from_node: str
+    to_node: str
+    octave: int
+    direction_vec: tuple[float, ...]
+    magnitude: float
+    cosine_alignment: float
+
+
+@dataclass(frozen=True, slots=True)
+class TrajectoryStep:
+    node_id: str
+    octave: int
+    distance_from_prev: float
+    direction_vec: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SemanticTrajectory:
+    steps: tuple[TrajectoryStep, ...]
+    total_distance: float
+    coherence_score: float
+    energy_cost: float
+
+
+@dataclass(frozen=True, slots=True)
+class DirectionSearchResult:
+    hits: tuple["SearchHit", ...]
+    alpha: float
+    alignment: float
+
+
+class SemanticDirectionError(ValueError):
+    pass
+
+
+try:
+    import numpy as _np
+except ImportError:
+    _np = None  # type: ignore[assignment]
+
+
+class StubSummarizer:
+    """Summarizer that combines first two member texts; no LLM required; used by default."""
+
+    def summarize(self, node_id: str, member_texts: list[str]) -> str:
+        if not member_texts:
+            return f"category:{node_id}"
+        preview = "; ".join(member_texts[:2])
+        return f"Category covering: {preview}"
+
+
 class KnowledgeBase:
     """Ingest texts, search, navigate meaning flow, learn from outcomes, persist across sessions."""
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, settings: Settings | None = None, summarizer=None) -> None:
         self._settings = settings or Settings()
         self._pipeline: KnowledgePipeline | None = None
         self._texts: list[str] = []
@@ -119,6 +172,7 @@ class KnowledgeBase:
         self._metrics: dict[str, int] = {
             "queries": 0, "ingests": 0, "record_outcomes": 0, "consolidations": 0,
         }
+        self._summarizer = summarizer or StubSummarizer()
 
     def ingest(self, texts: list[str]) -> None:
         """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
@@ -525,3 +579,244 @@ class KnowledgeBase:
         if p is None or c is None:
             return 0.0
         return self._pipeline.query.containment_score(p.id, c.id)
+
+    def semantic_distance(self, text_a: str, text_b: str, octave: int | None = None,
+                          use_hyperbolic: bool = False) -> "float | dict[int, float]":
+        """Cosine or hyperbolic geodesic distance between two texts at one or all octave prefixes."""
+        if self._pipeline is None:
+            return 0.0 if octave is not None else {}
+        enc = self._pipeline._encoder
+        va = enc.encode([text_a])[0]
+        vb = enc.encode([text_b])[0]
+        import numpy as np
+        prefixes = [int(octave)] if octave is not None else [int(d) for d in enc.dims]
+        results: dict[int, float] = {}
+        for p in prefixes:
+            a = va[:p].astype(np.float64)
+            b = vb[:p].astype(np.float64)
+            na, nb = np.linalg.norm(a), np.linalg.norm(b)
+            if na < 1e-9 or nb < 1e-9:
+                results[p] = 1.0
+                continue
+            a, b = a / na, b / nb
+            if use_hyperbolic:
+                # Lorentz lift: x=(sqrt(2),v); Minkowski <xa,xb>_L = -2+dot(a,b)
+                # geodesic = arccosh(-<xa,xb>_L) = arccosh(2-dot); requires arg>=1
+                dot_ab = float(np.clip(np.dot(a, b), -1.0, 1.0))
+                results[p] = float(np.arccosh(max(2.0 - dot_ab, 1.0)))
+            else:
+                cos = float(np.clip(np.dot(a, b), -1.0, 1.0))
+                results[p] = float(1.0 - cos)
+        return results[prefixes[0]] if octave is not None else results
+
+    def compute_direction(self, node_id_a: str, node_id_b: str, octave: int | None = None) -> SemanticDirection:
+        """Direction vector from node A centroid to node B centroid in octave subspace."""
+        if self._pipeline is None:
+            raise SemanticDirectionError("KB not initialized")
+        enc = self._pipeline._encoder
+        store = self._pipeline.store
+        prefix = int(octave) if octave is not None else int(enc.dims[0])
+        import numpy as np
+        def _centroid(nid: str) -> np.ndarray:
+            node = store.get(nid)
+            if node.centroid is not None:
+                return np.array(node.centroid[:prefix], dtype=np.float64)
+            texts = self._member_texts(node)
+            if not texts:
+                raise SemanticDirectionError(f"node {nid} has no members in this octave")
+            vecs = enc.encode(texts)[:, :prefix].astype(np.float64)
+            return vecs.mean(axis=0)
+        ca = _centroid(node_id_a)
+        cb = _centroid(node_id_b)
+        diff = cb - ca
+        mag = float(np.linalg.norm(diff))
+        if mag < 1e-9:
+            raise SemanticDirectionError(f"zero direction: nodes {node_id_a} and {node_id_b} are identical in octave {prefix}")
+        direction = diff / mag
+        na = np.linalg.norm(ca)
+        nb = np.linalg.norm(cb)
+        cos = float(np.dot(ca / max(na, 1e-9), cb / max(nb, 1e-9)))
+        return SemanticDirection(
+            from_node=node_id_a, to_node=node_id_b, octave=prefix,
+            direction_vec=tuple(float(x) for x in direction),
+            magnitude=mag, cosine_alignment=cos,
+        )
+
+    def best_octave(self, text_a: str, text_b: str) -> int:
+        """Return the octave prefix where distance signal is sharpest (max second derivative)."""
+        dists = self.semantic_distance(text_a, text_b)
+        if not isinstance(dists, dict) or len(dists) < 3:
+            if isinstance(dists, dict):
+                return next(iter(dists)) if dists else 64
+            return 64
+        import math
+        prefixes = sorted(dists.keys())
+        log_p = [math.log(p) for p in prefixes]
+        d = [dists[p] for p in prefixes]
+        best_p, best_dd = prefixes[1], -1.0
+        for i in range(1, len(prefixes) - 1):
+            dd = abs((d[i+1] - d[i]) / max(log_p[i+1] - log_p[i], 1e-9)
+                     - (d[i] - d[i-1]) / max(log_p[i] - log_p[i-1], 1e-9))
+            if dd > best_dd:
+                best_dd, best_p = dd, prefixes[i]
+        return best_p
+
+    def direction_search(self, anchor_text: str, direction_vec: "tuple[float, ...] | list[float]",
+                         k: int = 5, octave: int | None = None) -> list[DirectionSearchResult]:
+        """Find concepts in a given semantic direction from anchor; returns hits per alpha step."""
+        if self._pipeline is None or not anchor_text:
+            return []
+        import numpy as np
+        enc = self._pipeline._encoder
+        prefix = int(octave) if octave is not None else int(enc.dims[0])
+        av = enc.encode([anchor_text])[0][:prefix].astype(np.float64)
+        dv = np.array(direction_vec[:prefix], dtype=np.float64)
+        dv_norm = np.linalg.norm(dv)
+        if dv_norm < 1e-9:
+            return []
+        dv = dv / dv_norm
+        results = []
+        for alpha in (0.1, 0.5, 1.0, 2.0):
+            probe = av + alpha * dv
+            pn = np.linalg.norm(probe)
+            if pn > 1e-9:
+                probe = probe / pn
+            probe32 = probe.astype(np.float32)
+            store = self._pipeline.store
+            ids = store.knn(probe32, k, Prefix(prefix))
+            hits = []
+            for nid in ids:
+                node = store.get(nid)
+                texts = self._member_texts(node)
+                if not texts:
+                    continue
+                nv = enc.encode([texts[0]])[0][:prefix].astype(np.float64)
+                nn = np.linalg.norm(nv)
+                alignment = float(np.dot(nv / max(nn, 1e-9), dv)) if nn > 1e-9 else 0.0
+                hits.append(SearchHit(
+                    text=texts[0], score=alignment, node_id=str(node.id),
+                    octave=prefix, members=tuple(texts),
+                    aperture=float(getattr(node, 'aperture', 0.0)),
+                    local_entropy=0.0, evidence_path_count=1,
+                    uncertainty_score=float(max(0.0, 1.0 - alignment)),
+                ))
+            if hits:
+                avg_align = sum(h.score for h in hits) / len(hits)
+                results.append(DirectionSearchResult(hits=tuple(hits), alpha=alpha, alignment=avg_align))
+        return results
+
+    def fold_directions(self, node_id: str, octave: int | None = None) -> list[dict]:
+        """Direction vectors from a parent node to each child node; maps 'downward intuition'."""
+        if self._pipeline is None:
+            return []
+        store = self._pipeline.store
+        parent = store.get(node_id)
+        enc = self._pipeline._encoder
+        prefix = int(octave) if octave is not None else int(enc.dims[0])
+        import numpy as np
+        def _centroid_vec(node) -> "np.ndarray | None":
+            if node.centroid is not None:
+                return np.array(node.centroid[:prefix], dtype=np.float64)
+            texts = self._member_texts(node)
+            if not texts:
+                return None
+            return enc.encode(texts)[:, :prefix].astype(np.float64).mean(axis=0)
+        pc = _centroid_vec(parent)
+        if pc is None:
+            return []
+        all_nodes = [n for n in store.all_nodes() if n.prefix == Prefix(prefix) and n.id != parent.id and n.members]
+        results = []
+        for child in all_nodes:
+            cc = _centroid_vec(child)
+            if cc is None:
+                continue
+            diff = cc - pc
+            mag = float(np.linalg.norm(diff))
+            if mag < 1e-9:
+                continue
+            direction = diff / mag
+            label = self._summarizer.summarize(str(child.id), self._member_texts(child))
+            results.append({
+                "child_id": str(child.id),
+                "direction_vec": tuple(float(x) for x in direction),
+                "magnitude": mag,
+                "semantic_label": label,
+            })
+        results.sort(key=lambda r: -r["magnitude"])
+        return results
+
+    def search_with_reflection(self, query: str, k: int = 5,
+                               reflect_fn=None) -> dict:
+        """Agentic inference: on low confidence, optionally reflect and retry with refined query."""
+        initial = self.search(query, k)
+        if not initial:
+            return {"original": [], "reflected": [], "query_used": query, "reflected_query": None}
+        top = initial[0]
+        if top.uncertainty_score <= 0.5:
+            return {"original": initial, "reflected": [], "query_used": query, "reflected_query": None}
+        if reflect_fn is not None:
+            refined = reflect_fn(query)
+        else:
+            refined = query
+        reflected = self.search(refined, k) if refined != query else []
+        return {
+            "original": initial,
+            "reflected": reflected,
+            "query_used": query,
+            "reflected_query": refined,
+        }
+
+    def compute_trajectory(self, query: str, answer_node_id: str,
+                           octave: int | None = None) -> SemanticTrajectory:
+        """Trace the octave-descent path from query to answer_node as a SemanticTrajectory."""
+        if self._pipeline is None:
+            return SemanticTrajectory(steps=(), total_distance=0.0, coherence_score=0.0, energy_cost=0.0)
+        import numpy as np
+        enc = self._pipeline._encoder
+        store = self._pipeline.store
+        prefix = int(octave) if octave is not None else int(enc.dims[0])
+        q_vec = enc.encode([query])[0][:prefix].astype(np.float64)
+        try:
+            answer = store.get(answer_node_id)
+        except KeyError:
+            return SemanticTrajectory(steps=(), total_distance=0.0, coherence_score=0.0, energy_cost=0.0)
+        # build path: query -> intermediate nodes at each octave -> answer
+        steps: list[TrajectoryStep] = []
+        prev_vec = q_vec / max(float(np.linalg.norm(q_vec)), 1e-9)
+        all_dims = [int(d) for d in enc.dims if int(d) <= prefix]
+        for dim in all_dims:
+            ids = store.knn(q_vec[:dim].astype(np.float32), k=1, prefix=Prefix(dim))
+            if not ids:
+                continue
+            node = store.get(ids[0])
+            texts = self._member_texts(node)
+            if not texts:
+                continue
+            nv = enc.encode([texts[0]])[0][:dim].astype(np.float64)
+            nn = float(np.linalg.norm(nv))
+            nv_n = nv / max(nn, 1e-9)
+            cos = float(np.clip(np.dot(prev_vec[:dim], nv_n), -1.0, 1.0))
+            dist = float(1.0 - cos)
+            diff = nv_n - prev_vec[:dim]
+            dm = float(np.linalg.norm(diff))
+            direction = tuple(float(x) for x in (diff / dm if dm > 1e-9 else diff))
+            steps.append(TrajectoryStep(
+                node_id=str(node.id), octave=dim,
+                distance_from_prev=dist, direction_vec=direction,
+            ))
+            prev_vec = nv_n
+        total = sum(s.distance_from_prev for s in steps)
+        import math
+        if len(steps) > 1:
+            dists = [s.distance_from_prev for s in steps]
+            mean_d = total / len(dists)
+            var = sum((d - mean_d) ** 2 for d in dists) / len(dists)
+            entropy = math.sqrt(var) / max(mean_d, 1e-9)
+            coherence = max(0.0, 1.0 - entropy / math.log(len(steps) + 1))
+        else:
+            coherence = 1.0
+        energy = sum(s.distance_from_prev * (2 ** i) for i, s in enumerate(steps))
+        return SemanticTrajectory(
+            steps=tuple(steps), total_distance=total,
+            coherence_score=coherence, energy_cost=energy,
+        )

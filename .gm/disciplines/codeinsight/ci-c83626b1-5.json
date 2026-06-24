@@ -1,4 +1,4 @@
-core/agent_api.py:35:39 TensionPair
+core/agent_api.py:64:68 TensionPair
 class TensionPair:
     text_a: str
     text_b: str

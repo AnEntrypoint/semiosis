@@ -1,4 +1,4 @@
-core/agent_api.py:56:66 DiagnoseReport
+core/agent_api.py:85:97 DiagnoseReport
 class DiagnoseReport:
     nodes: int
     octaves: int
@@ -10,3 +10,5 @@ class DiagnoseReport:
     redundant_pairs: int
     retrieval_entropy: float = 0.0
     entropy_divergence: float = 0.0
+    failure_mode: FailureMode = FailureMode.NONE
+    recovery_suggestions: tuple[str, ...] = ()

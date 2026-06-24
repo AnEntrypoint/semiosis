@@ -1,0 +1,5 @@
+- key: sem-nav-workflow-complete
+  status: witnessed
+  description: workflow wf_ab055178-ad5 implementing semantic direction/distance/trajectory/fold/reflection in agent_api.py -- unknown until test run returns
+  id: mut-1782311869487
+  witness_evidence: 'core/test_semantic_direction.py: 14 tests + core/test_agent_surface.py: 12 tests = 26 passed; workflow wf_ab055178-ad5 complete'

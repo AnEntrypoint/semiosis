@@ -3,4 +3,4 @@ def test_consolidate_idempotent() -> None:
     kb = _kb()
     r1 = kb.consolidate()
     r2 = kb.consolidate()
-    assert "actions" in r1 and "actions" in r2
+    assert not r1.changed and not r2.changed

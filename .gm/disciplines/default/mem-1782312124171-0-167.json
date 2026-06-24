@@ -1,0 +1,3 @@
+## Resolved mutable: mut-1782311869487
+
+core/test_semantic_direction.py: 14 tests + core/test_agent_surface.py: 12 tests = 26 passed; workflow wf_ab055178-ad5 complete

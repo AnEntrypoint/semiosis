@@ -182,3 +182,74 @@ node coverage -- each node carries distinct information.
 
 The three together: use `uncertainty_score` to decide confidence, `evidence_path_count` to
 weight claims, and `total_energy` to decide whether more retrieval adds value or just noise.
+
+## 8. Semantic Navigation: direction, trajectory, distance
+
+Embedding space has measurable geometry. Use these primitives to navigate meaning rather than only retrieve it.
+
+**Distance**: how far apart two concepts are at a given dimensionality.
+
+```python
+# All octaves at once -- pick the one with sharpest signal
+dists = kb.semantic_distance("quantum", "classical", )       # dict[octave -> float]
+p = kb.best_octave("quantum", "classical")                   # finds sharpest prefix
+d = kb.semantic_distance("quantum", "classical", octave=p)   # scalar distance
+```
+
+Use cosine distance (default) for ranking; use_hyperbolic=True for manifold-faithful geodesic.
+
+**Direction**: the vector pointing from one concept toward another.
+
+```python
+nodes = [n for n in kb._pipeline.store.all_nodes() if n.members]
+sd = kb.compute_direction(str(nodes[0].id), str(nodes[1].id))
+# sd.direction_vec: unit vector in octave subspace
+# sd.magnitude: how far apart the centroids are
+# sd.cosine_alignment: how co-directional the centroids are
+```
+
+**Direction search**: find what lies in a given direction from an anchor.
+
+```python
+results = kb.direction_search("quantum", sd.direction_vec, k=5)
+# results: list[DirectionSearchResult] at alpha=[0.1, 0.5, 1.0, 2.0]
+# each result: hits ranked by alignment with direction_vec
+```
+
+Example: "what is more abstract than quantum?" -> compute_direction(quantum_node, abstract_node) -> direction_search("quantum", direction).
+
+**Hierarchy folding**: map the downward intuition from a parent node.
+
+```python
+dirs = kb.fold_directions(str(parent_node.id))
+# dirs: list of {child_id, direction_vec, magnitude, semantic_label}
+# semantic_label from StubSummarizer or LLM summarizer if wired
+```
+
+Low magnitude = nearby sub-concept; high magnitude = distant branch. Use semantic_label to name directions without reading all member texts.
+
+**Agentic inference loop**: when confidence is low, reflect and retry.
+
+```python
+result = kb.search_with_reflection(
+    query,
+    reflect_fn=lambda q: llm(f"Rephrase to highlight the key concept: {q}")
+)
+# result["original"]: initial hits
+# result["reflected"]: hits after LLM rephrasing (empty if uncertainty_score <= 0.5)
+# result["reflected_query"]: the rephrased string the LLM produced
+```
+
+Without reflect_fn, search_with_reflection still returns the original hits with the uncertainty flag -- agents can decide themselves whether to re-query.
+
+**Worked example A -- conceptual comparison**:
+1. kb.best_octave("entropy", "information") -> 128
+2. kb.semantic_distance("entropy", "information", octave=128) -> 0.18 (close)
+3. kb.semantic_distance("entropy", "gravity", octave=128) -> 0.71 (far)
+4. Use this to rank which concepts are in the same region.
+
+**Worked example B -- reasoning path**:
+1. kb.search("explain quantum entanglement", k=3, priority=QueryPriority.LOW) -> route
+2. top hit uncertainty_score=0.65 -> call search_with_reflection with reflect_fn
+3. LLM rephrases -> "quantum nonlocal correlation" -> retry
+4. New top hit uncertainty_score=0.22 -> use this answer

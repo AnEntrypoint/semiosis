@@ -1,4 +1,4 @@
-core/agent_api.py:28:31 FlowNeighbor
+core/agent_api.py:57:60 FlowNeighbor
 class FlowNeighbor:
     text: str
     gradient: float

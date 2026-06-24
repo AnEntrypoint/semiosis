@@ -104,6 +104,36 @@ m = kb.metrics()   # queries, ingests, nodes, n_texts, n_facts, consolidations
 
 Reproducibility key: Settings snapshot x lakeFS CommitId (see CLAUDE.md).
 
+## Semantic Navigation
+
+Distance, direction, and trajectory in embedding space at any dimensionality.
+
+```python
+# Distance between two texts
+d = kb.semantic_distance(text_a, text_b, octave=128)  # scalar
+dists = kb.semantic_distance(text_a, text_b)           # dict[octave -> distance]
+p = kb.best_octave(text_a, text_b)                     # sharpest discriminating prefix
+
+# Direction between two cone nodes
+sd = kb.compute_direction(node_id_a, node_id_b, octave=128)
+# sd.direction_vec: unit vector; sd.magnitude: centroid separation
+
+# Search in a direction from anchor
+results = kb.direction_search(anchor_text, sd.direction_vec, k=5)
+
+# Map sub-concepts from a parent node
+dirs = kb.fold_directions(node_id)  # list[{child_id, direction_vec, magnitude, semantic_label}]
+
+# Agentic inference: reflect on low-confidence queries
+result = kb.search_with_reflection(query, reflect_fn=lambda q: llm_rephrase(q))
+# result["reflected"] is populated only when top hit uncertainty_score > 0.5
+```
+
+Adaptive pattern:
+1. semantic_distance(a, b) across all octaves -> call best_octave to find sharpest signal.
+2. compute_direction(node_a, node_b) -> direction_search to find what lies in that direction.
+3. uncertainty_score > 0.5 on search -> call search_with_reflection with a reflect_fn.
+
 ## Invariants
 
 - Manifold: Lorentz/hyperboloid; `_EPS=1e-7` arccos clamp, `_MIN_APERTURE=0.1` rad floor.

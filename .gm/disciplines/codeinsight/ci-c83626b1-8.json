@@ -1,0 +1,11 @@
+core/agent_api.py:34:43 SearchHit
+class SearchHit:
+    text: str
+    score: float
+    node_id: str
+    octave: int
+    members: tuple[str, ...] = ()
+    aperture: float = 0.0           # cone half-aperture; low=tight/confident, high=broad
+    local_entropy: float = 0.0      # Shannon entropy of member distances from centroid
+    evidence_path_count: int = 1    # octaves this node was retrieved from (consensus)
+    uncertainty_score: float = 0.0  # 1 - normalized score; higher = less confident

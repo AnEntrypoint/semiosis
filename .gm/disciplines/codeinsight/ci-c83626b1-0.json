@@ -1,4 +1,4 @@
-core/agent_api.py:79:435 KnowledgeBase
+core/agent_api.py:110:527 KnowledgeBase
 class KnowledgeBase:
     """Ingest texts, search, navigate meaning flow, learn from outcomes, persist across sessions."""
 
@@ -48,46 +48,52 @@ class KnowledgeBase:
         ids = self._pipeline.query.knn(q_vec[:prefix], k=1, prefix=prefix)
         return self._pipeline.store.get(ids[0]) if ids else None
 
-    def _ranked(self, query: str, k: int) -> list[tuple[Any, float]]:
-        """Candidate nodes with blended (relevance + usage) score, MMR-diversified to k."""
+    def _ranked(self, query: str, k: int, priority: "QueryPriority | None" = None) -> list[tuple[Any, float, int]]:
+        """Candidate nodes with blended score; returns (node, score, octave_hit_count)."""
         enc = self._pipeline._encoder
         store = self._pipeline.store
         a = self._settings.agent
         q_vec = enc.encode([query])[0]
         scored: dict[str, float] = {}
-        if a.octave_fusion:
-            for prefix in (Prefix(d) for d in enc.dims):
+        octave_hits: dict[str, int] = {}
+        p = priority or QueryPriority.MEDIUM
+        if a.octave_fusion and p != QueryPriority.LOW:
+            dims = enc.dims if p == QueryPriority.HIGH else enc.dims[:2]
+            for prefix in (Prefix(d) for d in dims):
                 for rank, (nid, _s) in enumerate(store.knn_scored(q_vec[:prefix], k * 4, prefix)):
                     scored[nid] = scored.get(nid, 0.0) + 1.0 / (60 + rank)
+                    octave_hits[nid] = octave_hits.get(nid, 0) + 1
         else:
             prefix = Prefix(enc.dims[0])
             for nid, s in store.knn_scored(q_vec[:prefix], k * 4, prefix):
                 scored[nid] = s
+                octave_hits[nid] = 1
         cands = []
         for nid, base in scored.items():
             node = store.get(nid)
             if not node.members:
                 continue
-            cands.append((node, base + a.usage_weight * math.log1p(self._node_uses(node))))
+            cands.append((node, base + a.usage_weight * math.log1p(self._node_uses(node)), octave_hits.get(nid, 1)))
         cands.sort(key=lambda t: t[1], reverse=True)
-        return self._mmr(cands, k, a.mmr_lambda)
+        lam = (0.3 if p == QueryPriority.HIGH else (0.7 if p == QueryPriority.LOW else a.mmr_lambda))
+        return self._mmr(cands, k, lam)
 
-    def _mmr(self, cands: list[tuple[Any, float]], k: int, lam: float) -> list[tuple[Any, float]]:
+    def _mmr(self, cands: list[tuple[Any, float, int]], k: int, lam: float) -> list[tuple[Any, float, int]]:
         engine = self._pipeline.engine
-        selected: list[tuple[Any, float]] = []
+        selected: list[tuple[Any, float, int]] = []
         seen_text: set[str] = set()
         pool = list(cands)
         while pool and len(selected) < k:
             best, best_mmr, best_i = None, -1e18, -1
-            for i, (node, rel) in enumerate(pool):
+            for i, (node, rel, epc) in enumerate(pool):
                 pt = self._primary_text(node)
                 if pt in seen_text:
                     best_i = i if best_i < 0 else best_i
                     continue
-                div = max((engine.overlap_score(s, node) for s, _ in selected), default=0.0)
+                div = max((engine.overlap_score(s, node) for s, _, _e in selected), default=0.0)
                 mmr = lam * rel - (1.0 - lam) * div
                 if mmr > best_mmr:
-                    best, best_mmr, best_i = (node, rel), mmr, i
+                    best, best_mmr, best_i = (node, rel, epc), mmr, i
             if best is None:
                 break
             pool.pop(best_i)
@@ -96,20 +102,39 @@ class KnowledgeBase:
         return selected
 
     # --- retrieval -----------------------------------------------------------
-    def search(self, query: str, k: int = 5) -> list[SearchHit]:
-        """Return up to k diversified, scored hits with provenance (the agent retrieval surface)."""
+    def search(self, query: str, k: int = 5, priority: QueryPriority = QueryPriority.MEDIUM) -> list[SearchHit]:
+        """Return up to k diversified, scored hits with confidence signals for agent self-regulation."""
         if k <= 0:
             raise ValueError("k must be positive")
         if self._pipeline is None or not query:
             return []
         self._metrics["queries"] += 1
+        engine = self._pipeline.engine
         hits: list[SearchHit] = []
-        for node, score in self._ranked(query, k):
+        top_score: float | None = None
+        for node, score, epc in self._ranked(query, k, priority):
+            if top_score is None:
+                top_score = score
             members = self._member_texts(node)
+            ap = float(getattr(node, "aperture", 0.0))
+            try:
+                import numpy as np
+                store = self._pipeline.store
+                enc = self._pipeline._encoder
+                q_vec = enc.encode([query])[0]
+                vecs = np.stack([q_vec for _ in node.members]) if node.members else np.zeros((1, len(q_vec)))
+                entropy = engine._member_entropy(vecs)
+            except Exception:
+                entropy = 0.0
+            norm_score = float(score) / max(top_score, 1e-9) if top_score else 0.0
             hits.append(SearchHit(
                 text=members[0] if members else self._primary_text(node),
                 score=float(score), node_id=str(node.id), octave=int(node.prefix),
                 members=tuple(members),
+                aperture=ap,
+                local_entropy=float(entropy),
+                evidence_path_count=int(epc),
+                uncertainty_score=float(1.0 - norm_score),
             ))
         return hits
 
@@ -145,34 +170,4 @@ class KnowledgeBase:
         """Per-hit trace of WHY it surfaced: score, containment to the top node, tension."""
         if k <= 0:
             raise ValueError("k must be positive")
-        if self._pipeline is None or not query:
-            return []
-        ranked = self._ranked(query, k)
-        if not ranked:
-            return []
-        engine = self._pipeline.engine
-        top = ranked[0][0]
-        steps: list[RetrievalStep] = []
-        for node, score in ranked:
-            steps.append(RetrievalStep(
-                text=self._primary_text(node), score=float(score), node_id=str(node.id),
-                octave=int(node.prefix),
-                containment_to_top=float(engine.contains(top, node)),
-                tension=float(engine.tension(top, node)) if node.id != top.id else 0.0,
-            ))
-        return steps
-
-    def build_context_pack(self, query: str, max_tokens: int, counter=None) -> ContextPack:
-        """Budget-bounded, redundancy-free context pack mitigating context rot."""
-        if not isinstance(max_tokens, int):
-            raise ValueError("max_tokens must be an int")
-        if max_tokens < 0:
-            raise ValueError("max_tokens must be non-negative")
-        if self._pipeline is None or not query:
-            return ContextPack()
-        c = self._settings.context
-        cfg = ContextPackConfig(
-            max_tokens=max_tokens, overlap_threshold=c.overlap_threshold,
-            distance_summary_threshold=c.distance_summary_threshold,
-            max_members_per_node=c.max_members_per_node, reserve_tokens=c.reserve_tokens,
-            max_dedup_candidates=c
+        if self._pipeline 

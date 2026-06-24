@@ -1,4 +1,4 @@
-core/agent_api.py:43:46 DeepSearchResult
+core/agent_api.py:72:75 DeepSearchResult
 class DeepSearchResult:
     texts: tuple[str, ...]
     evidence: tuple[str, ...]

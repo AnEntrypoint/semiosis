@@ -3,4 +3,4 @@ def test_empty_kb_surface_safe() -> None:
     kb = KnowledgeBase()
     assert kb.search("x") == []
     assert kb.diagnose().nodes == 0
-    assert kb.consolidate()["reason"] == "empty"
+    assert not kb.consolidate().changed

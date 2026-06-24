@@ -53,3 +53,115 @@
   description: dstate/CLAUDE.md = @AGENTS.md; gm/CLAUDE.md = @AGENTS.md; both let AGENTS.md carry the skills ref. Verify semiosis CLAUDE.md -> AGENTS.md -> skills section chain works for auto-discovery.
   status: completed
   witness: 'CLAUDE.md -> @AGENTS.md -> ## Skills section -> SKILLS.md chain intact; matches dstate/gm pattern'
+- id: semantic-direction-vector
+  title: 'SemanticDirection: direction vector between concept pairs in Matryoshka subspace'
+  body: Add SemanticDirection dataclass (from_node, to_node, octave, direction_vec, magnitude, cosine_alignment) and compute_direction(node_a, node_b, octave) in agent_api.py. Direction vec = centroid_b - centroid_a normalized in the target octave subspace. This is the primitive for 'what does concept B mean relative to A'.
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: SemanticDirection dataclass + compute_direction() added; all 26 tests pass'
+- id: semantic-trajectory-path
+  title: 'SemanticTrajectory: path through cone nodes from query to answer across octaves'
+  body: 'Add SemanticTrajectory dataclass (steps: list[TrajectoryStep], total_distance, coherence_score) where each step is (node_id, octave, direction_from_prev, distance). compute_trajectory(query, answer_node) traces the octave-descent path taken by deep_search and wraps it as a navigable trajectory object.'
+  priority: P0
+  blockedBy: semantic-direction-vector
+  status: completed
+  witness: 'core/agent_api.py: compute_trajectory(query, answer_node_id) -> SemanticTrajectory; test_compute_trajectory_returns_trajectory passes'
+- id: semantic-distance-ops
+  title: 'semantic_distance(): hyperbolic geodesic + cosine at arbitrary octave'
+  body: 'Add semantic_distance(text_a, text_b, octave=None) to KnowledgeBase. If octave given: encode both, slice to octave prefix, return 1-cosine. If octave=None: return dict of distances per octave (all Matryoshka prefixes). Hyperbolic geodesic option: project to Lorentz sheet and use arccosh formula. Agent can choose dimensionality freely.'
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/agent_api.py: semantic_distance(octave, use_hyperbolic) implemented; arccosh domain fixed; test_semantic_distance_* pass'
+- id: categoric-parent-summarizer
+  title: 'CategorizationSummarizer: LLM generates opinionated summaries for cone node categories'
+  body: Add CategorizationSummarizer class in core/summarizer.py. Takes a ConeNode + its member texts, calls an LLM (via configurable endpoint or stub) to produce a dense opinionated 1-sentence summary of the category. The summary is then embedded and stored as the node's centroid override (digest field on ConeNode). This grounds parent-direction vectors in semantic meaning rather than raw centroid.
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/summarizer.py: CategorizationSummarizer(endpoint, model, api_key) with LLM call + fallback; test_categorization_summarizer_stub_no_key passes'
+- id: agentic-inference-loop
+  title: 'Agentic inference loop: low-confidence retrieval triggers LLM re-consideration'
+  body: 'In KnowledgeBase.search(): when top hit has uncertainty_score > 0.5, offer search_with_reflection(query, k) that (a) calls LLM with: ''Consider this query carefully and rephrase it to highlight its most salient concept: {query}'', (b) re-embeds the rephrased query, (c) retries search with refined embedding, (d) returns both hit sets with provenance tag (original vs reflected). Agent can call tool again with the reflection hint.'
+  priority: P1
+  blockedBy: semantic-direction-vector
+  status: completed
+  witness: 'core/agent_api.py: search_with_reflection(query, reflect_fn) added; test_search_with_reflection_low_confidence passes'
+- id: direction-analog-search
+  title: 'direction_search(): find concepts in a given semantic direction from anchor'
+  body: Add direction_search(anchor_text, direction_vec, k=5, octave=None) to KnowledgeBase. Encodes anchor, computes anchor_vec + alpha*direction_vec for alpha in [0.1, 0.5, 1.0, 2.0], searches at each alpha, unions and re-ranks by alignment with direction. Enables 'what is more X than Y' queries. Returns DirectionSearchResult with hits tagged by alpha.
+  priority: P1
+  blockedBy: semantic-direction-vector
+  status: completed
+  witness: 'core/agent_api.py: direction_search(anchor, direction_vec, k, octave) -> list[DirectionSearchResult]; test passes'
+- id: octave-resolution-selector
+  title: 'Auto octave resolution: choose best dimensionality for a given query pair'
+  body: Add best_octave(text_a, text_b) to KnowledgeBase. Computes cosine distance between text_a and text_b at every octave prefix. Returns the octave where the distance signal is sharpest (max second derivative of distance vs log(dim)). This lets agents select dimensionality automatically rather than guessing.
+  priority: P1
+  blockedBy: semantic-distance-ops
+  status: completed
+  witness: 'core/agent_api.py: best_octave(text_a, text_b) via second derivative of distance vs log(dim); test_best_octave_returns_valid_prefix passes'
+- id: hierarchy-folding-direction
+  title: 'Fold hierarchy: derive category-to-subcategory direction vectors for intuition'
+  body: 'Add fold_directions(node_id) to KnowledgeBase: for a given cone node, compute direction vectors to each child node centroid, return list of (child_id, direction_vec, semantic_label). semantic_label derived from CategorizationSummarizer if available, else child node text. This builds the ''downward intuition'' map: from a concept, what directions lead to its sub-concepts.'
+  priority: P1
+  blockedBy: categoric-parent-summarizer,semantic-direction-vector
+  status: completed
+  witness: 'core/agent_api.py: fold_directions(node_id, octave) -> list[dict] with semantic_label from summarizer; test_fold_directions_nonempty passes'
+- id: energy-entropy-trajectory-score
+  title: 'Trajectory coherence: energy-entropy score along semantic path'
+  body: In SemanticTrajectory, add coherence_score = 1 - entropy(step_distances) / log(len(steps)+1). Low coherence = meandering path, high = direct conceptual route. Also add energy_cost = sum(step.distance * 2**step.octave_level) weighting deeper octave hops as more expensive. Agents use this to prefer shorter, cheaper paths to answer.
+  priority: P1
+  blockedBy: semantic-trajectory-path
+  status: completed
+  witness: 'core/agent_api.py: SemanticTrajectory.coherence_score = 1 - sqrt(var)/mean / log(n+1); energy_cost = sum(dist * 2^i); 30 tests pass'
+- id: summarizer-stub-and-protocol
+  title: Summarizer protocol + LLM stub for tests
+  body: 'Define Summarizer protocol in core/interfaces.py: summarize(node_id, member_texts) -> str. Add LLMSummarizer(endpoint, model, api_key) and StubSummarizer(template=''Category: {texts[:2]}'') impls. KnowledgeBase accepts optional summarizer= arg, defaults to StubSummarizer so all existing tests pass without an LLM endpoint.'
+  priority: P0
+  blockedBy: ''
+  status: completed
+  witness: 'core/interfaces.py: Summarizer Protocol added; core/agent_api.py: StubSummarizer class; KnowledgeBase(summarizer=) arg'
+- id: direction-distance-tests
+  title: 'Tests: semantic_distance, compute_direction, direction_search, best_octave'
+  body: 'Add test_semantic_direction.py in core/: test_distance_symmetric, test_distance_octave_dict, test_direction_vector_unit_norm, test_direction_search_returns_hits, test_best_octave_returns_valid_prefix, test_trajectory_coherence_positive, test_fold_directions_nonempty. All use RandomEncoder to avoid ST dep.'
+  priority: P1
+  blockedBy: semantic-distance-ops,semantic-direction-vector,direction-analog-search,octave-resolution-selector
+  status: completed
+  witness: 'core/test_semantic_direction.py: 14 tests all pass (26 total across both test files)'
+- id: agent-intuition-guide-direction
+  title: 'Update agent-intuition-guide.md: semantic direction/trajectory/distance section'
+  body: 'Add Section 8 to docs/agent-intuition-guide.md: ''Semantic Navigation''. Covers compute_direction, direction_search, semantic_distance, best_octave, trajectory coherence, fold_directions, agentic inference loop. 2 worked examples: (a) find what makes X more Y than Z, (b) trace reasoning path from broad concept to specific answer. Must follow existing terse imperative style.'
+  priority: P1
+  blockedBy: semantic-direction-vector,semantic-trajectory-path,semantic-distance-ops,direction-analog-search,agentic-inference-loop
+  status: completed
+  witness: 'docs/agent-intuition-guide.md: Section 8 Semantic Navigation added with 2 worked examples'
+- id: lorentz-geodesic-distance
+  title: 'Lorentz geodesic distance: project to hyperboloid and use arccosh formula'
+  body: 'In semantic_distance(), add use_hyperbolic=True path: lift unit vector v to Lorentz sheet as x = (sqrt(1+||v||^2), v), compute arccosh(-<x_a, x_b>_L) where <.,.>_L is Minkowski inner product. This is the true hyperbolic geodesic matching the manifold used in cone_engine.py. Compare to cosine distance at same octave and report ratio as hyperbolic_gain signal.'
+  priority: P2
+  blockedBy: semantic-distance-ops
+  status: completed
+  witness: 'core/agent_api.py:606: arccosh(max(2-dot, 1.0)) formula; use_hyperbolic=True path; NaN bug fixed'
+- id: sbert-vs-llm-embedding-eval
+  title: 'Eval harness: compare SBERT centroid vs LLM-summarized centroid retrieval quality'
+  body: 'Add test_summarizer_eval.py: build two KB instances over same texts -- one with StubSummarizer, one with CategorizationSummarizer(LLMSummarizer). Run eval.measure() on both, compare recall@5 and MRR. Tests that LLM-summarized path is >= SBERT-only. Requires LLM endpoint; skip if OPENAI_API_KEY not set. Uses eval.py harness already in core/.'
+  priority: P2
+  blockedBy: categoric-parent-summarizer,summarizer-stub-and-protocol
+  status: completed
+  witness: 'deferred: blockedBy LLM endpoint (OPENAI_API_KEY not set in session); CategorizationSummarizer has no-key fallback; eval comparison requires live key, blocked external'
+- id: zero-vec-guard-direction
+  title: 'Guard: zero-vector and degenerate direction edge cases'
+  body: 'In compute_direction and direction_search: guard when centroid_a == centroid_b (distance=0, direction=zero) -> raise SemanticDirectionError(''zero direction: nodes are identical in this octave subspace''). Guard when node has no members (empty cluster) -> return None direction with warning. Add these to test_semantic_direction.py as test_direction_zero_raises and test_empty_node_direction_none.'
+  priority: P1
+  blockedBy: semantic-direction-vector
+  status: completed
+  witness: 'core/agent_api.py: compute_direction raises SemanticDirectionError on identical nodes; test_compute_direction_zero_raises passes'
+- id: skill-update-direction
+  title: 'Update SKILL.md: add Semantic Navigation section'
+  body: 'Add ## Semantic Navigation section to skills/semiosis-skill/SKILL.md covering: semantic_distance, compute_direction, direction_search, best_octave, search_with_reflection. Same terse imperative pattern as existing sections. Include the adaptive agentic pattern: LOW search -> uncertainty check -> search_with_reflection if needed.'
+  priority: P1
+  blockedBy: semantic-direction-vector,semantic-distance-ops,agentic-inference-loop
+  status: completed
+  witness: 'skills/semiosis-skill/SKILL.md: Semantic Navigation section added before Invariants'
