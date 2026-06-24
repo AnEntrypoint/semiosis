@@ -1,3 +1,0 @@
-core/agent_api.py:143:144 SemanticDirectionError
-class SemanticDirectionError(ValueError):
-    pass

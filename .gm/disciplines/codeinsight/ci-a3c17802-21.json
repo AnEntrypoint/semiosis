@@ -1,0 +1,6 @@
+core/test_session7.py:63:67 test_fold_budget_token_limit
+def test_fold_budget_token_limit(kb):
+    """fold_budget respects token budget; tokens_used <= max_tokens."""
+    r = kb.fold_budget("machine learning", 50, ["hello world", "gradient descent", "neural"])
+    assert isinstance(r, FoldBudgetResult)
+    assert r.tokens_used <= 50

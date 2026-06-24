@@ -1,0 +1,6 @@
+core/test_session7.py:185:189 test_build_digest_chain_nonempty
+def test_build_digest_chain_nonempty(kb):
+    """build_digest_chain returns a dict (may be empty if store empty)."""
+    d = kb.build_digest_chain()
+    assert isinstance(d, dict)
+    assert len(d) >= 0

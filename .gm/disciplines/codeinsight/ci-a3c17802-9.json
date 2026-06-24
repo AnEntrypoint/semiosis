@@ -1,0 +1,6 @@
+core/test_session7.py:147:151 test_decompose_query_single
+def test_decompose_query_single(kb):
+    """decompose_query on single-term query sets compound_score=0 and one sub_query."""
+    qd = kb.decompose_query("just cats")
+    assert qd.compound_score == 0.0
+    assert len(qd.sub_queries) == 1

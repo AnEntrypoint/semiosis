@@ -1,0 +1,5 @@
+core/test_session7.py:134:137 test_contrastive_direction_score_positive
+def test_contrastive_direction_score_positive(kb):
+    """contrastive_direction contrast_score is non-negative."""
+    cd = kb.contrastive_direction("machine learning", "cooking recipes")
+    assert cd.contrast_score >= 0.0

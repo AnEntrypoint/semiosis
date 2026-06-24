@@ -1,0 +1,5 @@
+core/agent_api.py:178:181 SparseSearchResult
+class SparseSearchResult:
+    """SearchHit with sparse mask weight."""
+    hit: SearchHit
+    sparse_score: float

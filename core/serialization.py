@@ -19,7 +19,7 @@ def cone_node_to_dict(node: ConeNode) -> dict[str, Any]:
         "label": node.label,
         "digest": node.digest,
         "pinned": bool(node.pinned),
-        "centroid": list(node.centroid) if node.centroid is not None else None,
+        "centroid": [float(x) for x in node.centroid] if node.centroid is not None else None,
     }
 
 

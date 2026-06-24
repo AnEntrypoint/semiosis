@@ -1,0 +1,6 @@
+core/test_session7.py:29:33 kb
+def kb():
+    settings = Settings()
+    kb = KnowledgeBase(settings=settings)
+    kb.ingest(TEXTS)
+    return kb

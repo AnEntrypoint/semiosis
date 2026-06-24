@@ -1,0 +1,6 @@
+core/test_session7.py:42:46 test_compress_hierarchy_dataclass
+def test_compress_hierarchy_dataclass(kb):
+    """compress_hierarchy returns CompressedHierarchy with valid info_retained_ratio."""
+    r = kb.compress_hierarchy("neural network", max_nodes=5)
+    assert isinstance(r, CompressedHierarchy)
+    assert 0.0 <= r.info_retained_ratio <= 1.0

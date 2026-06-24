@@ -1,0 +1,4 @@
+core/test_session7.py:37:39 node_ids
+def node_ids(kb):
+    hits = kb.search("machine learning", k=2)
+    return [h.node_id for h in hits] if hits else []

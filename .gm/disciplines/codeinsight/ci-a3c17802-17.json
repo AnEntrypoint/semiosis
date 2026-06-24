@@ -1,0 +1,7 @@
+core/test_session7.py:89:94 test_sparse_search_type
+def test_sparse_search_type(kb):
+    """sparse_search results are SparseSearchResult with float sparse_score."""
+    results = kb.sparse_search("decision tree", k=2)
+    for r in results:
+        assert isinstance(r, SparseSearchResult)
+        assert isinstance(r.sparse_score, float)

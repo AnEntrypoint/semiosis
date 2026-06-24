@@ -1,0 +1,5 @@
+core/test_session7.py:163:166 test_find_analogy_returns_result
+def test_find_analogy_returns_result(kb):
+    """find_analogy returns an AnalogyResult."""
+    r = kb.find_analogy("cat", "animal", "dog")
+    assert isinstance(r, AnalogyResult)

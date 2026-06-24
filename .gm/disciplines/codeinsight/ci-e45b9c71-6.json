@@ -1,0 +1,7 @@
+core/agent_api.py:210:215 AttentionScore
+class AttentionScore:
+    """NLA-style attention weight for a node given a query."""
+    node_id: str
+    weight: float
+    octave: int
+    temperature: float

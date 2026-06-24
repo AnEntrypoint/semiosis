@@ -1,0 +1,6 @@
+core/agent_api.py:236:240 DispelReport
+class DispelReport:
+    """Result of entropy-triggered dispel."""
+    dispelled_ids: tuple
+    entropy_before: float
+    entropy_after: float

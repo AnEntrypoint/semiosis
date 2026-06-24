@@ -1,0 +1,8 @@
+core/test_session7.py:198:204 test_manifold_ops_twonn
+def test_manifold_ops_twonn(kb):
+    """twonn_intrinsic_dim returns a positive float."""
+    from core.manifold_ops import twonn_intrinsic_dim
+    vecs = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.5, 0.5, 0.0], [0.5, 0.0, 0.5]]
+    d = twonn_intrinsic_dim(vecs)
+    assert isinstance(d, float)
+    assert d > 0.0

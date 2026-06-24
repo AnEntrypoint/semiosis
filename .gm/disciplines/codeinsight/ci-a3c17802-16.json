@@ -1,0 +1,5 @@
+core/test_session7.py:97:100 test_optimal_octave_valid
+def test_optimal_octave_valid(kb):
+    """optimal_octave returns a value from the standard octave set."""
+    o = kb.optimal_octave("machine learning")
+    assert o in (64, 128, 256, 512, 1024)

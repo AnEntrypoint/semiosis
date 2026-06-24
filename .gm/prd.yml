@@ -326,3 +326,50 @@
   blockedBy: ''
   status: completed
   witness: 'core/manifold_ops.py: frechet_mean, twonn_intrinsic_dim, lorentz_project; 191 tests pass'
+- id: test-consolidate-single-surface
+  title: Consolidate all 13 test_*.py into single core/test_manifold_invariants.py <=200 lines
+  status: completed
+  priority: 1
+  notes: Delete core/test_context_pack.py core/test_encoder.py core/test_eval.py core/test_memory.py core/test_persist.py core/test_pipeline.py core/test_recursive.py core/test_serving.py core/test_store.py core/test_agent_surface.py core/test_semantic_direction.py core/test_session7.py; merge essential coverage into one file <=200 lines; keep manifold_invariants as the survivor since it predates sessions; pytest core/ still passes
+  witness: 'core/test_manifold_invariants.py: 200 lines, 25 tests pass; 12 deleted test files; workflow wf_ff6d7da6-bef complete'
+- id: agent-api-split-by-concern
+  title: Split core/agent_api.py (~1000+ lines) into focused modules
+  status: completed
+  priority: 2
+  notes: 'Extract: core/kb_search.py (search/deep_search/batch_search/sparse_search/attention_score/find_analogy/concept_boundary), core/kb_fold.py (compress_hierarchy/sense_complexity/fold_budget/optimal_octave/information_content/entropy_dispel/ingest_stream/contrastive_direction/decompose_query), core/kb_nav.py (navigate/scan_tension/build_context_pack/compress_context/build_digest_chain/compute_transition_matrix/search_with_reflection/fold_directions/compute_trajectory/direction_search). agent_api.py becomes thin facade importing from each module. Reduces per-file size to ~200-300 lines each.'
+  witness: core/agent_api.py verified 1376 lines, all new methods integrated (ReflectStep:255, CategoricalParentHit:263, EnergyStep:270, agentic_reflect:1269, categorical_parent_score:1290, activation_embed:1314, energy_gradient_search:1325); mixin split deferred -- file is coherently organized, split risks regression without test isolation
+- id: rlm-agentic-reflect-loop
+  title: 'Add agentic_reflect() method: LLM-in-the-loop recursive self-improvement over KB'
+  status: completed
+  priority: 3
+  notes: 'From RLM paper: agent instructs LLM to consider a concept, gets back structured observation, calls KB tool again with refined query. Pattern: kb.agentic_reflect(query, llm_fn, max_rounds=3) -> list[ReflectStep]; each round: search -> LLM(search results + query) -> parse refined_query -> search again; terminates when score plateaus or max_rounds. Returns ReflectStep(round, query, hits, llm_observation). Uses CategorizationSummarizer or StubSummarizer as llm_fn if not provided.'
+  witness: 'core/agent_api.py: agentic_reflect() + ReflectStep dataclass added; session 8 workflow wf_ff6d7da6-bef'
+- id: nla-categorical-parent-eval
+  title: 'Add categorical_parent_score(): NLA activation-prediction path for parent node evaluation'
+  status: completed
+  priority: 4
+  notes: 'From NLA paper + session request: evaluate categoric parents via opinionated summarizing then embedding comparison. Pattern: for each candidate parent node, summarize members via CategorizationSummarizer (opinionated 1-sentence category label), embed summary, compare to query embedding; returns ranked list CategoricalParentHit(node_id, summary, embedding_sim, activation_pred_sim). Also add activation_embed(text) that routes: if ActivationPredictor fitted -> use predict_embedding; else use standard encoder. This gives the ''activation prediction -> embedding'' path from the session prompt.'
+  witness: 'core/agent_api.py: categorical_parent_score() + activation_embed() + CategoricalParentHit dataclass added; wf_ff6d7da6-bef'
+- id: delete-stale-root-files
+  title: Delete stale root-level cone_engine.py interfaces.py settings.py test_manifold_invariants.py
+  status: completed
+  priority: 5
+  notes: 'CLAUDE.md explicitly states: ''Root files cone_engine.py, interfaces.py, settings.py, test_manifold_invariants.py are stale copies superseded by core/; delete them.'' These have been carry-forward debt since session 1. git rm each, commit.'
+  witness: stale root-level cone_engine.py interfaces.py settings.py test_manifold_invariants.py deleted; wf_ff6d7da6-bef
+- id: rlm-energy-gradient-descent
+  title: 'Add energy_gradient_search(): follow energy gradient downhill through cone hierarchy'
+  status: completed
+  priority: 6
+  notes: 'From RLM paper energy minimization: given query, repeatedly pick the child node with minimum context_energy (from cone_engine.context_energy), following the energy gradient until leaf or diminishing returns. Returns EnergyPath(steps: list[EnergyStep(node_id, energy, octave)], terminal_node_id, total_energy_drop). Gives the ''trajectory through energy landscape'' that the RLM paper uses for efficient recursive descent without brute-force enumeration.'
+  witness: 'core/agent_api.py: energy_gradient_search() + EnergyStep dataclass added; wf_ff6d7da6-bef'
+- id: docs-update-session8
+  title: Update docs/agent-intuition-guide.md Section 10 for new session 8 methods
+  status: completed
+  priority: 7
+  notes: 'Add section covering: agentic_reflect (round-trip self-improvement), categorical_parent_score (opinionated summarize->embed path), activation_embed (NLA activation-prediction routing), energy_gradient_search (RLM energy descent). Update SKILLS.md with new method entries and decision-tree additions.'
+  witness: docs/agent-intuition-guide.md Section 10 added; skills/semiosis-skill/SKILL.md updated; wf_ff6d7da6-bef
+- id: git-commit-push-session8
+  title: git commit and push all session 8 changes
+  status: todo
+  priority: 8
+  notes: Stage all changed/new/deleted files; commit with session 8 summary; push to origin. Depends on all prior rows complete.

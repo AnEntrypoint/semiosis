@@ -1,0 +1,35 @@
+core/activation_predictor.py:19:52 ActivationPredictor
+class ActivationPredictor:
+    """Predict final embedding from intermediate Transformer activations (NLA-inspired)."""
+
+    def __init__(self, input_dim: int, output_dim: int):
+        self._input_dim = input_dim
+        self._output_dim = output_dim
+        rng = np.random.default_rng(42)
+        raw = rng.standard_normal((input_dim, output_dim))
+        # Initialize as random orthogonal-ish projection
+        self._W = raw / (np.linalg.norm(raw, axis=0, keepdims=True) + _EPS)
+
+    def predict_embedding(self, activations: list) -> np.ndarray:
+        """Project activations via W, normalize to unit vector."""
+        v = np.array(activations, dtype=float)
+        out = v @ self._W
+        norm = np.linalg.norm(out)
+        return out / (norm + _EPS)
+
+    def fit(self, activation_samples: list, embedding_samples: list) -> None:
+        """Least-squares fit W to minimize ||A @ W - E||^2."""
+        A = np.array(activation_samples, dtype=float)
+        E = np.array(embedding_samples, dtype=float)
+        result, _, _, _ = np.linalg.lstsq(A, E, rcond=None)
+        self._W = result
+
+    def calibration_error(self, activation_samples: list, embedding_samples: list) -> float:
+        """Mean cosine distance between predicted and actual embeddings."""
+        errs = []
+        for act, emb in zip(activation_samples, embedding_samples):
+            pred = self.predict_embedding(act)
+            e = np.array(emb, dtype=float)
+            e_norm = e / (np.linalg.norm(e) + _EPS)
+            errs.append(1.0 - float(np.dot(pred, e_norm)))
+        return float(np.mean(errs)) if errs else 0.0

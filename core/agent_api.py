@@ -15,6 +15,17 @@ from .recursive import RecursiveAnswerEngine, RecursiveResult
 from .semiotic_memory import SemioticMemory
 from .settings import Settings
 
+try:
+    from .activation_predictor import ActivationPredictor as _ActivationPredictor, stub_activations as _stub_activations
+except ImportError:
+    _ActivationPredictor = None  # type: ignore[assignment,misc]
+    _stub_activations = None  # type: ignore[assignment]
+
+try:
+    from .manifold_ops import lorentz_project as _lorentz_project
+except ImportError:
+    _lorentz_project = None  # type: ignore[assignment]
+
 
 class QueryPriority(Enum):
     HIGH = "high"    # deep multi-octave, tight MMR, higher latency budget
@@ -240,6 +251,28 @@ class DispelReport:
     entropy_after: float
 
 
+@dataclass
+class ReflectStep:
+    round: int
+    query: str
+    hits: list
+    observation: str
+
+
+@dataclass
+class CategoricalParentHit:
+    node_id: str
+    summary: str
+    embedding_sim: float
+
+
+@dataclass
+class EnergyStep:
+    node_id: str
+    energy: float
+    octave: int
+
+
 class SemanticDirectionError(ValueError):
     pass
 
@@ -273,6 +306,12 @@ class KnowledgeBase:
             "queries": 0, "ingests": 0, "record_outcomes": 0, "consolidations": 0,
         }
         self._summarizer = summarizer or StubSummarizer()
+        if _ActivationPredictor is not None:
+            enc_dim = getattr(getattr(self._settings, 'encoder', None), 'dim', 64) or 64
+            self._act_predictor = _ActivationPredictor(input_dim=64, output_dim=enc_dim)
+            self._act_predictor._fitted = False
+        else:
+            self._act_predictor = None
 
     def ingest(self, texts: list[str]) -> None:
         """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
@@ -1226,3 +1265,112 @@ class KnowledgeBase:
             steps=tuple(steps), total_distance=total,
             coherence_score=coherence, energy_cost=energy,
         )
+
+    def agentic_reflect(self, query: str, llm_fn=None, max_rounds: int = 3) -> list:
+        """Iterative reflection loop: search, observe, refine query up to max_rounds."""
+        summarizer = self._summarizer
+        steps = []
+        current_query = query
+        prev_hit_ids: list = []
+        for r in range(max_rounds):
+            hits = self.search(current_query, k=5)
+            hit_ids = [h.node_id for h in hits]
+            if llm_fn is not None:
+                observation = llm_fn(node_id=current_query, members=[h.text for h in hits])
+            else:
+                observation = summarizer.summarize(current_query, [h.text for h in hits])
+            steps.append(ReflectStep(round=r, query=current_query, hits=hits, observation=observation))
+            if hit_ids == prev_hit_ids:
+                break
+            prev_hit_ids = hit_ids
+            words = str(observation).split()
+            current_query = " ".join(words[-3:]) if len(words) >= 3 else (words[-1] if words else current_query)
+        return steps
+
+    def categorical_parent_score(self, query: str, k: int = 5) -> list:
+        """Score parent nodes by cosine similarity of their summarized label to query."""
+        import numpy as _np
+        if self._pipeline is None or not query:
+            return []
+        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        enc = self._pipeline._encoder
+        q_vec = _np.array(enc.encode([query])[0], dtype=float)
+        qn = _np.linalg.norm(q_vec)
+        q_unit = q_vec / (qn + 1e-9)
+        results = []
+        for nid, node in store_nodes.items():
+            if not node.members:
+                continue
+            members = self._member_texts(node)
+            summary = self._summarizer.summarize(str(nid), members)
+            sv = _np.array(enc.encode([summary])[0], dtype=float)
+            sn = _np.linalg.norm(sv)
+            sv = sv / (sn + 1e-9)
+            sim = float(_np.dot(q_unit, sv))
+            results.append(CategoricalParentHit(node_id=str(nid), summary=summary, embedding_sim=sim))
+        results.sort(key=lambda h: h.embedding_sim, reverse=True)
+        return results[:k]
+
+    def activation_embed(self, text: str) -> list:
+        """Return embedding as list[float]; uses activation predictor if fitted, else encoder."""
+        if self._act_predictor is not None and getattr(self._act_predictor, '_fitted', False):
+            if _stub_activations is not None:
+                return self._act_predictor.predict_embedding(_stub_activations(text)).tolist()
+        if self._pipeline is None:
+            if _stub_activations is not None:
+                return list(_stub_activations(text, dim=64))
+            return [0.0] * 64
+        return list(self._pipeline._encoder.encode([text])[0].tolist())
+
+    def energy_gradient_search(self, query: str, max_steps: int = 10) -> dict:
+        """Greedy energy-descent from best search hit toward lowest-energy leaf node."""
+        import numpy as _np
+        if self._pipeline is None or not query:
+            return {"steps": [], "terminal_node_id": "", "total_energy_drop": 0.0}
+        enc = self._pipeline._encoder
+        store = self._pipeline.store
+        engine = self._pipeline.engine
+        q_raw = _np.array(enc.encode([query])[0], dtype=float)
+        if _lorentz_project is not None:
+            q_vec = _lorentz_project(q_raw)
+        else:
+            q_vec = q_raw
+        hits = self.search(query, k=1)
+        if not hits:
+            return {"steps": [], "terminal_node_id": "", "total_energy_drop": 0.0}
+        store_nodes = store._nodes if hasattr(store, '_nodes') else {}
+        current_id = hits[0].node_id
+        steps = []
+        start_energy: float | None = None
+        for _ in range(max_steps):
+            node = store_nodes.get(current_id)
+            if node is None:
+                break
+            all_nodes = [n for n in store_nodes.values()]
+            e = float(engine.context_energy([node] + all_nodes[:4]))
+            if start_energy is None:
+                start_energy = e
+            octave = int(node.prefix) if node.prefix else 64
+            steps.append(EnergyStep(node_id=current_id, energy=e, octave=octave))
+            child_ids = [
+                nid for nid, n in store_nodes.items()
+                if n.members and nid != current_id and int(n.prefix) >= octave
+            ]
+            if not child_ids:
+                break
+            best_child_id = current_id
+            best_energy = e
+            for cid in child_ids[:8]:
+                cn = store_nodes.get(cid)
+                if cn is None:
+                    continue
+                ce = float(engine.context_energy([cn]))
+                if ce < best_energy:
+                    best_energy = ce
+                    best_child_id = cid
+            if best_child_id == current_id:
+                break
+            current_id = best_child_id
+        terminal_energy = steps[-1].energy if steps else (start_energy or 0.0)
+        drop = float((start_energy or 0.0) - terminal_energy)
+        return {"steps": steps, "terminal_node_id": current_id, "total_energy_drop": drop}

@@ -1,0 +1,20 @@
+core/manifold_ops.py:38:56 twonn_intrinsic_dim
+def twonn_intrinsic_dim(vecs: list) -> float:
+    """TwoNN intrinsic dimensionality estimator (Facco 2017)."""
+    if len(vecs) < 3:
+        return 1.0
+    arr = np.array(vecs, dtype=float)
+    norms = np.linalg.norm(arr, axis=1, keepdims=True)
+    arr = arr / np.where(norms > _EPS, norms, 1.0)
+    mus = []
+    for i in range(len(arr)):
+        dists = 1.0 - np.dot(arr, arr[i])  # cosine distances
+        dists[i] = float("inf")            # exclude self
+        idx = np.argpartition(dists, 2)[:2]
+        d1, d2 = sorted([dists[idx[0]], dists[idx[1]]])
+        if d1 > _EPS:
+            mus.append(d2 / d1)
+    if not mus:
+        return 1.0
+    mean_log = float(np.mean(np.log(np.array(mus) + _EPS)))
+    return max(0.1, 1.0 / (mean_log + _EPS)) if mean_log > 0 else 1.0

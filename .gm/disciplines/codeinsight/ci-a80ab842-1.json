@@ -1,0 +1,8 @@
+core/activation_predictor.py:10:16 stub_activations
+def stub_activations(text: str, dim: int = 64) -> list:
+    """Deterministic stub: hash text to seed, return random unit vector of dim floats."""
+    seed = int(hashlib.md5(text.encode()).hexdigest(), 16) % (2**31)
+    rng = np.random.default_rng(seed)
+    v = rng.standard_normal(dim)
+    v = v / (np.linalg.norm(v) + _EPS)
+    return v.tolist()

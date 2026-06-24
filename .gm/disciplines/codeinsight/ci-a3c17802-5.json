@@ -1,0 +1,6 @@
+core/test_session7.py:178:182 test_entropy_dispel_returns_report
+def test_entropy_dispel_returns_report(kb):
+    """entropy_dispel returns DispelReport with non-negative entropy_before."""
+    r = kb.entropy_dispel()
+    assert isinstance(r, DispelReport)
+    assert r.entropy_before >= 0.0

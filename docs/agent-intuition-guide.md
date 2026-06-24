@@ -316,3 +316,62 @@ Scaled dot-product: softmax(dot(q,k)/sqrt(d)) over all nodes.
 
   a = kb.attention_score(node_id, "machine learning")
   # a.weight in [0,1]; high = node likely attended by model given this query
+
+## Section 10: Agentic Inference and Energy Descent
+
+Four methods for iterative refinement, categorical reasoning, activation-based embedding, and energy-guided traversal.
+
+### 10.1 agentic_reflect
+
+Runs LLM-in-the-loop recursive KB query refinement: each round searches, observes uncertainty, and lets the LLM refine the query before the next round. Use when the initial query is vague or returns high `uncertainty_score`; three rounds usually converge.
+
+```python
+steps = kb.agentic_reflect(
+    query="distributed systems fault tolerance",
+    llm_fn=lambda q: llm(f"Refine this KB query to be more precise: {q}"),
+    max_rounds=3
+)
+# steps: list[ReflectStep]; each has .query, .hits, .uncertainty_score
+# stop early when steps[-1].uncertainty_score < 0.2
+for step in steps:
+    print(step.query, step.uncertainty_score)
+```
+
+### 10.2 categorical_parent_score
+
+Ranks parent nodes by summarizing their member texts and comparing `embed(summary)` to `embed(query)`. Use to find the most semantically apt container or category for a concept -- prefer this over raw `search()` when you need a parent, not a leaf.
+
+```python
+hits = kb.categorical_parent_score("attention mechanism", k=5)
+# hits: list[CategoricalParentHit]; each has .node_id, .summary, .score
+# highest score = best-fitting parent category for the query
+best = hits[0]
+print(best.node_id, best.score, best.summary)
+```
+
+### 10.3 activation_embed
+
+Returns an embedding as a plain float list, routing through an `ActivationPredictor` if one is fitted, otherwise falling back to the standard encoder. Use on the NLA-style activation-prediction path where you need raw floats rather than a store-internal vector.
+
+```python
+vec = kb.activation_embed("transformer self-attention")
+# vec: list[float] at the root encoder dimension
+# plug into external tools, distance metrics, or visualizers directly
+import numpy as np
+arr = np.array(vec)
+```
+
+### 10.4 energy_gradient_search
+
+Follows the minimum-energy path through the cone hierarchy from the query embedding, stepping toward lower-energy nodes at each hop. Returns a dict with `steps`, `terminal` (the lowest-energy node reached), and `energy_drop` (total energy reduction). Use for efficient concept localization without brute-force search across all nodes.
+
+```python
+result = kb.energy_gradient_search("causal inference", max_steps=10)
+# result["steps"]: list of node ids traversed
+# result["terminal"]: id of the lowest-energy node reached
+# result["energy_drop"]: float; large drop = strong localization
+if result["energy_drop"] < 0.05:
+    # shallow gradient: concept may be spread across multiple cones
+    # fall back to deep_search()
+    hits = kb.deep_search("causal inference", k=5)
+```

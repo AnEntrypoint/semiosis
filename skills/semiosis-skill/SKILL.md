@@ -149,6 +149,10 @@ build_digest_chain(summarizer=None)        # bottom-up hierarchy summarization
 attention_score(node_id, query)            # NLA scaled dot-product attention weight
 optimal_octave(query, entropy_budget=1.5)  # minimize energy s.t. entropy <= budget
 information_content(node_id)               # IC = -log2(aperture/pi); high=specific
+agentic_reflect(query, llm_fn=None, max_rounds=3)   # LLM-in-loop recursive search refinement -> list[ReflectStep]
+categorical_parent_score(query, k=5)                # summarize+embed parent nodes, rank by similarity -> list[CategoricalParentHit]
+activation_embed(text)                              # NLA activation-prediction routing or standard encode -> list[float]
+energy_gradient_search(query, max_steps=10)         # minimum-energy path descent through hierarchy -> dict{steps, terminal_node_id, total_energy_drop}
 ```
 
 Decision additions:
@@ -158,6 +162,10 @@ Decision additions:
 - analogy/transfer queries -> find_analogy
 - context overflow -> fold_budget to prune candidates
 - node pair ambiguity -> concept_boundary; low margin -> expect BOUNDARY_AMBIGUOUS
+- query is vague, needs iterative focus -> agentic_reflect
+- need best parent category for a concept -> categorical_parent_score
+- need activation-prediction or standard embedding -> activation_embed
+- need efficient concept localization via energy -> energy_gradient_search
 
 ## Invariants
 

@@ -1,0 +1,5 @@
+core/test_session7.py:83:86 test_sparse_search_k_limit
+def test_sparse_search_k_limit(kb):
+    """sparse_search returns at most k results."""
+    results = kb.sparse_search("learning", k=3)
+    assert len(results) <= 3

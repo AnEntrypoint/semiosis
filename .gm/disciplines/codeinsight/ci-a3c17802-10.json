@@ -1,0 +1,6 @@
+core/test_session7.py:140:144 test_decompose_query_simple
+def test_decompose_query_simple(kb):
+    """decompose_query splits compound query into multiple sub_queries."""
+    qd = kb.decompose_query("cats and dogs")
+    assert isinstance(qd, QueryDecomposition)
+    assert len(qd.sub_queries) >= 2

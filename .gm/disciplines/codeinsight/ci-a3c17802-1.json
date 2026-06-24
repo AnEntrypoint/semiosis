@@ -1,0 +1,9 @@
+core/test_session7.py:207:214 test_manifold_ops_lorentz_project
+def test_manifold_ops_lorentz_project():
+    """lorentz_project lifts a vector to the hyperboloid with time component >= 1."""
+    import numpy as np
+    from core.manifold_ops import lorentz_project
+    v = np.array([1.0, 0.0])
+    x = lorentz_project(v)
+    assert x[0] >= 1.0
+    assert len(x) == 3
