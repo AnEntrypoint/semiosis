@@ -1,6 +1,0 @@
-core/test_pipeline.py:200:204 test_incremental_ingest_empty_noop
-def test_incremental_ingest_empty_noop() -> None:
-    kb = _kb()
-    n0 = len(kb._pipeline.store.all_nodes())
-    kb.ingest([])
-    assert len(kb._pipeline.store.all_nodes()) == n0

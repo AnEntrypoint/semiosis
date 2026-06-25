@@ -1,6 +1,0 @@
-core/test_agent_surface.py:100:104 test_metrics_counters
-def test_metrics_counters() -> None:
-    kb = _kb()
-    kb.search("alpha", 2)
-    m = kb.metrics()
-    assert m["queries"] >= 1 and m["nodes"] > 0

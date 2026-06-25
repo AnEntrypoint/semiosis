@@ -1,9 +1,0 @@
-core/test_semantic_direction.py:22:29 _kb
-def _kb(**kw) -> KnowledgeBase:
-    s = Settings()
-    s.cone.epochs = 4
-    for k, v in kw.items():
-        setattr(s.agent, k, v)
-    kb = KnowledgeBase(s)
-    kb.ingest(TEXTS)
-    return kb

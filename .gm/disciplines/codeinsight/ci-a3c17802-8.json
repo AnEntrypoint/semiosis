@@ -1,8 +1,0 @@
-core/test_session7.py:154:160 test_attention_score_valid
-def test_attention_score_valid(kb, node_ids):
-    """attention_score returns AttentionScore with weight in [0, 1]."""
-    if not node_ids:
-        pytest.skip("no nodes")
-    a = kb.attention_score(node_ids[0], "machine learning")
-    assert isinstance(a, AttentionScore)
-    assert 0.0 <= a.weight <= 1.0

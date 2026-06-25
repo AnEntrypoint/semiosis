@@ -1,6 +1,0 @@
-core/agent_api.py:64:68 TensionPair
-class TensionPair:
-    text_a: str
-    text_b: str
-    tension: float
-    kind: str

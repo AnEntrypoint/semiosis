@@ -1,8 +1,0 @@
-core/test_semantic_direction.py:105:111 test_fold_directions_nonempty
-def test_fold_directions_nonempty() -> None:
-    kb = _kb()
-    nodes = [n for n in kb._pipeline.store.all_nodes() if n.members]
-    if not nodes:
-        pytest.skip("no nodes")
-    dirs = kb.fold_directions(str(nodes[0].id))
-    assert isinstance(dirs, list)

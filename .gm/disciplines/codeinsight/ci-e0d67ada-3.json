@@ -1,4 +1,0 @@
-core/test_serving.py:46:48 test_recall_endpoint
-def test_recall_endpoint() -> None:
-    r = _client().post("/recall", json={"query": "alpha", "budget_tokens": 200})
-    assert r.status_code == 200 and isinstance(r.json()["block"], str)

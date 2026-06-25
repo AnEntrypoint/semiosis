@@ -1,0 +1,7 @@
+core/agent_api.py:180:185 FoldBudgetResult
+class FoldBudgetResult:
+    """Energy-aware greedy candidate selection under token budget."""
+    included: tuple
+    excluded: tuple
+    tokens_used: int
+    energy_cost: float

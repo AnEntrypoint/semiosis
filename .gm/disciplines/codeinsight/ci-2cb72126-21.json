@@ -1,0 +1,7 @@
+core/test_manifold_invariants.py:104:109 test_batch_contains_shape
+def test_batch_contains_shape() -> None:
+    engine = HyperbolicConeEngine(ConeSettings())
+    tree = _dummy_tree(n=3)
+    nodes = engine.fit(tree)
+    mat = engine.batch_contains(nodes, nodes)
+    assert mat.shape == (len(nodes), len(nodes))

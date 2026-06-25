@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:46:49 _kb
+def _kb(facts=None) -> KnowledgeBase:
+    kb = KnowledgeBase(_settings())
+    kb.ingest(facts or FACTS)
+    return kb

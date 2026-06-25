@@ -1,0 +1,5 @@
+core/agent_api.py:263:266 CategoricalParentHit
+class CategoricalParentHit:
+    node_id: str
+    summary: str
+    embedding_sim: float

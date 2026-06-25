@@ -1,7 +1,0 @@
-core/test_session7.py:55:60 test_sense_complexity_label
-def test_sense_complexity_label(kb):
-    """sense_complexity returns ManifoldComplexity with valid label and octave."""
-    mc = kb.sense_complexity("machine learning", k=5)
-    assert isinstance(mc, ManifoldComplexity)
-    assert mc.complexity_label in ("constant", "linear", "quadratic", "exponential")
-    assert mc.suggested_octave in (64, 128, 256, 512, 1024)

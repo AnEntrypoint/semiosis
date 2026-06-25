@@ -1,5 +1,0 @@
-core/test_agent_surface.py:88:91 test_explain_retrieval_trace
-def test_explain_retrieval_trace() -> None:
-    kb = _kb()
-    steps = kb.explain_retrieval("alpha unique term", k=2)
-    assert steps and all(hasattr(s, "containment_to_top") for s in steps)

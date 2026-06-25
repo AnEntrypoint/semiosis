@@ -1,7 +1,0 @@
-core/test_agent_surface.py:74:79 test_diagnose_shape
-def test_diagnose_shape() -> None:
-    kb = _kb()
-    rep = kb.diagnose()
-    assert isinstance(rep, DiagnoseReport)
-    assert rep.octaves == len(kb._pipeline._encoder.dims)
-    assert rep.nodes > 0

@@ -1,5 +1,0 @@
-core/test_semantic_direction.py:134:137 test_direction_search_empty_vec_returns_empty
-def test_direction_search_empty_vec_returns_empty() -> None:
-    kb = _kb()
-    results = kb.direction_search("alpha", [0.0] * 64)
-    assert isinstance(results, list)

@@ -1,8 +1,0 @@
-core/test_session7.py:169:175 test_concept_boundary_margin
-def test_concept_boundary_margin(kb, node_ids):
-    """concept_boundary returns ConceptBoundary with non-negative margin."""
-    if len(node_ids) < 2:
-        pytest.skip("need 2 nodes")
-    cb = kb.concept_boundary(node_ids[0], node_ids[1])
-    assert isinstance(cb, ConceptBoundary)
-    assert cb.margin >= 0.0

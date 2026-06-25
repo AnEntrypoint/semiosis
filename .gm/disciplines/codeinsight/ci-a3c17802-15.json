@@ -1,8 +1,0 @@
-core/test_session7.py:103:109 test_information_content_nonneg
-def test_information_content_nonneg(kb, node_ids):
-    """information_content returns non-negative float for known node."""
-    if not node_ids:
-        pytest.skip("no nodes")
-    ic = kb.information_content(node_ids[0])
-    assert isinstance(ic, float)
-    assert ic >= 0.0

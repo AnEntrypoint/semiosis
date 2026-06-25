@@ -1,0 +1,6 @@
+core/agent_api.py:255:259 ReflectStep
+class ReflectStep:
+    round: int
+    query: str
+    hits: list
+    observation: str

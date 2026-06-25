@@ -1,0 +1,8 @@
+core/agent_api.py:122:128 SemanticDirection
+class SemanticDirection:
+    from_node: str
+    to_node: str
+    octave: int
+    direction_vec: tuple[float, ...]
+    magnitude: float
+    cosine_alignment: float

@@ -1,7 +1,0 @@
-core/agent_api.py:25:30 FailureMode
-class FailureMode(Enum):
-    NONE = "none"
-    OUTSIDE_CONE = "outside_cone"        # query lies outside all node cones
-    BOUNDARY_AMBIGUOUS = "boundary_ambiguous"  # high tension between top candidates
-    OVER_COMPRESSED = "over_compressed"  # excessive merges at last consolidation
-    OCTAVE_MISMATCH = "octave_mismatch"  # high entropy_divergence across octaves

@@ -1,3 +1,0 @@
-core/test_serving.py:31:32 test_ready_warm
-def test_ready_warm() -> None:
-    assert _client().get("/ready").json()["status"] == "ready"

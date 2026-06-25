@@ -1,4 +1,0 @@
-core/test_persist.py:57:59 test_load_missing_file_raises
-def test_load_missing_file_raises() -> None:
-    with pytest.raises(FileNotFoundError):
-        KnowledgeBase.load(os.path.join(tempfile.gettempdir(), "does-not-exist-xyz.json"))

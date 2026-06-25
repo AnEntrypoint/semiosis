@@ -1,9 +1,0 @@
-core/test_manifold_invariants.py:302:309 test_nonunit_curvature_fit_valid
-def test_nonunit_curvature_fit_valid() -> None:
-    cfg = ConeFitConfig(epochs=10, dim=4, seed=0, curvature=2.0)
-    engine = HyperbolicConeEngine(cfg)
-    nodes = engine.fit(_two_node_tree())
-    for node in nodes:
-        assert node.aperture >= 0.1
-    margin = engine.contains(nodes[0], nodes[1])
-    assert isinstance(margin, float)

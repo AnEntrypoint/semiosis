@@ -1,7 +1,0 @@
-core/test_semantic_direction.py:60:65 test_best_octave_returns_valid_prefix
-def test_best_octave_returns_valid_prefix() -> None:
-    kb = _kb()
-    enc = kb._pipeline._encoder
-    valid = {int(d) for d in enc.dims}
-    p = kb.best_octave("alpha unique term", "gamma separate idea")
-    assert p in valid

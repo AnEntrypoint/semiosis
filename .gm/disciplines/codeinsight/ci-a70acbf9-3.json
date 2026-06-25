@@ -1,0 +1,5 @@
+core/agent_api.py:270:273 EnergyStep
+class EnergyStep:
+    node_id: str
+    energy: float
+    octave: int

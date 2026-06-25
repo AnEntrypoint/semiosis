@@ -1,6 +1,0 @@
-core/agent_api.py:129:133 SemanticTrajectory
-class SemanticTrajectory:
-    steps: tuple[TrajectoryStep, ...]
-    total_distance: float
-    coherence_score: float
-    energy_cost: float

@@ -1,0 +1,9 @@
+core/test_manifold_invariants.py:270:277 test_attention_score_valid
+def test_attention_score_valid() -> None:
+    from core.agent_api import AttentionScore
+    kb = _kb()
+    hits = kb.search("alpha unique term", k=1)
+    if not hits:
+        pytest.skip("no hits")
+    a = kb.attention_score(hits[0].node_id, "alpha unique term")
+    assert isinstance(a, AttentionScore) and 0.0 <= a.weight <= 1.0

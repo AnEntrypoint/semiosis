@@ -1,5 +1,0 @@
-core/test_agent_surface.py:94:97 test_octave_fusion_runs
-def test_octave_fusion_runs() -> None:
-    kb = _kb(octave_fusion=True)
-    hits = kb.search("delta other concept", k=2)
-    assert hits

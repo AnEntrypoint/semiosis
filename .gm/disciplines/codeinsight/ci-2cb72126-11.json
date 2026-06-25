@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:192:195 test_kb_scan_tension
+def test_kb_scan_tension() -> None:
+    kb = _kb(WEBGL)
+    out = kb.scan_tension(top_n=3)
+    assert isinstance(out, list)

@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:257:260 test_sense_complexity_label
+def test_sense_complexity_label() -> None:
+    kb = _kb()
+    mc = kb.sense_complexity("machine learning", k=5)
+    assert mc.complexity_label in ("constant", "linear", "quadratic", "exponential")

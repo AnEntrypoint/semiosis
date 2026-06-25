@@ -1,7 +1,0 @@
-core/test_session7.py:126:131 test_contrastive_direction_unit_norm
-def test_contrastive_direction_unit_norm(kb):
-    """contrastive_direction direction_vec is unit-normalized."""
-    cd = kb.contrastive_direction("cat", "dog")
-    assert isinstance(cd, ContrastiveDirection)
-    vec = np.array(cd.direction_vec)
-    assert abs(np.linalg.norm(vec) - 1.0) < 1e-4

@@ -1,0 +1,4 @@
+core/test_manifold_invariants.py:250:252 test_semantic_distance_self_near_zero
+def test_semantic_distance_self_near_zero() -> None:
+    kb = _kb()
+    assert float(kb.semantic_distance("alpha unique term", "alpha unique term", octave=64)) < 0.05

@@ -1,0 +1,7 @@
+core/test_manifold_invariants.py:89:94 _dummy_tree
+def _dummy_tree(n: int = 2, prefix: int = 64) -> ClusterTree:
+    """Build a minimal ClusterTree with one root->leaf edge per extra node."""
+    ids = [NodeId(f"n{i}") for i in range(n)]
+    edges = tuple((ids[0], ids[i]) for i in range(1, n))
+    assignments = {f"p{i}": ids[i % n] for i in range(n)}
+    return ClusterTree(edges=edges, assignments=assignments, prefix=Prefix(prefix))

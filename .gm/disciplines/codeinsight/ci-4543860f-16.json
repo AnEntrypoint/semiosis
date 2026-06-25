@@ -1,6 +1,0 @@
-core/test_pipeline.py:63:67 test_knowledge_base_containment
-def test_knowledge_base_containment() -> None:
-    kb = KnowledgeBase()
-    kb.ingest(WEBGL_FACTS)
-    score = kb.containment("rendering", "instancing")
-    assert isinstance(score, float)

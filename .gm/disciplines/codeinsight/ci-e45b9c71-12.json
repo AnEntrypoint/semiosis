@@ -1,6 +1,0 @@
-core/agent_api.py:161:165 ManifoldComplexity
-class ManifoldComplexity:
-    """Intrinsic dimensionality of query neighborhood."""
-    intrinsic_dim: float
-    suggested_octave: int
-    complexity_label: str

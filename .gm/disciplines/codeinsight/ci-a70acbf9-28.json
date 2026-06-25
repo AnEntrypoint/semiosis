@@ -1,0 +1,8 @@
+core/agent_api.py:58:64 ConsolidateReport
+class ConsolidateReport:
+    changed: bool
+    nodes_before: int
+    nodes_after: int
+    merges: int
+    aperture_updates: int
+    dispel_count: int

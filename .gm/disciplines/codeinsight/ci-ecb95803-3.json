@@ -1,8 +1,0 @@
-core/test_store.py:31:37 test_knn_returns_results
-def test_knn_returns_results() -> None:
-    store = InMemoryStore()
-    nodes = [_make_node(f"n{i}") for i in range(5)]
-    store.write(nodes, CommitId("r0"))
-    q = np.ones(8, dtype=np.float32)
-    results = store.knn(q, k=3, prefix=Prefix(8))
-    assert 1 <= len(results) <= 3

@@ -1,0 +1,8 @@
+core/test_manifold_invariants.py:150:156 test_cone_node_serialization_roundtrip
+def test_cone_node_serialization_roundtrip() -> None:
+    import numpy as np
+    node = ConeNode(id=NodeId("x1"), apex=_dummy_apex(), centroid=np.zeros(64), aperture=0.3, prefix=Prefix(64), members=())
+    d = cone_node_to_dict(node)
+    node2 = cone_node_from_dict(d)
+    assert node2.id == node.id
+    assert abs(node2.aperture - node.aperture) < 1e-6

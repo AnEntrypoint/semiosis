@@ -1,0 +1,7 @@
+core/agent_api.py:196:201 IngestStreamResult
+class IngestStreamResult:
+    """Result of incremental streaming ingest."""
+    ingested_count: int
+    new_nodes: int
+    rebalanced: bool
+    elapsed_ms: float

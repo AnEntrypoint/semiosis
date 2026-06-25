@@ -374,3 +374,95 @@
   priority: 8
   notes: Stage all changed/new/deleted files; commit with session 8 summary; push to origin. Depends on all prior rows complete.
   witness: 'git_finalize: sha=e6778a8, branch=master, pushed=true'
+- id: test-trim-200-lines
+  title: Trim test_manifold_invariants.py to <=200 lines
+  description: 'File is 285 lines, violating the 200-line hard rule. Remove least-critical tests: collapse store_write_and_knn into store_upsert_and_save_load, drop test_cone_engine_fit_two_nodes (covered by batch_contains), merge semantic_distance_symmetric+self_near_zero into one, drop test_kb_scan_tension (covered by pipeline_ingest). Target exactly 200 lines.'
+  witness: 'core/test_manifold_invariants.py: wc -l=195, 16 tests pass (pytest output)'
+  priority: critical
+  status: completed
+- id: delete-stale-root-artifacts
+  title: Delete stale root-level artifact files
+  description: Delete ANALYSIS_SUMMARY.txt, ARCHITECTURE.md, HIERARCHICAL_STRUCTURES_ANALYSIS.md, IMPLEMENTATION_EXAMPLES.md, IMPLEMENTATION_ROADMAP.md, LEARNING_ADAPTATION_EXTRACTION.md, LEARNING_LOOP_ANALYSIS.md, LEARNING_LOOP_HYPOTHESES.md, LEARNING_LOOP_README.md from repo root. These are superseded by core/ modules and CLAUDE.md.
+  witness: PowerShell Remove-Item on 9 stale files; ls shows only AGENTS.md CLAUDE.md SKILLS.md remain
+  priority: high
+  status: completed
+- id: create-readme
+  title: Create README.md for the project
+  description: 'Write README.md covering: what semiosis is (hyperbolic entailment cones over Matryoshka octaves), quick install, usage example with KnowledgeBase, key primitives table (semantic_distance/direction/trajectory, agentic_reflect, energy_gradient_search), architecture diagram in ASCII, test command, settings env vars. No multi-paragraph docstrings, ASCII only.'
+  witness: README.md written at repo root with install/quickstart/architecture/settings/test sections
+  priority: high
+  status: completed
+- id: split-agent-api
+  title: Split agent_api.py (1376 lines) into focused sub-modules
+  description: 'agent_api.py is 1376 lines, far too large. Split: (1) core/kb_types.py - all dataclasses (SearchHit, ConsolidateReport, etc.), enums (QueryPriority, FailureMode); (2) core/kb_search.py - search/deep_search/direction/trajectory methods; (3) core/kb_memory.py - remember/forget/recall/semiotic_memory ops; (4) core/kb_learning.py - record_outcome/consolidate/diagnose/metrics; (5) core/agent_api.py shrinks to KnowledgeBase class importing from sub-modules. Keep public API identical. Update __init__.py exports.'
+  witness: core/agent_api.py line count 1376
+  priority: high
+  depends:
+  - test-trim-200-lines
+  status: pending
+- id: inter-octave-trajectory
+  title: 'Add inter-octave trajectory: track meaning across Matryoshka dimensionality levels'
+  description: Implement best_octave_trajectory(text_a, text_b) that returns the optimal sequence of octave transitions (64->128->256->...) maximizing discriminative power. Also add multi_octave_direction(node_a, node_b) returning a direction vector per octave alongside coherence score. These extend the existing compute_trajectory (which descends a single query) to cross-octave semantic drift analysis.
+  witness: 'core/agent_api.py: compute_trajectory does single-query octave descent only; no cross-node inter-octave direction'
+  priority: medium
+  depends:
+  - split-agent-api
+  status: pending
+- id: llm-sbert-hybrid
+  title: Implement LLM+SBERT hybrid scoring for agentic inference
+  description: Add hybrid_score(query, texts, llm_fn=None) that combines SBERT cosine similarity with optional LLM reranking. When llm_fn provided, LLM scores each candidate 0-1 and result is weighted (0.7*sbert + 0.3*llm). When llm_fn=None, falls back to pure SBERT. Integrates into search() via QueryPriority.HIGH path as a post-rerank step. This is the llm/sbert combination the user requested evaluating.
+  witness: 'core/agent_api.py: search() has MMR + RRF but no LLM hybrid reranking'
+  priority: medium
+  depends:
+  - split-agent-api
+  status: pending
+- id: categorical-parent-improve
+  title: 'Improve categorical_parent_score: use summarizer for parent digest then embed'
+  description: 'Current categorical_parent_score summarizes parent nodes using StubSummarizer and embeds. Improve: (1) use CategorizationSummarizer (real LLM call) as default when available; (2) cache parent digests in ConeNode.digest field so repeated calls skip re-summarization; (3) add max_depth parameter to limit traversal to k levels up the hierarchy; (4) return confidence score = parent_embedding_similarity / child_embedding_similarity ratio.'
+  witness: core/agent_api.py:categorical_parent_score uses self._summarizer which defaults to StubSummarizer
+  priority: medium
+  status: pending
+- id: activation-embed-improve
+  title: 'Improve activation_embed: NLA routing with fallback + caching'
+  description: 'Current activation_embed either uses ActivationPredictor or falls back to encoder. Improve: (1) add LRU cache (maxsize=1024) keyed on text hash so repeated calls don''t re-encode; (2) when ActivationPredictor available, blend its sparse activation mask with the encoder embedding (weighted sum: 0.8*enc + 0.2*activation_projection); (3) add activation_embed_batch(texts) for efficient batch processing; (4) expose activation_sparsity metric in DiagnoseReport.'
+  witness: core/agent_api.py:activation_embed has no cache and no blending
+  priority: medium
+  status: pending
+- id: agentic-reflect-improve
+  title: 'Improve agentic_reflect: tool-call pattern with structured output'
+  description: 'Current agentic_reflect calls llm_fn with a rephrased query string. Improve: (1) pass structured context dict {query, top_hits, uncertainty_scores, suggested_direction} so LLM has full context to reason about; (2) add stop condition: stop when top hit uncertainty_score < 0.2 or max_rounds reached; (3) add reflect_strategy parameter: ''rephrase'' (current) | ''decompose'' (split query into sub-queries) | ''expand'' (add context terms); (4) track which strategy produced the best result in ReflectStep.'
+  witness: core/agent_api.py:agentic_reflect passes just the rephrased query string to llm_fn
+  priority: medium
+  status: pending
+- id: run-pytest-verify
+  title: Run pytest core/ and verify all tests pass after all changes
+  description: 'After all file modifications, run pytest core/ and confirm zero failures. The 200-line test file must cover: manifold primitives, cone engine, store/query, pipeline/KB surface, persist, semantic direction, session7 surface. All prior-passing tests must still pass.'
+  witness: pytest core/ baseline
+  priority: critical
+  depends:
+  - test-trim-200-lines
+  - split-agent-api
+  - inter-octave-trajectory
+  - llm-sbert-hybrid
+  - categorical-parent-improve
+  - activation-embed-improve
+  - agentic-reflect-improve
+  status: pending
+- id: git-commit-session9
+  title: Commit and push all session 9 changes
+  description: 'Stage all modified/new files, commit with message ''Session 9: architecture split, README, test trim, new primitives (inter-octave trajectory, llm-sbert hybrid, improved agentic reflect)'', push to origin master.'
+  witness: git status post-implementation
+  priority: critical
+  depends:
+  - run-pytest-verify
+  - create-readme
+  - delete-stale-root-artifacts
+  status: pending
+- id: memorize-session9
+  title: Memorize session 9 work into rs-learn.db
+  description: 'After commit, dispatch memorize-fire with key ''semiosis-session9-2026-06-25'' summarizing all new work: architecture split, README, test trim, inter-octave trajectory, llm-sbert hybrid, categorical/activation/reflect improvements.'
+  witness: post-commit
+  priority: low
+  depends:
+  - git-commit-session9
+  status: pending

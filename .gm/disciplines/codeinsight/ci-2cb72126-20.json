@@ -1,0 +1,4 @@
+core/test_manifold_invariants.py:112:114 test_cone_fit_config_from_settings_roundtrip
+def test_cone_fit_config_from_settings_roundtrip() -> None:
+    cfg = ConeFitConfig.from_settings(_settings().cone)
+    assert cfg.epochs == _settings().cone.epochs

@@ -1,0 +1,6 @@
+core/test_manifold_invariants.py:243:247 test_semantic_distance_symmetric
+def test_semantic_distance_symmetric() -> None:
+    kb = _kb()
+    d1 = kb.semantic_distance("alpha unique term", "beta distinct phrase", octave=64)
+    d2 = kb.semantic_distance("beta distinct phrase", "alpha unique term", octave=64)
+    assert abs(float(d1) - float(d2)) < 1e-5

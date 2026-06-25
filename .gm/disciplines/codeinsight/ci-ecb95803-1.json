@@ -1,6 +1,0 @@
-core/test_store.py:46:50 test_upsert_adds_node
-def test_upsert_adds_node() -> None:
-    store = InMemoryStore()
-    n = _make_node("x")
-    store.upsert(n)
-    assert store.get(NodeId("x")).id == NodeId("x")

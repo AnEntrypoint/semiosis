@@ -1,4 +1,0 @@
-core/test_agent_surface.py:36:38 test_search_texts_back_compat
-def test_search_texts_back_compat() -> None:
-    kb = _kb()
-    assert isinstance(kb.search_texts("beta", k=2), list)

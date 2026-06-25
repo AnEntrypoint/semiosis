@@ -1,5 +1,0 @@
-core/agent_api.py:137:140 DirectionSearchResult
-class DirectionSearchResult:
-    hits: tuple["SearchHit", ...]
-    alpha: float
-    alignment: float

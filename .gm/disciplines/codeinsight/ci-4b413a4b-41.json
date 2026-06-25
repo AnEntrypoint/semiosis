@@ -1,9 +1,0 @@
-core/test_manifold_invariants.py:443:450 test_half_aperture_at_or_above_floor
-def test_half_aperture_at_or_above_floor(seed: int) -> None:
-    torch.manual_seed(seed)
-    m = geoopt.Lorentz(k=torch.tensor(1.0))
-    x = m.random_normal((8, 6), std=0.3)
-    cfg = ConeFitConfig(epochs=0, dim=5, seed=seed)
-    engine = HyperbolicConeEngine(cfg)
-    psi = engine._half_aperture(x)
-    assert torch.all(psi >= 0.1 - 1e-6), "aperture must be >= _MIN_APERTURE=0.1"

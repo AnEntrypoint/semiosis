@@ -1,5 +1,0 @@
-core/test_agent_surface.py:61:64 test_record_outcome_ignores_unknown
-def test_record_outcome_ignores_unknown() -> None:
-    kb = _kb()
-    out = kb.record_outcome("q", ["not in kb"])
-    assert out["applied"] == 0 and out["ignored"] == 1

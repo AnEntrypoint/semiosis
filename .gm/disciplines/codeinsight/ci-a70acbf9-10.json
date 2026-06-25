@@ -1,0 +1,6 @@
+core/agent_api.py:213:217 QueryDecomposition
+class QueryDecomposition:
+    """Compound query split into sub-queries with octave assignments."""
+    sub_queries: tuple
+    octave_assignments: tuple
+    compound_score: float

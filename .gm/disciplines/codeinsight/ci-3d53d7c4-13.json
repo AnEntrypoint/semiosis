@@ -1,9 +1,0 @@
-core/test_agent_surface.py:19:26 _kb
-def _kb(**agent) -> KnowledgeBase:
-    s = Settings()
-    s.cone.epochs = 4
-    for key, val in agent.items():
-        setattr(s.agent, key, val)
-    kb = KnowledgeBase(s)
-    kb.ingest(FACTS)
-    return kb

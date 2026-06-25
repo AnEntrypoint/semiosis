@@ -1,7 +1,0 @@
-core/test_pipeline.py:55:60 test_knowledge_base_explain_hierarchy
-def test_knowledge_base_explain_hierarchy() -> None:
-    kb = KnowledgeBase()
-    kb.ingest(WEBGL_FACTS)
-    info = kb.explain_hierarchy("texture compression")
-    assert "node_id" in info
-    assert "aperture" in info

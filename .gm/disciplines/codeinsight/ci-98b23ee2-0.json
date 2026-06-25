@@ -1,6 +1,0 @@
-core/test_semantic_direction.py:168:172 test_categorization_summarizer_empty
-def test_categorization_summarizer_empty() -> None:
-    from core.summarizer import CategorizationSummarizer
-    s = CategorizationSummarizer(api_key="")
-    out = s.summarize("node1", [])
-    assert "node1" in out

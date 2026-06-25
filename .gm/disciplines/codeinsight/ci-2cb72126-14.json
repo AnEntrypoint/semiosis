@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:174:177 test_kb_diagnose_shape
+def test_kb_diagnose_shape() -> None:
+    kb = _kb()
+    rep = kb.diagnose()
+    assert isinstance(rep, DiagnoseReport) and rep.nodes > 0

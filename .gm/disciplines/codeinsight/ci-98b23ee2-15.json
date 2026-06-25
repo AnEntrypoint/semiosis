@@ -1,5 +1,0 @@
-core/test_semantic_direction.py:39:42 test_semantic_distance_self_zero
-def test_semantic_distance_self_zero() -> None:
-    kb = _kb()
-    d = kb.semantic_distance("alpha unique term", "alpha unique term", octave=64)
-    assert float(d) < 0.05

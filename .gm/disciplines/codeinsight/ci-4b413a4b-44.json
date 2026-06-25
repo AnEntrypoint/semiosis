@@ -1,5 +1,0 @@
-core/test_manifold_invariants.py:411:414 test_cone_settings_rejects_zero_curvature
-def test_cone_settings_rejects_zero_curvature() -> None:
-    import pydantic
-    with pytest.raises((pydantic.ValidationError, ValueError)):
-        ConeSettings(curvature=0.0)

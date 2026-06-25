@@ -1,5 +1,0 @@
-core/agent_api.py:19:22 QueryPriority
-class QueryPriority(Enum):
-    HIGH = "high"    # deep multi-octave, tight MMR, higher latency budget
-    MEDIUM = "medium"  # default balanced
-    LOW = "low"      # coarse single-octave, fast

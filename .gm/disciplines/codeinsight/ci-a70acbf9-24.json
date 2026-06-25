@@ -1,0 +1,4 @@
+core/agent_api.py:90:92 CompressResult
+class CompressResult:
+    texts: tuple[str, ...]
+    energy_reduction: float

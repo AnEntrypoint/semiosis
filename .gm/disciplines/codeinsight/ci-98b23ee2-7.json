@@ -1,7 +1,0 @@
-core/test_semantic_direction.py:114:119 test_stub_summarizer
-def test_stub_summarizer() -> None:
-    s = StubSummarizer()
-    out = s.summarize("node1", ["alpha unique term", "beta distinct phrase"])
-    assert "alpha" in out or "beta" in out
-    out2 = s.summarize("node1", [])
-    assert "node1" in out2

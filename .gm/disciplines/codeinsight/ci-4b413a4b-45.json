@@ -1,5 +1,0 @@
-core/test_manifold_invariants.py:402:405 test_settings_env_store_backend_override
-def test_settings_env_store_backend_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SC_STORE__BACKEND", "pgvector")
-    s = Settings()
-    assert s.store.backend == "pgvector"

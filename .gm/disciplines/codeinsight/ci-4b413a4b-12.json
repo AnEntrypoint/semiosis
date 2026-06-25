@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:804:806 test_agglomerative_clusterer_satisfies_protocol
-def test_agglomerative_clusterer_satisfies_protocol() -> None:
-    ac = AgglomerativeClusterer(n_clusters=2)
-    assert isinstance(ac, HierarchicalClusterer)

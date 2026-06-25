@@ -1,5 +1,0 @@
-core/test_session7.py:112:115 test_information_content_missing
-def test_information_content_missing(kb):
-    """information_content returns 0.0 for unknown node_id."""
-    ic = kb.information_content("nonexistent_node_id")
-    assert ic == 0.0

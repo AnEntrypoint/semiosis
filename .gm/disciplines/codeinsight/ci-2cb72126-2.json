@@ -1,0 +1,6 @@
+core/test_manifold_invariants.py:263:267 test_find_analogy_returns_result
+def test_find_analogy_returns_result() -> None:
+    from core.agent_api import AnalogyResult
+    kb = _kb()
+    r = kb.find_analogy("cat", "animal", "dog")
+    assert isinstance(r, AnalogyResult)

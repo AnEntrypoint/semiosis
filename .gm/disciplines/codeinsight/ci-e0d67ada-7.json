@@ -1,3 +1,0 @@
-core/test_serving.py:27:28 test_health_ok
-def test_health_ok() -> None:
-    assert _client().get("/health").status_code == 200

@@ -1,5 +1,0 @@
-core/test_session7.py:49:52 test_compress_hierarchy_max_nodes
-def test_compress_hierarchy_max_nodes(kb):
-    """compress_hierarchy respects the max_nodes cap on retained_nodes."""
-    r = kb.compress_hierarchy("gradient", max_nodes=2)
-    assert len(r.retained_nodes) <= 2

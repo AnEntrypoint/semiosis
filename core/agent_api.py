@@ -4,12 +4,20 @@ from __future__ import annotations
 import json
 import math
 import os
-from dataclasses import dataclass
-from enum import Enum
 from typing import Any
 
 from .context_pack import ContextPack, ContextPackBuilder, ContextPackConfig
 from .interfaces import Prefix, phrase_to_text_index
+from .kb_types import (  # noqa: F401 -- re-exported for backwards compat
+    QueryPriority, FailureMode,
+    SearchHit, ConsolidateReport, FlowNeighbor, TensionPair, DeepSearchResult,
+    CompressResult, DiagnoseReport, RetrievalStep, SemanticDirection, TrajectoryStep,
+    SemanticTrajectory, DirectionSearchResult, CompressedHierarchy, RecursiveAnswerResult,
+    ManifoldComplexity, FoldBudgetResult, SparseSearchResult, IngestStreamResult,
+    ContrastiveDirection, QueryDecomposition, AttentionScore, AnalogyResult,
+    ConceptBoundary, DispelReport, ReflectStep, CategoricalParentHit, EnergyStep,
+    SemanticDirectionError,
+)
 from .pipeline import KnowledgePipeline
 from .recursive import RecursiveAnswerEngine, RecursiveResult
 from .semiotic_memory import SemioticMemory
@@ -25,256 +33,6 @@ try:
     from .manifold_ops import lorentz_project as _lorentz_project
 except ImportError:
     _lorentz_project = None  # type: ignore[assignment]
-
-
-class QueryPriority(Enum):
-    HIGH = "high"    # deep multi-octave, tight MMR, higher latency budget
-    MEDIUM = "medium"  # default balanced
-    LOW = "low"      # coarse single-octave, fast
-
-
-class FailureMode(Enum):
-    NONE = "none"
-    OUTSIDE_CONE = "outside_cone"        # query lies outside all node cones
-    BOUNDARY_AMBIGUOUS = "boundary_ambiguous"  # high tension between top candidates
-    OVER_COMPRESSED = "over_compressed"  # excessive merges at last consolidation
-    OCTAVE_MISMATCH = "octave_mismatch"  # high entropy_divergence across octaves
-
-
-@dataclass(frozen=True, slots=True)
-class SearchHit:
-    text: str
-    score: float
-    node_id: str
-    octave: int
-    members: tuple[str, ...] = ()
-    aperture: float = 0.0           # cone half-aperture; low=tight/confident, high=broad
-    local_entropy: float = 0.0      # Shannon entropy of member distances from centroid
-    evidence_path_count: int = 1    # octaves this node was retrieved from (consensus)
-    uncertainty_score: float = 0.0  # 1 - normalized score; higher = less confident
-
-
-@dataclass(frozen=True, slots=True)
-class ConsolidateReport:
-    changed: bool
-    nodes_before: int
-    nodes_after: int
-    merges: int
-    aperture_updates: int
-    dispel_count: int
-
-
-@dataclass(frozen=True, slots=True)
-class FlowNeighbor:
-    text: str
-    gradient: float
-    direction: str
-
-
-@dataclass(frozen=True, slots=True)
-class TensionPair:
-    text_a: str
-    text_b: str
-    tension: float
-    kind: str
-
-
-@dataclass(frozen=True, slots=True)
-class DeepSearchResult:
-    texts: tuple[str, ...]
-    evidence: tuple[str, ...]
-    trace: tuple[tuple, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class CompressResult:
-    texts: tuple[str, ...]
-    energy_reduction: float
-
-
-@dataclass(frozen=True, slots=True)
-class DiagnoseReport:
-    nodes: int
-    octaves: int
-    texts: int
-    facts: int
-    mean_aperture: float
-    mean_tension: float
-    total_energy: float
-    redundant_pairs: int
-    retrieval_entropy: float = 0.0
-    entropy_divergence: float = 0.0
-    failure_mode: FailureMode = FailureMode.NONE
-    recovery_suggestions: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class RetrievalStep:
-    text: str
-    score: float
-    node_id: str
-    octave: int
-    containment_to_top: float
-    tension: float
-
-
-@dataclass(frozen=True, slots=True)
-class SemanticDirection:
-    from_node: str
-    to_node: str
-    octave: int
-    direction_vec: tuple[float, ...]
-    magnitude: float
-    cosine_alignment: float
-
-
-@dataclass(frozen=True, slots=True)
-class TrajectoryStep:
-    node_id: str
-    octave: int
-    distance_from_prev: float
-    direction_vec: tuple[float, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class SemanticTrajectory:
-    steps: tuple[TrajectoryStep, ...]
-    total_distance: float
-    coherence_score: float
-    energy_cost: float
-
-
-@dataclass(frozen=True, slots=True)
-class DirectionSearchResult:
-    hits: tuple["SearchHit", ...]
-    alpha: float
-    alignment: float
-
-
-@dataclass(frozen=True, slots=True)
-class CompressedHierarchy:
-    """Info-bottleneck pruned node set."""
-    retained_nodes: tuple
-    dropped_nodes: tuple
-    info_retained_ratio: float
-
-
-@dataclass(frozen=True, slots=True)
-class RecursiveAnswerResult:
-    """Result of recursive LLM-driven octave descent."""
-    answer_nodes: tuple
-    depth_reached: int
-    energy_total: float
-    sub_queries: tuple
-
-
-@dataclass(frozen=True, slots=True)
-class ManifoldComplexity:
-    """Intrinsic dimensionality of query neighborhood."""
-    intrinsic_dim: float
-    suggested_octave: int
-    complexity_label: str
-
-
-@dataclass(frozen=True, slots=True)
-class FoldBudgetResult:
-    """Energy-aware greedy candidate selection under token budget."""
-    included: tuple
-    excluded: tuple
-    tokens_used: int
-    energy_cost: float
-
-
-@dataclass(frozen=True, slots=True)
-class SparseSearchResult:
-    """SearchHit with sparse mask weight."""
-    hit: SearchHit
-    sparse_score: float
-
-
-@dataclass(frozen=True, slots=True)
-class IngestStreamResult:
-    """Result of incremental streaming ingest."""
-    ingested_count: int
-    new_nodes: int
-    rebalanced: bool
-    elapsed_ms: float
-
-
-@dataclass(frozen=True, slots=True)
-class ContrastiveDirection:
-    """Direction vector representing what separates two concepts."""
-    direction_vec: tuple
-    contrast_score: float
-    octave: int
-
-
-@dataclass(frozen=True, slots=True)
-class QueryDecomposition:
-    """Compound query split into sub-queries with octave assignments."""
-    sub_queries: tuple
-    octave_assignments: tuple
-    compound_score: float
-
-
-@dataclass(frozen=True, slots=True)
-class AttentionScore:
-    """NLA-style attention weight for a node given a query."""
-    node_id: str
-    weight: float
-    octave: int
-    temperature: float
-
-
-@dataclass(frozen=True, slots=True)
-class AnalogyResult:
-    """word2vec-style A:B::C:X analogy result."""
-    hits: tuple
-    direction_used: tuple
-    analogy_score: float
-
-
-@dataclass(frozen=True, slots=True)
-class ConceptBoundary:
-    """Hyperplane separating two concept clusters."""
-    midpoint: tuple
-    normal_vec: tuple
-    margin: float
-    octave: int
-
-
-@dataclass(frozen=True, slots=True)
-class DispelReport:
-    """Result of entropy-triggered dispel."""
-    dispelled_ids: tuple
-    entropy_before: float
-    entropy_after: float
-
-
-@dataclass
-class ReflectStep:
-    round: int
-    query: str
-    hits: list
-    observation: str
-
-
-@dataclass
-class CategoricalParentHit:
-    node_id: str
-    summary: str
-    embedding_sim: float
-
-
-@dataclass
-class EnergyStep:
-    node_id: str
-    energy: float
-    octave: int
-
-
-class SemanticDirectionError(ValueError):
-    pass
 
 
 try:
@@ -1266,25 +1024,43 @@ class KnowledgeBase:
             coherence_score=coherence, energy_cost=energy,
         )
 
-    def agentic_reflect(self, query: str, llm_fn=None, max_rounds: int = 3) -> list:
-        """Iterative reflection loop: search, observe, refine query up to max_rounds."""
+    def agentic_reflect(self, query: str, llm_fn=None, max_rounds: int = 3,
+                        reflect_strategy: str = "rephrase") -> list:
+        """Iterative reflection loop: search, observe, refine query up to max_rounds.
+
+        reflect_strategy: 'rephrase' (tail of observation), 'decompose' (sub-query split),
+        'expand' (append top hit text).  Stops early if uncertainty_score < 0.2.
+        """
         summarizer = self._summarizer
-        steps = []
+        steps: list[ReflectStep] = []
         current_query = query
         prev_hit_ids: list = []
         for r in range(max_rounds):
             hits = self.search(current_query, k=5)
             hit_ids = [h.node_id for h in hits]
             if llm_fn is not None:
-                observation = llm_fn(node_id=current_query, members=[h.text for h in hits])
+                context = {"query": current_query, "hits": [h.text for h in hits],
+                           "strategy": reflect_strategy, "round": r}
+                observation = llm_fn(**context)
             else:
                 observation = summarizer.summarize(current_query, [h.text for h in hits])
-            steps.append(ReflectStep(round=r, query=current_query, hits=hits, observation=observation))
+            step = ReflectStep(round=r, query=current_query, hits=hits, observation=observation)
+            steps.append(step)
+            # stop if top hit is confident
+            if hits and hits[0].uncertainty_score < 0.2:
+                break
             if hit_ids == prev_hit_ids:
                 break
             prev_hit_ids = hit_ids
-            words = str(observation).split()
-            current_query = " ".join(words[-3:]) if len(words) >= 3 else (words[-1] if words else current_query)
+            obs_words = str(observation).split()
+            if reflect_strategy == "decompose":
+                parts = str(observation).split(",")
+                current_query = parts[0].strip() if parts else current_query
+            elif reflect_strategy == "expand":
+                top_text = hits[0].text if hits else ""
+                current_query = f"{current_query} {top_text}"[:200]
+            else:  # rephrase: tail of observation
+                current_query = " ".join(obs_words[-3:]) if len(obs_words) >= 3 else (obs_words[-1] if obs_words else current_query)
         return steps
 
     def categorical_parent_score(self, query: str, k: int = 5) -> list:
@@ -1312,15 +1088,105 @@ class KnowledgeBase:
         return results[:k]
 
     def activation_embed(self, text: str) -> list:
-        """Return embedding as list[float]; uses activation predictor if fitted, else encoder."""
-        if self._act_predictor is not None and getattr(self._act_predictor, '_fitted', False):
-            if _stub_activations is not None:
-                return self._act_predictor.predict_embedding(_stub_activations(text)).tolist()
+        """Blend encoder (0.8) + activation projection (0.2) with LRU cache."""
+        import numpy as _np
+        if not hasattr(self, '_act_embed_cache'):
+            from functools import lru_cache
+            self._act_embed_cache: dict = {}
+        if text in self._act_embed_cache:
+            return self._act_embed_cache[text]
         if self._pipeline is None:
-            if _stub_activations is not None:
-                return list(_stub_activations(text, dim=64))
-            return [0.0] * 64
-        return list(self._pipeline._encoder.encode([text])[0].tolist())
+            base = list(_stub_activations(text, dim=64)) if _stub_activations else [0.0] * 64
+        else:
+            base = list(self._pipeline._encoder.encode([text])[0].tolist())
+        act_vec = None
+        if self._act_predictor is not None and getattr(self._act_predictor, '_fitted', False) and _stub_activations is not None:
+            try:
+                act_raw = self._act_predictor.predict_embedding(_stub_activations(text))
+                act_arr = _np.array(act_raw, dtype=float)
+                base_arr = _np.array(base, dtype=float)
+                if act_arr.shape == base_arr.shape:
+                    blended = 0.8 * base_arr + 0.2 * act_arr
+                    act_vec = blended.tolist()
+            except Exception:
+                pass
+        result = act_vec if act_vec is not None else base
+        if len(self._act_embed_cache) < 1024:
+            self._act_embed_cache[text] = result
+        return result
+
+    def activation_embed_batch(self, texts: list) -> list:
+        """Batch version of activation_embed; returns list of embedding lists."""
+        return [self.activation_embed(t) for t in texts]
+
+    def hybrid_score(self, query: str, texts: list, llm_fn=None) -> list:
+        """Rerank texts by 0.7*SBERT_cosine + 0.3*LLM_score; returns (text, score) pairs."""
+        import numpy as _np
+        if self._pipeline is None or not texts:
+            return [(t, 0.0) for t in texts]
+        enc = self._pipeline._encoder
+        q_vec = _np.array(enc.encode([query])[0], dtype=float)
+        qn = _np.linalg.norm(q_vec) + 1e-9
+        q_unit = q_vec / qn
+        results = []
+        for t in texts:
+            tv = _np.array(enc.encode([t])[0], dtype=float)
+            tn = _np.linalg.norm(tv) + 1e-9
+            cos_score = float(_np.dot(q_unit, tv / tn))
+            llm_score = 0.5  # neutral default
+            if llm_fn is not None:
+                try:
+                    raw = llm_fn(query=query, text=t)
+                    llm_score = float(raw) if raw is not None else 0.5
+                except Exception:
+                    pass
+            combined = 0.7 * cos_score + 0.3 * llm_score
+            results.append((t, combined))
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results
+
+    def best_octave_trajectory(self, text_a: str, text_b: str) -> dict:
+        """Track semantic drift between two concepts across all Matryoshka octaves."""
+        import numpy as _np
+        if self._pipeline is None:
+            return {"octaves": [], "distances": [], "best_octave": 64}
+        enc = self._pipeline._encoder
+        octaves = [64, 128, 256, 512, 1024]
+        distances = []
+        for oct in octaves:
+            va = _np.array(enc.encode([text_a])[0], dtype=float)[:oct]
+            vb = _np.array(enc.encode([text_b])[0], dtype=float)[:oct]
+            na, nb = _np.linalg.norm(va) + 1e-9, _np.linalg.norm(vb) + 1e-9
+            cos = float(_np.dot(va / na, vb / nb))
+            distances.append(1.0 - cos)
+        best_idx = int(_np.argmax(distances))  # octave with most separation
+        return {"octaves": octaves, "distances": distances, "best_octave": octaves[best_idx]}
+
+    def multi_octave_direction(self, node_a: str, node_b: str) -> list:
+        """Direction vectors from node_a to node_b at each Matryoshka octave."""
+        import numpy as _np
+        if self._pipeline is None:
+            return []
+        enc = self._pipeline._encoder
+        octaves = [64, 128, 256, 512, 1024]
+        results = []
+        va_full = _np.array(enc.encode([node_a])[0], dtype=float)
+        vb_full = _np.array(enc.encode([node_b])[0], dtype=float)
+        for oct in octaves:
+            va = va_full[:oct]; vb = vb_full[:oct]
+            diff = vb - va
+            mag = float(_np.linalg.norm(diff))
+            if mag > 1e-9:
+                unit = (diff / mag).tolist()
+            else:
+                unit = [0.0] * min(oct, len(va_full))
+            na = _np.linalg.norm(va) + 1e-9; nb = _np.linalg.norm(vb) + 1e-9
+            cos = float(_np.dot(va / na, vb / nb))
+            results.append(SemanticDirection(
+                from_node=node_a, to_node=node_b, octave=oct,
+                direction_vec=tuple(unit[:8]), magnitude=mag, cosine_alignment=cos,
+            ))
+        return results
 
     def energy_gradient_search(self, query: str, max_steps: int = 10) -> dict:
         """Greedy energy-descent from best search hit toward lowest-energy leaf node."""

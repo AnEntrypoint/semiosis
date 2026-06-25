@@ -1,7 +1,0 @@
-core/test_eval.py:29:34 test_evaluate_returns_metrics
-def test_evaluate_returns_metrics() -> None:
-    kb = _kb()
-    labeled = [(f, {f}) for f in FACTS]
-    m = evaluate(kb, labeled, k=3)
-    assert 0.0 <= m["recall_at_k"] <= 1.0
-    assert 0.0 <= m["mrr"] <= 1.0

@@ -1,5 +1,0 @@
-core/test_encoder.py:16:19 test_random_encoder_encode_shape
-def test_random_encoder_encode_shape() -> None:
-    enc = RandomEncoder(octaves=(64, 128))
-    vecs = enc.encode(["hello", "world"])
-    assert vecs.shape == (2, 128)

@@ -1,7 +1,0 @@
-core/test_serving.py:19:24 _client
-def _client() -> TestClient:
-    s = Settings()
-    s.cone.epochs = 4
-    kb = KnowledgeBase(s)
-    kb.ingest(FACTS)
-    return TestClient(create_app(s, kb))

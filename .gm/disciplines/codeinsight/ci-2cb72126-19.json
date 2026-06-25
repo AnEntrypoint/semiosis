@@ -1,0 +1,11 @@
+core/test_manifold_invariants.py:119:128 test_store_write_and_knn
+def test_store_write_and_knn() -> None:
+    enc = RandomEncoder(octaves=(64,))
+    store = InMemoryStore()
+    engine = HyperbolicConeEngine(ConeSettings())
+    query = InMemoryQuery(store, engine)
+    vecs = enc.encode(["foo", "bar", "baz"])
+    nodes = [ConeNode(id=NodeId(f"n{i}"), apex=_dummy_apex(), centroid=v, aperture=0.5, prefix=Prefix(64), members=()) for i, v in enumerate(vecs)]
+    store.write(nodes, CommitId("c0"))
+    results = query.knn(vecs[0], k=2, prefix=Prefix(64))
+    assert len(results) >= 1

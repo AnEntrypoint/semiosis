@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:168:171 test_kb_empty_search_safe
+def test_kb_empty_search_safe() -> None:
+    kb = KnowledgeBase()
+    assert kb.search("x") == []
+    assert kb.diagnose().nodes == 0

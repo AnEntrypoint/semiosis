@@ -1,6 +1,0 @@
-core/test_session7.py:70:74 test_fold_budget_included_subset
-def test_fold_budget_included_subset(kb):
-    """fold_budget partitions candidates into included and excluded without loss."""
-    candidates = ["cat", "dog"]
-    r = kb.fold_budget("machine", 1000, candidates)
-    assert set(r.included) | set(r.excluded) == set(candidates)

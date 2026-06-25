@@ -1,5 +1,0 @@
-core/test_session7.py:192:195 test_compute_transition_matrix_keys
-def test_compute_transition_matrix_keys(kb, node_ids):
-    """compute_transition_matrix returns a dict."""
-    result = kb.compute_transition_matrix(node_ids)
-    assert isinstance(result, dict)

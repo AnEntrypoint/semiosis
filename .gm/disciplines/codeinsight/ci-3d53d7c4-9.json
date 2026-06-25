@@ -1,6 +1,0 @@
-core/test_agent_surface.py:47:51 test_mmr_diversity_no_duplicate_text
-def test_mmr_diversity_no_duplicate_text() -> None:
-    kb = _kb(mmr_lambda=0.5)
-    hits = kb.search("alpha", k=5)
-    texts = [h.text for h in hits]
-    assert len(texts) == len(set(texts))

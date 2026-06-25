@@ -1,5 +1,0 @@
-core/test_session7.py:77:80 test_sparse_search_returns_results
-def test_sparse_search_returns_results(kb):
-    """sparse_search returns a list."""
-    results = kb.sparse_search("neural network", k=3)
-    assert isinstance(results, list)

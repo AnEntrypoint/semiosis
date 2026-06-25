@@ -1,4 +1,0 @@
-core/test_serving.py:51:53 test_context_pack_endpoint
-def test_context_pack_endpoint() -> None:
-    r = _client().post("/context_pack", json={"query": "alpha", "max_tokens": 128})
-    assert r.status_code == 200
