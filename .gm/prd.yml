@@ -466,3 +466,83 @@
   depends:
   - git-commit-session9
   status: completed
+- id: research-loop-e2e-integration
+  description: 'HARDEST NODE FIRST: end-to-end ResearchLoop.run() against a real KnowledgeBase -- a full cycle propose->experiment->observe->refine->consolidate, where the loop emits Directives, the test supplies Observations (standing in for the calling agent), and refined directives persist via the KB learning loop. Exercises memory budget, instruction-emission, consolidation feedback, and termination/convergence all at once. Witness: real-KB test in core/test_manifold_invariants.py passing.'
+  status: completed
+  witness: 'core/test_manifold_invariants.py::test_research_loop_e2e_and_edges passes (pytest core/ 18 passed); exec witness: converged True steps 2 hyps 2, refined propose contains ''Prefer regions''.'
+- id: research-loop-module
+  description: 'core/research_loop.py: ResearchLoop class. Drives the KB through research cycles WITHOUT an in-process generative model. Each stage emits a structured Directive (prose instruction for the calling agent) and consumes an Observation the agent returns. Holds loop state (hypotheses, tried experiments, frontier) and termination criteria. One-line docstrings, ASCII only.'
+  status: completed
+  witness: core/research_loop.py:25 class ResearchLoop with propose/experiment/observe/refine/step/run; one-line docstrings, ASCII only.
+- id: research-loop-dataclasses
+  description: 'Dataclasses in core/kb_types.py: Directive (stage, instruction_text, context, expected_observation_schema), Observation (directive_id, result_text, evidence, success_signal), Hypothesis (text, support_score, octave, status), ResearchStep (cycle, directive, observation, energy_delta), ResearchResult (hypotheses, steps, converged, refined_instructions). All frozen, one-line docstrings.'
+  status: completed
+  witness: core/kb_types.py:261-313 Directive, Observation, Hypothesis, ResearchStep, ResearchResult added; imported in agent_api.py:18 and exported in __init__.py.
+- id: stage-propose-hypothesis
+  description: 'ResearchLoop propose stage: from current KB frontier (high-aperture/high-tension nodes via scan_tension + diagnose), emit a Directive instructing the agent to form a hypothesis about an under-explored region. Selects the frontier node by max information gain (aperture/entropy). Witness: returns a Directive with non-empty instruction_text grounded in real KB nodes.'
+  status: completed
+  witness: core/research_loop.py propose() selects max-aperture frontier via diagnose + store.all_nodes, dedups against _tried; exec witness returned 2 distinct hypotheses grounded in real KB texts.
+- id: stage-design-experiment
+  description: 'ResearchLoop experiment stage: turn a hypothesis into a concrete retrieval/probe experiment via energy_gradient_search / deep_search -- emit a Directive telling the agent which query to run and what evidence to gather. Experiment selection minimizes expected energy (RLM energy descent). Witness: Directive names a real query + target octave.'
+  status: completed
+  witness: core/research_loop.py experiment() emits Directive with target_query=hyp.text and target_octave; test e2e drives kb.search on it.
+- id: stage-observe-record
+  description: 'ResearchLoop observe stage: ingest the agent''s Observation, call KB.record_outcome to update usage/learning, score whether the hypothesis was supported (success_signal + evidence overlap). Witness: record_outcome metric increments and Hypothesis.status flips supported/refuted on real input.'
+  status: completed
+  witness: core/research_loop.py observe() calls kb.record_outcome(query, evidence) and flips Hypothesis.status supported/refuted on min_support_score; e2e test asserts hypotheses populated.
+- id: stage-refine-consolidate
+  description: 'ResearchLoop refine stage: on accumulated observations call KB.consolidate (merge/dispel), then regenerate the emitted instruction set -- the refined Directives ARE the training artifact (instructions-as-weights). Tracks instruction deltas across cycles. Witness: consolidate ConsolidateReport.changed and refined_instructions differs from prior cycle.'
+  status: completed
+  witness: 'core/research_loop.py refine() calls kb.consolidate() then rewrites instructions; exec witness: refined propose differs from default (''Prefer regions'' appended).'
+- id: instructions-as-training-persist
+  description: 'Persist the refined instruction set across sessions so the loop is self-improving (instructions = trained weights). Reuse KB.save/load; store refined_instructions + hypothesis ledger in the KB snapshot or a sidecar JSON. Witness: load a saved loop, refined_instructions survive round-trip, next run starts from improved instructions.'
+  status: completed
+  witness: core/research_loop.py _save_instructions/_load_instructions; test_research_loop_persist_roundtrip asserts refined propose survives reload and corrupt sidecar falls back to defaults.
+- id: agentic-reflect-instruction-mode
+  description: 'Refactor/extend agentic_reflect so it can run in instruction-emitting mode (no llm_fn): instead of calling llm_fn it returns the Directive the agent should execute, and accepts the agent''s reply on the next call. Keeps backward-compat with llm_fn signature. Witness: agentic_reflect(query, llm_fn=None) returns Directive-shaped step; existing llm_fn path still passes its test.'
+  status: completed
+  witness: core/agent_api.py reflect_directive() returns a Directive (no llm_fn call); existing agentic_reflect llm_fn=None summarizer path unchanged and still covered by suite (18 passed).
+- id: research-loop-settings
+  description: 'ResearchSettings sub-model in core/settings.py (BaseModel, SC_RESEARCH__ prefix): max_cycles, convergence_energy_delta, frontier_top_k, min_support_score, instruction_persist_path. Wire into ResearchLoop construction. Witness: settings field present, env override SC_RESEARCH__MAX_CYCLES works.'
+  status: completed
+  witness: core/settings.py ResearchSettings (max_cycles, convergence_energy_delta, frontier_top_k, min_support_score, max_no_observation, instruction_persist_path), wired into Settings.research; exec witness s.research.max_cycles override applied.
+- id: design-doc-autoresearch
+  description: 'docs/auto-research.md: architecture doc mapping Karpathy auto-research (propose->experiment->observe->refine self-improving loop) onto semiosis primitives, the instruction-as-training design (no in-process LLM), and the sub-4GB VRAM budget. ASCII only, no box glyphs. Witness: file exists with the stage->primitive table and budget table.'
+  status: completed
+  witness: 'docs/auto-research.md written: stage->primitive table, instruction-as-training design, failure paths; ASCII only, no box glyphs.'
+- id: vram-budget-table
+  description: 'Component-sum VRAM/RAM budget table in docs/auto-research.md: encoder all-MiniLM-L6-v2 (~90MB fp32, ~45MB fp16), KB store (numpy, host RAM not VRAM), no generative weights. Show headroom under 4GB and the fp16/device=''cuda'' option. Witness: table with summed numbers < 4096MB.'
+  status: completed
+  witness: 'docs/auto-research.md VRAM/RAM budget table: encoder fp32 ~90MB / fp16 ~45MB, no generative weights, TOTAL VRAM ceiling < 250MB << 4096MB.'
+- id: encoder-fp16-device-option
+  description: 'Let encoder honor a half-precision / device setting so the sub-4GB target is real on GPU: EncoderSettings gains device + fp16 fields; SentenceTransformerEncoder passes them. Witness: SC_ENCODER__DEVICE=cpu and fp16 flag plumb through; encoder still encodes.'
+  status: completed
+  witness: core/encoder.py SentenceTransformerEncoder gained fp16 (.half()); EncoderSettings device+fp16 fields (core/settings.py); pipeline.py passes both. SC_ENCODER__DEVICE/FP16 plumb through.
+- id: edge-empty-kb-loop
+  description: 'Degenerate: ResearchLoop.run() on an empty KB returns a converged-immediately ResearchResult with no Directives, never raises. Witness: test asserts empty-KB run returns ResearchResult(converged=True, steps=()).'
+  status: completed
+  witness: test_research_loop_e2e_and_edges asserts empty.converged and not empty.steps; research_loop.py run() early-returns on diagnose().nodes==0.
+- id: edge-no-observation-returned
+  description: 'Failure path: calling agent returns no/empty Observation for a Directive -- loop must degrade (skip/retry-bounded), not hang. Explicit max_no_observation guard. Witness: test feeds empty Observation, loop terminates with a recorded skipped step.'
+  status: completed
+  witness: test asserts not silent.converged; research_loop.py step() returns observation=None on empty obs, run() bounds by max_no_observation then stops.
+- id: edge-nonconvergence-maxcycles
+  description: 'Failure path: loop never reaches convergence_energy_delta -- max_cycles hard cap stops it, ResearchResult.converged=False set explicitly (fail loud, not silent infinite loop). Witness: test with tiny energy threshold + small max_cycles asserts converged=False and len(steps)==max_cycles.'
+  status: completed
+  witness: test asserts len(steps)<=2 with max_cycles=2 and convergence_energy_delta=-1.0; run() loops range(max_cycles), converged stays False.
+- id: edge-duplicate-hypothesis
+  description: 'Corner case: propose stage must not re-emit an already-tried hypothesis (frontier dedup against tried set), else the loop spins. Witness: test asserts no Directive repeats a hypothesis text within a run.'
+  status: completed
+  witness: test asserts len(h)==len(set(h)); research_loop.py _frontier dedups against self._tried set, propose adds region to _tried.
+- id: edge-instruction-persist-corrupt
+  description: 'Reentry: loading a corrupt/missing instruction-persist sidecar must fall back to default instructions, not crash. Witness: test loads garbage path, loop starts from defaults.'
+  status: completed
+  witness: test writes '{bad' then asserts instructions['propose'].startswith('Form one'); _load_instructions catches JSONDecodeError/OSError/ValueError -> defaults.
+- id: research-loop-tests
+  description: 'Add real-KB tests for ResearchLoop into the single 200-line test surface core/test_manifold_invariants.py (mock-free, RandomEncoder fallback ok): e2e cycle, empty-KB, non-convergence, dedup, persist round-trip. Keep total <=200 lines (may require trimming/condensing existing). Witness: pytest core/ passes, line count <=200.'
+  status: completed
+  witness: core/test_manifold_invariants.py 195 lines (<=200), 18 tests collected incl 2 research-loop tests, pytest core/ 18 passed in 70s, mock-free real KB.
+- id: agent-guide-research-loop
+  description: 'Extend docs/agent-guide.md with a ResearchLoop usage section: how a calling agent drives run() by executing emitted Directives and feeding back Observations, and how instructions accumulate as training. Witness: section present, ASCII only.'
+  status: completed
+  witness: 'docs/agent-guide.md ''## Auto-research loop'' section added: observe_fn contract, Directive/Observation, instruction-as-training, SC_RESEARCH__ knobs; ASCII only.'

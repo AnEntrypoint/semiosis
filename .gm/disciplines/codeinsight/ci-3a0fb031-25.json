@@ -1,0 +1,5 @@
+core/kb_types.py:47:50 FlowNeighbor
+class FlowNeighbor:
+    text: str
+    gradient: float
+    direction: str

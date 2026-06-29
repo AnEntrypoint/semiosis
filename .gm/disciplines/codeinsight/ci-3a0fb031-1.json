@@ -1,0 +1,5 @@
+core/kb_types.py:251:254 EnergyStep
+class EnergyStep:
+    node_id: str
+    energy: float
+    octave: int

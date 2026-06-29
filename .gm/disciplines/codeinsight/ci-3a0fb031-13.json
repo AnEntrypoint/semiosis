@@ -1,0 +1,6 @@
+core/kb_types.py:152:156 ManifoldComplexity
+class ManifoldComplexity:
+    """Intrinsic dimensionality of query neighborhood."""
+    intrinsic_dim: float
+    suggested_octave: int
+    complexity_label: str

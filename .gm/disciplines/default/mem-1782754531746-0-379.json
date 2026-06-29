@@ -1,0 +1,3 @@
+## Resolved mutable: mut-sub4gb-llm-choice
+
+User directive 2026-06-29: no local LLM loaded ('none'). The ResearchLoop instructs the calling agent to perform the generative steps; only the embedding encoder runs in-process. Sub-4GB is satisfied by construction (all-MiniLM-L6-v2 ~80MB, no generative weights). gm-method lesson: instruction-emitting loop replaces in-process model.

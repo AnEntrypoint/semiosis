@@ -1,0 +1,6 @@
+core/kb_types.py:54:58 TensionPair
+class TensionPair:
+    text_a: str
+    text_b: str
+    tension: float
+    kind: str

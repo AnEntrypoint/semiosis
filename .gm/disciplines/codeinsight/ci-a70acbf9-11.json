@@ -1,6 +1,0 @@
-core/agent_api.py:205:209 ContrastiveDirection
-class ContrastiveDirection:
-    """Direction vector representing what separates two concepts."""
-    direction_vec: tuple
-    contrast_score: float
-    octave: int

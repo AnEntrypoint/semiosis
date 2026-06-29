@@ -30,6 +30,8 @@ class KnowledgePipeline:
             self._encoder = SentenceTransformerEncoder(
                 model_name=cfg.encoder.model,
                 octaves=cfg.encoder.octaves,
+                device=cfg.encoder.device,
+                fp16=cfg.encoder.fp16,
             )
         except RuntimeError:
             self._encoder = RandomEncoder(octaves=cfg.encoder.octaves)

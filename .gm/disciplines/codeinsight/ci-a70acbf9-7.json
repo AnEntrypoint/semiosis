@@ -1,7 +1,0 @@
-core/agent_api.py:238:243 ConceptBoundary
-class ConceptBoundary:
-    """Hyperplane separating two concept clusters."""
-    midpoint: tuple
-    normal_vec: tuple
-    margin: float
-    octave: int

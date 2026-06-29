@@ -1,6 +1,0 @@
-core/agent_api.py:132:136 TrajectoryStep
-class TrajectoryStep:
-    node_id: str
-    octave: int
-    distance_from_prev: float
-    direction_vec: tuple[float, ...]

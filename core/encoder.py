@@ -54,6 +54,7 @@ class SentenceTransformerEncoder:
         octaves: tuple[int, ...] = (64, 128, 256, 512, 1024),
         device: "str | None" = None,
         normalize: bool = True,
+        fp16: bool = False,
     ) -> None:
         try:
             from sentence_transformers import SentenceTransformer as _ST
@@ -62,6 +63,11 @@ class SentenceTransformerEncoder:
                 "sentence-transformers is required; install with: pip install sentence-transformers"
             )
         self._model = _ST(model_name, device=device)
+        if fp16:  # halve VRAM for the sub-4GB target on GPU
+            try:
+                self._model = self._model.half()
+            except Exception:
+                pass
         self._octaves = octaves
         self._normalize = normalize
 

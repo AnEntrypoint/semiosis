@@ -1,0 +1,7 @@
+core/kb_types.py:218:223 ConceptBoundary
+class ConceptBoundary:
+    """Hyperplane separating two concept clusters."""
+    midpoint: tuple
+    normal_vec: tuple
+    margin: float
+    octave: int

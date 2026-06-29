@@ -53,6 +53,18 @@ cone apex), so relevance is real; the cone math drives containment/tension/flow.
 /navigate /deep_search /tension, GET /diagnose /tools (capability manifest) /health
 /ready. Install the `serving` extra.
 
+## Auto-research loop
+
+`ResearchLoop(kb).run(observe_fn)` drives the KB through propose-experiment-observe-refine
+cycles WITHOUT an in-process LLM. Each cycle emits a `Directive` (a prose instruction);
+YOU, the calling agent, execute it and return an `Observation(evidence=..., success_signal=...)`.
+The loop calls `record_outcome` and `consolidate` for you, and the refined instruction set it
+returns (`ResearchResult.refined_instructions`) is the trained artifact -- it sharpens toward
+confirmed regions and persists across sessions via `SC_RESEARCH__INSTRUCTION_PERSIST_PATH`.
+`observe_fn(directive) -> Observation` is the only thing you supply. See docs/auto-research.md
+for the stage->primitive map and the sub-4GB VRAM budget. Knobs: `SC_RESEARCH__MAX_CYCLES`,
+`CONVERGENCE_ENERGY_DELTA`, `FRONTIER_TOP_K`, `MIN_SUPPORT_SCORE`, `MAX_NO_OBSERVATION`.
+
 ## Tuning
 
 Env prefix `SC_`, nested `__`. Agent knobs under `SC_AGENT__`: `usage_weight`,

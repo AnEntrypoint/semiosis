@@ -1,0 +1,6 @@
+core/kb_types.py:120:124 SemanticTrajectory
+class SemanticTrajectory:
+    steps: tuple[TrajectoryStep, ...]
+    total_distance: float
+    coherence_score: float
+    energy_cost: float

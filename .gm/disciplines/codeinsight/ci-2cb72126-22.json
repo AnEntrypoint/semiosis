@@ -1,6 +1,0 @@
-core/test_manifold_invariants.py:97:101 test_cone_engine_fit_two_nodes
-def test_cone_engine_fit_two_nodes() -> None:
-    engine = HyperbolicConeEngine(ConeSettings())
-    tree = _dummy_tree(n=2)
-    nodes = engine.fit(tree)
-    assert all(n.aperture >= 0.1 for n in nodes)

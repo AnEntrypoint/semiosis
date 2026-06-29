@@ -1,9 +1,0 @@
-core/agent_api.py:286:293 StubSummarizer
-class StubSummarizer:
-    """Summarizer that combines first two member texts; no LLM required; used by default."""
-
-    def summarize(self, node_id: str, member_texts: list[str]) -> str:
-        if not member_texts:
-            return f"category:{node_id}"
-        preview = "; ".join(member_texts[:2])
-        return f"Category covering: {preview}"

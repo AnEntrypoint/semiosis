@@ -1,0 +1,6 @@
+core/kb_types.py:243:247 CategoricalParentHit
+class CategoricalParentHit:
+    node_id: str
+    summary: str
+    embedding_sim: float
+    confidence_ratio: float = 1.0

@@ -1,5 +1,0 @@
-core/agent_api.py:68:71 FlowNeighbor
-class FlowNeighbor:
-    text: str
-    gradient: float
-    direction: str

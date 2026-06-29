@@ -1,0 +1,6 @@
+core/kb_types.py:112:116 TrajectoryStep
+class TrajectoryStep:
+    node_id: str
+    octave: int
+    distance_from_prev: float
+    direction_vec: tuple[float, ...]

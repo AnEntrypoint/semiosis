@@ -1,5 +1,0 @@
-core/agent_api.py:83:86 DeepSearchResult
-class DeepSearchResult:
-    texts: tuple[str, ...]
-    evidence: tuple[str, ...]
-    trace: tuple[tuple, ...]

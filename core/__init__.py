@@ -19,11 +19,13 @@ from .interfaces import (
 )
 from .pipeline import KnowledgePipeline
 from .recursive import RecursiveAnswerEngine, RecursiveResult
+from .research_loop import ResearchLoop
+from .kb_types import Directive, Observation, Hypothesis, ResearchStep, ResearchResult
 from .semiotic_memory import SemioticMemory, MemoryKind, SessionMetadata, Fact
 from .serialization import cone_node_to_dict, cone_node_from_dict
 from .settings import (
     Settings, EncoderSettings, ConeSettings, StoreSettings,
-    MemorySettings, ContextSettings, RecursiveSettings, AgentSettings,
+    MemorySettings, ContextSettings, RecursiveSettings, ResearchSettings, AgentSettings,
 )
 from .store import InMemoryStore, InMemoryQuery
 from . import dag, eval
@@ -36,6 +38,7 @@ __all__ = [
     "ContextPack", "ContextEntry", "ContextPackBuilder", "ContextPackConfig",
     "TokenCounter", "HeuristicTokenCounter",
     "RecursiveAnswerEngine", "RecursiveResult",
+    "ResearchLoop", "Directive", "Observation", "Hypothesis", "ResearchStep", "ResearchResult",
     "SemioticMemory", "MemoryKind", "SessionMetadata", "Fact",
     "RandomEncoder", "FixedClusterer", "SentenceTransformerEncoder", "AgglomerativeClusterer",
     "InMemoryStore", "InMemoryQuery",
@@ -45,6 +48,6 @@ __all__ = [
     "EuclideanVec", "LorentzVec", "phrase_to_text_index",
     "Encoder", "HierarchicalClusterer", "ConeEmbedder", "Store", "Labeler", "Query",
     "Settings", "EncoderSettings", "ConeSettings", "StoreSettings",
-    "MemorySettings", "ContextSettings", "RecursiveSettings", "AgentSettings",
+    "MemorySettings", "ContextSettings", "RecursiveSettings", "ResearchSettings", "AgentSettings",
     "dag", "eval",
 ]

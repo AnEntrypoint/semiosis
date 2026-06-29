@@ -1,0 +1,7 @@
+core/kb_types.py:15:20 FailureMode
+class FailureMode(Enum):
+    NONE = "none"
+    OUTSIDE_CONE = "outside_cone"
+    BOUNDARY_AMBIGUOUS = "boundary_ambiguous"
+    OVER_COMPRESSED = "over_compressed"
+    OCTAVE_MISMATCH = "octave_mismatch"

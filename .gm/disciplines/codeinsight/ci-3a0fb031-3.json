@@ -1,0 +1,6 @@
+core/kb_types.py:235:239 ReflectStep
+class ReflectStep:
+    round: int
+    query: str
+    hits: list
+    observation: str

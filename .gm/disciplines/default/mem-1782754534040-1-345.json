@@ -1,0 +1,3 @@
+## Resolved mutable: mut-vram-budget-witness
+
+No generative model in-process per user directive; VRAM ceiling = encoder only. core/encoder.py:48 SentenceTransformerEncoder wraps all-MiniLM-L6-v2 (~22M params, ~90MB fp32). Witnessable via existing pipeline; no CUDA generative allocation. Budget row retained for a documented component-sum table.

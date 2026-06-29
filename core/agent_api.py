@@ -16,7 +16,7 @@ from .kb_types import (  # noqa: F401 -- re-exported for backwards compat
     ManifoldComplexity, FoldBudgetResult, SparseSearchResult, IngestStreamResult,
     ContrastiveDirection, QueryDecomposition, AttentionScore, AnalogyResult,
     ConceptBoundary, DispelReport, ReflectStep, CategoricalParentHit, EnergyStep,
-    SemanticDirectionError,
+    SemanticDirectionError, Directive, Observation, Hypothesis, ResearchStep, ResearchResult,
 )
 from .pipeline import KnowledgePipeline
 from .recursive import RecursiveAnswerEngine, RecursiveResult
@@ -1023,6 +1023,16 @@ class KnowledgeBase:
             steps=tuple(steps), total_distance=total,
             coherence_score=coherence, energy_cost=energy,
         )
+
+    def reflect_directive(self, query: str) -> "Directive":
+        """Instruction-emitting reflection: return the Directive for the agent, no llm_fn call."""
+        from .research_loop import ResearchLoop
+        loop = ResearchLoop(self, self._settings)
+        hits = self.search(query, k=5)
+        text = loop.instructions["observe"]
+        return Directive(stage="observe", instruction_text=text, target_query=query,
+                         context=tuple(h.text for h in hits[:3]),
+                         expected="supported texts and a support_signal in [0,1]")
 
     def agentic_reflect(self, query: str, llm_fn=None, max_rounds: int = 3,
                         reflect_strategy: str = "rephrase") -> list:

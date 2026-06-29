@@ -1,0 +1,5 @@
+core/kb_types.py:169:172 SparseSearchResult
+class SparseSearchResult:
+    """SearchHit with sparse mask weight."""
+    hit: SearchHit
+    sparse_score: float

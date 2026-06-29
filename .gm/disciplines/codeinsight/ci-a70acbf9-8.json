@@ -1,6 +1,0 @@
-core/agent_api.py:230:234 AnalogyResult
-class AnalogyResult:
-    """word2vec-style A:B::C:X analogy result."""
-    hits: tuple
-    direction_used: tuple
-    analogy_score: float

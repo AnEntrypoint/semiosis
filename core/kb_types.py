@@ -256,3 +256,58 @@ class EnergyStep:
 
 class SemanticDirectionError(ValueError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class Directive:
+    """Instruction emitted for the calling agent to execute; the agent IS the LLM."""
+    stage: str
+    instruction_text: str
+    cycle: int = 0
+    context: tuple[str, ...] = ()
+    target_query: str = ""
+    target_octave: int = 0
+    expected: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class Observation:
+    """Calling agent's reply to a Directive; success_signal in [0,1]."""
+    directive_stage: str
+    result_text: str = ""
+    evidence: tuple[str, ...] = ()
+    success_signal: float = 0.0
+
+
+@dataclass
+class Hypothesis:
+    """A proposed claim about an under-explored KB region; status set on observe."""
+    text: str
+    support_score: float = 0.0
+    octave: int = 0
+    status: str = "open"  # open | supported | refuted
+
+
+@dataclass
+class ResearchStep:
+    cycle: int
+    directive: Directive
+    observation: "Observation | None"
+    energy_delta: float = 0.0
+
+
+@dataclass
+class ResearchResult:
+    """Outcome of a ResearchLoop run; refined_instructions is the trained artifact."""
+    hypotheses: list = None
+    steps: list = None
+    converged: bool = False
+    refined_instructions: dict = None
+
+    def __post_init__(self) -> None:
+        if self.hypotheses is None:
+            self.hypotheses = []
+        if self.steps is None:
+            self.steps = []
+        if self.refined_instructions is None:
+            self.refined_instructions = {}

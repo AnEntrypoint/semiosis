@@ -1,0 +1,11 @@
+core/kb_types.py:24:33 SearchHit
+class SearchHit:
+    text: str
+    score: float
+    node_id: str
+    octave: int
+    members: tuple[str, ...] = ()
+    aperture: float = 0.0
+    local_entropy: float = 0.0
+    evidence_path_count: int = 1
+    uncertainty_score: float = 0.0

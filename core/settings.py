@@ -18,6 +18,8 @@ class EncoderSettings(BaseModel):
     model: str = "sentence-transformers/all-MiniLM-L6-v2"
     octaves: tuple[int, ...] = (64, 128, 256, 512, 1024)
     batch_size: int = Field(128, ge=1)
+    device: str | None = None   # 'cpu'|'cuda'|None(auto); set cpu for zero-VRAM
+    fp16: bool = False          # half-precision weights; halves encoder VRAM on GPU
 
     @field_validator("octaves")
     @classmethod
@@ -70,6 +72,15 @@ class RecursiveSettings(BaseModel):
     min_aperture_stop: float = Field(0.1, ge=0.0)
 
 
+class ResearchSettings(BaseModel):
+    max_cycles: int = Field(8, ge=1)                       # hard cap; fail loud past it
+    convergence_energy_delta: float = Field(0.01, ge=0.0)  # stop when energy improves less than this
+    frontier_top_k: int = Field(5, ge=1)                   # candidate regions per propose stage
+    min_support_score: float = Field(0.5, ge=0.0, le=1.0)  # observation success threshold
+    max_no_observation: int = Field(3, ge=1)               # bound on empty-observation skips
+    instruction_persist_path: str = ""                     # sidecar for refined instructions; empty == no persist
+
+
 class AgentSettings(BaseModel):
     usage_weight: float = Field(0.0, ge=0.0)        # blend of usage feedback into ranking; 0 == pure relevance
     mmr_lambda: float = Field(0.7, ge=0.0, le=1.0)  # 1.0 == pure relevance, lower == more diversity
@@ -88,5 +99,6 @@ class Settings(BaseSettings):
     memory: MemorySettings = MemorySettings()
     context: ContextSettings = ContextSettings()
     recursive: RecursiveSettings = RecursiveSettings()
+    research: ResearchSettings = ResearchSettings()
     agent: AgentSettings = AgentSettings()
     enable_nla_labels: bool = False            # optional, decoupled

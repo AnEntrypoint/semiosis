@@ -1,7 +1,0 @@
-core/agent_api.py:163:168 RecursiveAnswerResult
-class RecursiveAnswerResult:
-    """Result of recursive LLM-driven octave descent."""
-    answer_nodes: tuple
-    depth_reached: int
-    energy_total: float
-    sub_queries: tuple

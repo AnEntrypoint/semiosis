@@ -1,0 +1,6 @@
+core/kb_types.py:135:139 CompressedHierarchy
+class CompressedHierarchy:
+    """Info-bottleneck pruned node set."""
+    retained_nodes: tuple
+    dropped_nodes: tuple
+    info_retained_ratio: float
