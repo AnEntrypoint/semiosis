@@ -14,10 +14,10 @@ from .kb_types import (
 from .settings import Settings
 
 _DEFAULT_INSTRUCTIONS = {
-    "propose": "Form one falsifiable hypothesis about the region '{region}' (aperture {aperture:.3f}); state what evidence would support or refute it.",
-    "experiment": "Run query '{query}' against the KB at octave {octave} and gather the texts that bear on the hypothesis.",
-    "observe": "Report which retrieved texts supported the hypothesis and a support_signal in [0,1].",
-    "refine": "Given the supported and refuted hypotheses so far, restate the sharpest open question to pursue next.",
+    "propose": "'{region}' keeps coming up and you do not actually know if it holds (it is loose, aperture {aperture:.3f}). What would you bet on here, and what single thing would make you wrong?",
+    "experiment": "You cannot settle '{query}' from where you sit. Go look at octave {octave}, pull what actually bears on it, and bring back the texts.",
+    "observe": "Now that you have looked: did it hold? Say what you saw and how sure that leaves you, from not-at-all to certain.",
+    "refine": "Something here still does not sit right. What is the one question you most need answered next?",
 }
 
 _STAGES = ("propose", "experiment", "observe", "refine")
@@ -99,12 +99,12 @@ class ResearchLoop:
         if supported:
             refined["propose"] = (
                 _DEFAULT_INSTRUCTIONS["propose"]
-                + " Prefer regions adjacent to confirmed: " + "; ".join(supported[:3]) + "."
+                + " You already trust this much: " + "; ".join(supported[:3]) + "; look near it."
             )
         if refuted:
             refined["experiment"] = (
                 _DEFAULT_INSTRUCTIONS["experiment"]
-                + " Avoid re-probing refuted: " + "; ".join(refuted[:3]) + "."
+                + " You already went down these and they led nowhere: " + "; ".join(refuted[:3]) + "."
             )
         self.instructions = refined
         directive = Directive(

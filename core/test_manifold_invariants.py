@@ -174,7 +174,7 @@ def test_research_loop_e2e_and_edges() -> None:
     assert isinstance(res, ResearchResult) and res.converged and res.hypotheses
     h = [x.text for x in res.hypotheses]
     assert len(h) == len(set(h))                                  # dedup
-    assert "Prefer regions" in res.refined_instructions["propose"]  # instructions trained
+    assert "look near it" in res.refined_instructions["propose"]   # instructions trained
     empty = ResearchLoop(KnowledgeBase()).run(_agent(kb))
     assert empty.converged and not empty.steps                     # empty-KB
     silent = ResearchLoop(kb).run(lambda d: Observation(directive_stage=d.stage))
@@ -188,7 +188,7 @@ def test_research_loop_persist_roundtrip() -> None:
     if os.path.exists(p): os.remove(p)
     s = _s(); s.research.instruction_persist_path = p
     ResearchLoop(kb, s).run(_agent(kb))
-    assert "Prefer regions" in ResearchLoop(kb, s).instructions["propose"]
+    assert "look near it" in ResearchLoop(kb, s).instructions["propose"]
     with open(p, "w") as f: f.write("{bad")
-    assert ResearchLoop(kb, s).instructions["propose"].startswith("Form one")
+    assert "keeps coming up" in ResearchLoop(kb, s).instructions["propose"]
     os.remove(p)

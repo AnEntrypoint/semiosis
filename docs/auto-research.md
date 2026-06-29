@@ -1,5 +1,9 @@
 # Auto-research over semiosis (sub-4GB VRAM)
 
+Maintainer-facing: this explains the machinery. The driven agent never sees these stage
+names -- it only meets the emitted questions (see skills/research-loop-skill/SKILL.md),
+which are written as predicaments, not as labeled steps.
+
 Combines Karpathy-style auto-research (a self-improving loop: propose hypothesis ->
 design experiment -> run -> observe -> refine) with the semiosis hyperbolic-cone
 KnowledgeBase, under a hard sub-4GB VRAM budget.

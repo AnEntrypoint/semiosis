@@ -586,3 +586,39 @@
   description: 'Enforce no-Unicode-glyph rule on the new skill file AND sweep skills/ + docs/auto-research.md for any stray box/arrow/emoji glyphs introduced this session; convert to ASCII. Witness: grep for non-ASCII decorative glyphs over skills/ and new docs returns clean.'
   status: completed
   witness: grep -rP '[^\x00-\x7F]' over skills/ and docs/auto-research.md returns CLEAN no non-ascii.
+- id: implicit-directive-prose
+  description: 'HARDEST NODE: rewrite _DEFAULT_INSTRUCTIONS in core/research_loop.py so each emitted Directive reads as a genuine predicament/question the agent must resolve, NOT a labeled stage task. propose: a felt gap about {region} the agent is cornered into staking a claim on; experiment: a doubt that can only be settled by going and looking ({query}/{octave}); observe: confronts the agent with what it actually found vs expected; refine: the unresolved tension that pulls to the next question. No words ''hypothesis''/''falsifiable''/''support_signal''/''stage'' that narrate the apparatus. Keep .format placeholders ({region},{aperture},{query},{octave}) intact so run() still fills them. Witness: exec shows Directives emitted with situational prose, loop still converges True.'
+  status: completed
+  witness: core/research_loop.py _DEFAULT_INSTRUCTIONS rewritten to predicaments ('keeps coming up and you do not actually know if it holds...what would make you wrong?'; 'You cannot settle X from where you sit. Go look.'); .format placeholders intact; exec emitted situational prose, converged True.
+- id: implicit-refine-appends
+  description: 'Reshape the literal strings refine() appends in core/research_loop.py (''Prefer regions adjacent to confirmed: ...'' / ''Avoid re-probing refuted: ...'') so the accumulated/trained instruction stays in the implicit voice (a pull toward what held, a wariness of what didn''t) rather than naming ''confirmed''/''refuted'' as meta-labels. Must remain a detectable delta from the default for the persistence witness. Witness: refined propose differs from default, exec confirms.'
+  status: completed
+  witness: 'core/research_loop.py refine() appends reshaped to implicit voice (''You already trust this much: ...; look near it.'' / ''You already went down these and they led nowhere: ...''); exec confirms refined propose contains ''look near it'', a detectable delta from default.'
+- id: implicit-skill-reframe
+  description: 'Rewrite skills/research-loop-skill/SKILL.md to maximize implicitness: REMOVE the explicit meta-exposition (''You are the LLM the loop calls'', the propose/experiment/observe/refine stage table, ''instructions-as-training'' narration). Replace with framing that drops the agent into the predicament -- you are handed a question about the KB, you go find the answer, you hand back what you actually found and how sure you are; doing this repeatedly is the work. The loop''s internal structure is never named TO the agent. The agent does research because it is cornered into it, not described to. Keep it runnable (observe_fn contract still derivable). Same gm finesse, ASCII only. Witness: file no longer contains ''You are the LLM''/''propose/experiment/observe/refine'' stage labels in the agent-facing voice; exec still runs.'
+  status: completed
+  witness: 'skills/research-loop-skill/SKILL.md rewritten: removed ''You are the LLM'', stage table, instructions-as-training narration; replaced with predicament framing (''You do not get to decide what to look into. A question arrives, already sharp...you keep going until nothing pulls anymore''). grep confirms no apparatus vocab in agent-facing voice.'
+- id: implicit-observe-fn-contract-minimal
+  description: 'In the reshaped SKILL.md, the observe_fn/Observation contract must still be discoverable (it is a real API the driver code needs) but presented as ''what you hand back after looking'' (what you found, the evidence, how sure) rather than as a labeled protocol step. Strike the balance: implicit framing without breaking the runnable contract. Witness: a driver written only from the new SKILL.md still produces a valid Observation and converges.'
+  status: completed
+  witness: SKILL.md 'The callback' section presents Observation as 'what you bring back' (what you saw, evidence, how sure) not a labeled protocol; a driver written purely from the new framing (answer(question) using question.target_query/stage) converged True with 2 hypotheses.
+- id: implicit-test-witness-update
+  description: 'core/test_manifold_invariants.py asserts ''Prefer regions'' in refined_instructions[''propose''] and propose.startswith(''Form one''). Reshaping the prose breaks both literal witnesses. Update the test assertions to the new implicit marker strings (refined != default delta; default-fallback detection) WITHOUT loosening what they prove. Keep file <=200 lines. Witness: pytest core/ passes with updated assertions.'
+  status: completed
+  witness: 'core/test_manifold_invariants.py assertions updated: ''look near it'' in refined propose (trained delta), ''keeps coming up'' in fallback propose (default detection); pytest core/ 18 passed; file still <=200 lines.'
+- id: implicit-docstring-internal-only
+  description: 'The propose/experiment/observe/refine vocabulary is fine in code-internal names (_STAGES, method names, docstrings) since those face the maintainer, NOT the driven agent. Confirm the implicitness reshape touches only agent-FACING surfaces (Directive prose, SKILL.md), leaving the internal API names stable so existing imports/tests/docs don''t churn. Witness: _STAGES and method names unchanged; only prose strings + SKILL.md changed.'
+  status: completed
+  witness: _STAGES tuple and method names (propose/experiment/observe/refine) and code comments unchanged in core/research_loop.py; only the prose STRINGS and SKILL.md/agent-guide changed. Internal maintainer-facing vocabulary stable, no import/test churn.
+- id: implicit-docs-consistency
+  description: 'docs/auto-research.md and docs/agent-guide.md describe the loop with the explicit stage framing. Decide per-surface: maintainer-facing docs (auto-research.md architecture) may keep explicit stage names (they explain the machinery to a developer); but any agent-FACING instruction in agent-guide.md should align with the implicit reshape. Update only where the audience is the driven agent. Witness: agent-guide research section reads in the implicit voice; auto-research.md unchanged or annotated as maintainer-facing.'
+  status: completed
+  witness: 'docs/agent-guide.md research section rewritten to implicit voice (hands you one question at a time...go look, bring back) pointing to research-loop-skill; docs/auto-research.md annotated ''Maintainer-facing: the driven agent never sees these stage names'' so its explicit machinery is correctly scoped to developers.'
+- id: implicit-runnable-witness
+  description: 'End-to-end witness: a driver constructed purely from the reshaped SKILL.md framing runs the loop to convergence and the emitted Directive prose contains NO apparatus vocabulary in the agent-facing text. exec prints the actual emitted instruction_text for each stage to confirm it reads as a predicament. Witness: exec output shows situational prose + converged True.'
+  status: completed
+  witness: 'exec printed emitted instruction_text per stage: all read as predicaments with no apparatus vocabulary in agent-facing text; converged True. pytest core/ 18 passed.'
+- id: implicit-no-glyph-sweep
+  description: 'No-Unicode-glyph sweep over the reshaped skills/research-loop-skill/SKILL.md, core/research_loop.py prose, docs touched. Convert any stray glyph to ASCII. Witness: grep non-ascii over changed files returns clean.'
+  status: completed
+  witness: grep -rP '[^\x00-\x7F]' over skills/research-loop-skill/SKILL.md, core/research_loop.py, docs/auto-research.md, docs/agent-guide.md returns CLEAN.
