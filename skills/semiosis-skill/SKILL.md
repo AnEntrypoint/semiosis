@@ -167,6 +167,12 @@ Decision additions:
 - need activation-prediction or standard embedding -> activation_embed
 - need efficient concept localization via energy -> energy_gradient_search
 
+## Autonomous research
+
+For open-ended research (not a single retrieval), drive the auto-research loop via
+`research-loop-skill` (`Skill(skill="research-loop-skill")`): it emits Directives you
+execute against this KB and accumulates a trained instruction set across sessions.
+
 ## Invariants
 
 - Manifold: Lorentz/hyperboloid; `_EPS=1e-7` arccos clamp, `_MIN_APERTURE=0.1` rad floor.

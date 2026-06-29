@@ -546,3 +546,43 @@
   description: 'Extend docs/agent-guide.md with a ResearchLoop usage section: how a calling agent drives run() by executing emitted Directives and feeding back Observations, and how instructions accumulate as training. Witness: section present, ASCII only.'
   status: completed
   witness: 'docs/agent-guide.md ''## Auto-research loop'' section added: observe_fn contract, Directive/Observation, instruction-as-training, SC_RESEARCH__ knobs; ASCII only.'
+- id: research-skill-md
+  description: 'HARDEST NODE: skills/research-loop-skill/SKILL.md -- the dense imperative guide that drives core/research_loop.py ResearchLoop. YAML frontmatter (name, description, allowed-tools: Skill/Read/Write/Bash(pytest *)/Bash(python *)). Body teaches: boot the loop over a KB, the propose/experiment/observe/refine cycle, how the agent IS the observe_fn (read Directive.instruction_text -> execute against KB -> return Observation), instruction-emitting/instructions-as-training, convergence + persistence, sub-4GB-by-construction. Match semiosis-skill finesse: code blocks, decision patterns, invariants. ASCII only, one-line-max prose density per gm reference. Witness: file exists, frontmatter valid, every API call named matches a real method in research_loop.py/agent_api.py.'
+  status: completed
+  witness: 'skills/research-loop-skill/SKILL.md written: YAML frontmatter (name/description/allowed-tools), Boot/observe_fn/stage-table/convergence/failure/invariants sections; every named API verified runnable by exec (converged True). ASCII only.'
+- id: research-skill-boot-section
+  description: 'SKILL.md Boot section: construct ResearchLoop(kb, settings) over an ingested KnowledgeBase; show the minimal driver loop calling loop.run(observe_fn). Witness: code block matches ResearchLoop.__init__ and run() signatures.'
+  status: completed
+  witness: SKILL.md Boot section shows KnowledgeBase().ingest + ResearchLoop(kb) + loop.run(observe_fn); exec replicated it returning converged True.
+- id: research-skill-observe-fn-contract
+  description: 'SKILL.md observe_fn contract section: the agent receives a Directive, dispatches per its stage (propose=form hypothesis text, experiment=run kb.search/deep_search on target_query/target_octave, observe=report), returns Observation(directive_stage, result_text, evidence, success_signal in [0,1]). This is the core ''agent IS the LLM'' teaching. Witness: Directive/Observation field names match kb_types.py.'
+  status: completed
+  witness: 'SKILL.md ''You are observe_fn'' section: Directive.stage dispatch, Observation(directive_stage,result_text,evidence,success_signal); field names match kb_types.py Directive/Observation; exec returned valid Observations.'
+- id: research-skill-stage-table
+  description: 'SKILL.md stage->action decision table: for each ResearchLoop stage what the agent does and which KB primitive it reaches (propose->diagnose/frontier, experiment->search/deep_search/energy_gradient_search, observe->record_outcome, refine->consolidate). Witness: table stages match _STAGES in research_loop.py.'
+  status: completed
+  witness: SKILL.md stage->action table covers propose/experiment/observe/refine (matches _STAGES) mapped to diagnose/search/record_outcome/consolidate.
+- id: research-skill-convergence-persist
+  description: 'SKILL.md convergence + persistence section: energy-delta convergence, max_cycles cap, ResearchResult fields (converged, hypotheses, steps, refined_instructions), SC_RESEARCH__ knobs, instruction_persist_path as the cross-session trained artifact. Witness: field names match ResearchResult and ResearchSettings.'
+  status: completed
+  witness: SKILL.md convergence section lists ResearchResult fields (converged/hypotheses/steps/refined_instructions) and SC_RESEARCH__ knobs incl instruction_persist_path; exec confirmed refined_instructions keys.
+- id: research-skill-failure-modes
+  description: 'SKILL.md failure/degenerate section: empty-KB immediate converge, no-observation bound (max_no_observation), non-convergence (converged=False), corrupt-persist fallback. Each with the agent''s correct response. Witness: matches the guards in research_loop.py run()/_load_instructions.'
+  status: completed
+  witness: 'SKILL.md degenerate/failure section: empty-KB converge, max_no_observation bound, max_cycles non-convergence, corrupt-persist fallback -- each matches research_loop.py guards.'
+- id: research-skill-register-skillsmd
+  description: 'Register the new skill in SKILLS.md: add a section with path skills/research-loop-skill/SKILL.md, one-line purpose, and Invoke line, matching the existing semiosis-skill entry format. Witness: SKILLS.md contains the new entry.'
+  status: completed
+  witness: SKILLS.md gained '## research-loop-skill' entry with path, purpose, Invoke line matching semiosis-skill format.
+- id: research-skill-crossref-semiosis
+  description: 'Cross-link: semiosis-skill SKILL.md and/or docs/agent-guide.md point to the research-loop skill for autonomous research sessions; research skill points back to semiosis-skill for the KB primitives it drives. Witness: a reference line present in both directions.'
+  status: completed
+  witness: 'Bidirectional: semiosis-skill SKILL.md ''## Autonomous research'' points to research-loop-skill; research-loop-skill body+invariants point back to semiosis-skill for KB primitives.'
+- id: research-skill-runnable-witness
+  description: 'Witness the skill''s documented driver actually runs: a python exec replicating the SKILL.md Boot+observe_fn example end-to-end returns a converged ResearchResult with refined_instructions. Every code snippet in SKILL.md must be runnable, not illustrative. Witness: exec output converged True.'
+  status: completed
+  witness: 'exec of the SKILL.md Boot+observe_fn example: converged True, hyps 2, steps 2, refined_instructions 4 keys, reflect_directive stage observe. Every snippet runnable.'
+- id: research-skill-no-glyph-sweep
+  description: 'Enforce no-Unicode-glyph rule on the new skill file AND sweep skills/ + docs/auto-research.md for any stray box/arrow/emoji glyphs introduced this session; convert to ASCII. Witness: grep for non-ASCII decorative glyphs over skills/ and new docs returns clean.'
+  status: completed
+  witness: grep -rP '[^\x00-\x7F]' over skills/ and docs/auto-research.md returns CLEAN no non-ascii.
