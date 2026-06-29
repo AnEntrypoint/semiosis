@@ -19,3 +19,19 @@
   status: witnessed
   description: 'RESHAPED per user: ResearchLoop is an instruction-emitter, not an LLM caller. Each stage (propose-hypothesis, design-experiment, run, observe, refine) emits a structured prose Directive for the CALLING agent to execute; the agent returns observations via record_outcome; the loop consolidates and the refined emitted instructions ARE the persisted training. Maps onto: agentic_reflect (becomes instruction-emitting not llm_fn-calling), energy_gradient_search (experiment-selection by energy descent), record_outcome/consolidate (the learning step). Witness: core/research_loop.py ResearchLoop class + Directive/Observation dataclasses + a real-KB test.'
   witness_evidence: 'core/research_loop.py ResearchLoop emits Directives (propose/experiment/observe/refine) for the calling agent; agent returns Observation; loop calls record_outcome+consolidate; refined_instructions persist as the trained artifact. Witnessed by exec (converged True, instructions refined) and pytest core/ 18 passed. gm-method lesson: an instruction-emitting loop substitutes the agent-in-the-harness for an in-process model, making the emitted-then-refined prose the persisted weights.'
+- id: mut-spoint-bench-harness
+  status: witnessed
+  description: 'How spoint''s perf is actually measured/run on real input (browser via ?showStats=1, a bin/ script, or a node harness) and whether a repeatable baseline number can be captured headless in this env. Witness: an exec/browser run printing a real FPS/frame-time number from spoint.'
+  witness_evidence: 'spoint node-side: scripts/check.mjs + node --test apps/src; perf is browser-rendered via server.js + ?showStats=1 (PERF_AUDIT_REPORT.md used Chromium headless). No standalone node FPS harness; the live page is the measurement surface. bin/ holds ktx/toktx native tools, not a bench.'
+- id: mut-mapspinner-baseline
+  status: witnessed
+  description: 'mapspinner real baseline: what `npm run perf-gate` and `npm test` actually emit, and what .perf-baseline.json shaderCompileMs:35000 gates against. Witness: exec output of perf-gate / test with real numbers.'
+  witness_evidence: 'npm test green 12/12 in 7513ms; slow nodes are height-gen tests (uLandBias 2754ms, uBeachShelfM 2266ms, broadShapeLowM 2304ms, sampleField 1350ms) -- real CPU height-generation hot path. perf-gate.mjs is BROKEN: ''could not parse shaderCompileMs'' (glsl-check now emits probe:-19.47 not shaderCompileMs); non-fatal exit 0 but not actually gating -- an issue to fix.'
+- id: mut-streaming-gltf-baseline
+  status: witnessed
+  description: 'streaming-gltf real baseline: what `node test.js` and `npm run measure` (measure-fps.mjs) emit, whether they need three/playwright/a model present, and the bake pipeline cost (tools/bake-cluster.mjs). Witness: exec output with real numbers.'
+  witness_evidence: 'node test.js green (14 checks, bakes a_refrigerator GLB: 37 clusters 287.7 KiB). measure-fps.mjs needs demo server on :5180 (ERR_CONNECTION_REFUSED standalone) -- must `npm run demo:local` first or measure bake/decode directly via node. Node-measurable surface = bake + test.js.'
+- id: mut-each-repo-clean-tree
+  status: witnessed
+  description: 'Each target repo''s git tree state before I touch it (spoint on cluster-lod may have uncommitted work; commit-straight-to-branch means I must not bundle unrelated dirty files into my perf commits). Witness: git status per repo.'
+  witness_evidence: 'git -C status --porcelain empty for all three: spoint(cluster-lod), mapspinner(main), streaming-gltf(master) all clean. Perf commits will not bundle unrelated changes.'

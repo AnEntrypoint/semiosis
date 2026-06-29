@@ -16,6 +16,13 @@ thinking -- only by going to the KB and pulling what actually bears on it. You b
 what you saw and how sure that leaves you. The next question arrives shaped by what just
 held and what just fell through. You keep going until nothing pulls anymore.
 
+A prior answer -- a report, an audit, a number someone wrote down -- is not what you saw.
+It is one more claim to test, and the conditions it was taken under may no longer hold (or
+never matched the real ones). When a question lands on something a prior already "settled",
+go take the reading yourself; trust the prior only once your own look agrees with it. The
+honest end of a chase is sometimes "the thing I was sent to fix was never the problem" --
+bring that back too, it is worth more than an invented change.
+
 The KB primitives you reach for are in `semiosis-skill`; this is the harness that keeps
 handing you the next question.
 

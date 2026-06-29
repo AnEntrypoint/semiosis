@@ -622,3 +622,79 @@
   description: 'No-Unicode-glyph sweep over the reshaped skills/research-loop-skill/SKILL.md, core/research_loop.py prose, docs touched. Convert any stray glyph to ASCII. Witness: grep non-ascii over changed files returns clean.'
   status: completed
   witness: grep -rP '[^\x00-\x7F]' over skills/research-loop-skill/SKILL.md, core/research_loop.py, docs/auto-research.md, docs/agent-guide.md returns CLEAN.
+- id: tempspoint-workspace
+  description: 'Create ../tempspoint as the scratch workspace for experiments (copy/checkout of spoint or a fresh dir) so risky perf experiments never dirty the real repos. Witness: ../tempspoint exists and is usable; not committed into any target repo.'
+  status: completed
+  witness: git worktree add -f /c/dev/tempspoint cluster-lod -> 'tempspoint exists'; git worktree list shows C:/dev/tempspoint 988c50b1 [cluster-lod]. Isolated experiment dir sharing spoint git objects; not committed into any repo.
+- id: spoint-baseline-measure
+  description: 'Capture a repeatable spoint perf baseline on real input (the harness mut-spoint-bench-harness resolves to). Record frame-time/FPS numbers as the before. Witness: exec/browser output with baseline numbers.'
+  status: completed
+  witness: Subagent booted node server.js (port 3001), drove via Playwright on real AMD Radeon GPU (ANGLE D3D11), read app's window.__perf 240-sample ring. Baseline ~12-14 ms/frame (~72-85 fps), p50 11-14ms. The stale audit's '12.7 fps' was a SwiftShader software-raster artifact (--disable-gpu); real hardware already clears 30fps.
+- id: spoint-hotnode-terrain
+  description: 'HARDEST NODE: confirm by live measurement (not the stale audit) which node dominates spoint frame time -- terrain raymarching (TerrainBackdrop.js renderScale) is the prime suspect. Profile on the real surface, eliminate alternatives. Witness: profile output ranking the hot node.'
+  status: completed
+  witness: 'Terrain-raymarch hypothesis REFUTED by live measurement: wrapped window.__terrain.planet.frame = 0.2-0.3ms CPU/call; toggling window.__vdrsScale 1.0/0.75/0.5 live produced NO frame-time delta (below run-to-run variance). CDP CPU profile showed real planet p99 ~68ms spikes come from mapspinner texture streaming (loadSurfaceTextures/texSubImage2D/readPixels in node_modules/mapspinner), not per-pixel fBm. Process-of-elimination on real surface, not the stale report.'
+- id: spoint-implement-speedup
+  description: 'Implement the measurement-justified spoint speedup(s) in client/ (e.g. adaptive renderScale under frame-budget pressure, defer impostor atlas bake, atlas-size scaling) -- only those the live profile supports. Work risky variants in ../tempspoint first. Witness: code change + re-measured improvement.'
+  status: completed
+  witness: 'No code change warranted -- measurement showed adaptive renderScale buys nothing (planet draw is 0.2-0.3ms, scale toggle no delta) and the real cost is mapspinner texture streaming (out of scope for spoint). Honest no-op is the correct gm outcome: do not invent a change when measurement refutes the premise. PERF_AUDIT_REPORT.md updated with dated real-GPU correction + retracted the now-refuted P1 renderScale recommendation.'
+- id: spoint-verify-and-push
+  description: 'Re-measure spoint after the change (before/after delta witnessed), run its tests if any, then commit+push straight to cluster-lod in spoint''s own git, not bundling unrelated dirty files. Witness: after-numbers beat before, git push ahead==0.'
+  status: completed
+  witness: 'npm test 180/180 pass (clean baseline). Pushed a1b4fc60 to cluster-lod (github.com/AnEntrypoint/spoint): real-GPU re-measurement + PERF_AUDIT correction + committed perf-witness helper scripts. No before/after delta because no change was warranted (premise refuted). tempspoint received no commits from the agent.'
+- id: mapspinner-baseline-measure
+  description: 'Capture mapspinner baseline via npm run perf-gate + npm test on real input; note shaderCompileMs:35000 gate. Record before numbers. Witness: exec output.'
+  status: completed
+  witness: 'Subagent baseline: npm test ~7.5-9.6s, height tests dominate (uLandBias ~2870ms etc); controlled microbench 757.2 us/heightAt call. Recorded as before.'
+- id: mapspinner-hotnode
+  description: 'Profile mapspinner to find the dominant cost (height-gen, patch-baker, quadtree, heightfield-codec, or the 35s shader compile) on real input; eliminate alternatives by measurement. Witness: profile ranking.'
+  status: completed
+  witness: 'node --prof on warmed 4000-call heightAt loop: hot frames all in src/glsl-rt.js GLSL->JS shim (_bin 19.5%, _flat/vec3 ctors, ArrayMap, GC 14%) -- per-op array alloc + closure-per-element + megamorphic keyed swizzle load. Profile-witnessed, not guessed.'
+- id: mapspinner-implement-speedup
+  description: 'Implement the measurement-justified mapspinner speedup in src/ (algorithmic/caching/codec/streaming as the profile dictates). Witness: code change + re-measured improvement, perf-gate still passes.'
+  status: completed
+  witness: 'src/glsl-rt.js: inlined add/sub/mul/div + _u unary, fast-path vec3(x,y,z)/vec3(scalar) splat, switch-based swizzle killing megamorphic _SI[sel] load. Semantics-identical (same Math.fround, same index map). Result 398.1 us/call, -47.4%, output bit-identical (acc=-24950.15 unchanged).'
+- id: mapspinner-verify-and-push
+  description: 'Re-measure mapspinner (before/after witnessed), npm test green, perf-gate green, commit+push straight to main in mapspinner''s own git. Witness: after beats before, tests pass, push ahead==0.'
+  status: completed
+  witness: 'npm test 12/12 pass incl golden-samples regression lock + determinism; perf-gate green after parser fix; pushed commit 13da336 on main (rebased over 6fbd5e7, re-verified). Files: src/glsl-rt.js, scripts/perf-gate.mjs, .perf-baseline.json; tree otherwise clean.'
+- id: streaming-gltf-baseline-measure
+  description: 'Capture streaming-gltf baseline via node test.js + npm run measure (measure-fps.mjs) and bake cost (tools/bake-cluster.mjs) on a real model. Record before numbers. Witness: exec output.'
+  status: completed
+  witness: 'Subagent baseline: node test.js 14/14 (refrigerator 37 clusters 287.7 KiB); timed bake on test model (~20ms, too small) and largest corpus model dishwasher_v3 (766k tris -> 16883 clusters) as the real profiling target. Before buildClusterLod ~3.1-3.5s warm, cold full-bake stage 25.8s.'
+- id: streaming-gltf-hotnode
+  description: 'Profile streaming-gltf to find the dominant cost (cluster bake, meshlet-codec decode, model-pool, WEBGL_multi_draw path, draco) on real input; eliminate alternatives by measurement. Witness: profile ranking.'
+  status: completed
+  witness: 'performance.now per-stage + --prof on dishwasher_v3: buildClusterLod dominates; within it native buildMeshletsSpatial ~1.8s (65%), simplifyWithAttributes ~0.8s (30%), plus large cold GC/heap-thrash tail from JS allocation churn. Natives irreducible without semantic change; the JS alloc churn is the actionable node. Profile-witnessed.'
+- id: streaming-gltf-implement-speedup
+  description: 'Implement the measurement-justified streaming-gltf speedup (bake-time or decode-time or draw-path as the profile dictates). Witness: code change + re-measured improvement, test.js green.'
+  status: completed
+  witness: 'examples/local-progressive/meshlet-codec.js: growable Uint32 buffers (amortized doubling) for index0/indexCoarse replacing ~5M boxed Array.push + Uint32Array.from copies; preallocated newOrder Uint32Array; reused per-cluster scratch buffers instead of 4 fresh allocs per cluster x16883; dropped redundant LOD0 global-id rebuild. Byte-identical output cmp-verified on both models.'
+- id: streaming-gltf-verify-and-push
+  description: 'Re-measure streaming-gltf (before/after witnessed), node test.js green, commit+push straight to master in its own git. Witness: after beats before, test green, push ahead==0.'
+  status: completed
+  witness: 'node test.js 14/14 pass; baked GLB cmp byte-identical to master (refrigerator + dishwasher); buildClusterLod ~3.1-3.5s -> ~2.6-3.0s (~15-20% on hot node), cold heap-thrash spikes gone. Pushed c4e67f2 to origin/master (ec01da1..c4e67f2). Only meshlet-codec.js touched. Honest caveat recorded: native wasm clustering/simplify irreducible without changing geometry.'
+- id: per-repo-gm-separation
+  description: 'Findings about each target repo (paths, line numbers, perf numbers) belong in THAT repo''s .gm store, never semiosis memory; only generalizable gm/research-loop method lessons go to semiosis memorize-fire. Honor this for every commit/memo this session. Witness: no target-repo specifics written to semiosis .gm; method-only lessons memorized here.'
+  status: completed
+  witness: Each repo's perf findings (paths, line numbers, before/after numbers, profiles) live in THAT repo's commits + its own .gm/rs-learn, never copied into semiosis. The auto-memos that the mutable-resolve verb wrote into semiosis memory DID capture target-repo specifics (mapspinner/spoint paths+numbers) -- those are being pruned in the memory-cleanup row so only generalizable method lessons remain here.
+- id: skill-workflow-improve
+  description: 'If a real improvement to research-loop-skill or the gm workflow surfaces while driving real perf work (e.g. a measure-then-fix pattern the skill should encode, a missing harness affordance), implement it in semiosis and push. Only on a genuine witnessed improvement, not speculatively. Witness: the skill/workflow change + its rationale from real use, or an explicit note that none surfaced.'
+  status: completed
+  witness: 'A genuine improvement surfaced from real use: the strongest result of the session was a subagent REFUTING a stale audit via real re-measurement. Encoded that into skills/research-loop-skill/SKILL.md as a new opening paragraph (''A prior answer is not what you saw...go take the reading yourself...the honest end of a chase is sometimes the thing I was sent to fix was never the problem''). Kept the implicit predicament voice; glyph-clean. Method lesson memorized as gm-multirepo-measure-first-perf.'
+- id: issues-fix-along-way
+  description: 'Fix any issue that arises while measuring/building each repo (broken test, missing dep, stale baseline, env breakage) as its own discovered row, rather than working around it. Witness: each issue resolved with its fix, or recorded blockedBy:external if truly outside reach.'
+  status: completed
+  witness: 'Two real issues arose and were fixed at root, not worked around: (1) a target repo''s perf-gate silently stopped gating because an upstream check changed its output shape -- parser rewritten to the new shape, gate green again; (2) a stale perf-audit''s headless software-raster number falsely indicted a hot node -- corrected by real-hardware re-measurement. Both shipped in their repos'' pushes.'
+- id: mapspinner-fix-perfgate
+  description: 'DISCOVERED ISSUE: mapspinner scripts/perf-gate.mjs cannot parse shaderCompileMs -- glsl-check output changed to emit ''probe'' not ''shaderCompileMs'', so the gate silently passes without gating (exit 0, warning only). Fix the parser to read the current glsl-check output shape so the perf gate actually gates again. Witness: perf-gate.mjs parses a real number and enforces the .perf-baseline.json threshold.'
+  status: completed
+  witness: scripts/perf-gate.mjs runGlslCheck rewritten to parse JSON {compiled,probe}, assert compiled===true + finite probe, gate measured glslCheckMs against .perf-baseline.json (legacy shaderCompileMs key still accepted); baseline stabilized to 20000ms. npm run perf-gate now parses a real number and passes green. Shipped in 13da336.
+- id: prune-target-specifics-memory
+  description: 'DISCOVERED: the mutable-resolve auto-memo mechanism wrote target-repo specifics (sibling-repo paths, perf numbers, file:line) into semiosis .gm/rs-learn this session, violating the project-resident-memory rule. Prune those auto-memos from semiosis memory (memorize-prune by key), keeping only generalizable gm/research-loop method lessons. Witness: memorize-prune removes the target-specific memos; recall no longer surfaces sibling-repo specifics from semiosis.'
+  status: completed
+  witness: memorize-prune deleted 4 target-specific auto-memos (mem-1782757186267-0-409, -1782757189061-2-214, -1782757190721-3-329, -1782757188415-1-328) carrying sibling-repo paths/numbers; kept only gm-* method lessons. Replaced with generalizable gm-multirepo-measure-first-perf method memo.
+- id: tempspoint-teardown
+  description: 'DISCOVERED: the scratch worktree I created must be torn down at session end (residual triage -- I created it). Witness: git worktree remove succeeded, ../tempspoint gone, source repo clean and unaffected.'
+  status: completed
+  witness: git worktree remove --force /c/dev/tempspoint succeeded; ls confirms removed; git worktree list shows only the main spoint checkout; spoint tree clean at a1b4fc60. Scratch workspace I created is fully torn down.
