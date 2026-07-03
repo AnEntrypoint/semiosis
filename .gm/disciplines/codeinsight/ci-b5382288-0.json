@@ -1,4 +1,4 @@
-core/agent_api.py:55:1277 KnowledgeBase
+core/agent_api.py:56:1291 KnowledgeBase
 class KnowledgeBase:
     """Ingest texts, search, navigate meaning flow, learn from outcomes, persist across sessions."""
 
@@ -13,6 +13,7 @@ class KnowledgeBase:
         }
         self._summarizer = summarizer or StubSummarizer()
         self._bm25 = BM25Index(k1=self._settings.store.bm25_k1, b=self._settings.store.bm25_b)
+        self._lock = threading.RLock()
         if _ActivationPredictor is not None:
             enc_dim = getattr(getattr(self._settings, 'encoder', None), 'dim', 64) or 64
             self._act_predictor = _ActivationPredictor(input_dim=64, output_dim=enc_dim)
@@ -24,17 +25,18 @@ class KnowledgeBase:
         """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
         if not texts:
             return
-        start_idx = len(self._texts)
-        self._texts.extend(texts)
-        for i, t in enumerate(texts):
-            self._bm25.add(str(start_idx + i), t)
-        self._metrics["ingests"] += 1
-        if self._pipeline is not None and self._settings.agent.incremental_ingest:
-            self._pipeline.ingest(texts)
-        else:
-            self._pipeline = KnowledgePipeline(self._texts, self._settings)
-        self._memory._pipeline = self._pipeline
-        self._memory._texts = list(self._texts)
+        with self._lock:
+            start_idx = len(self._texts)
+            self._texts.extend(texts)
+            for i, t in enumerate(texts):
+                self._bm25.add(str(start_idx + i), t)
+            self._metrics["ingests"] += 1
+            if self._pipeline is not None and self._settings.agent.incremental_ingest:
+                self._pipeline.ingest(texts)
+            else:
+                self._pipeline = KnowledgePipeline(self._texts, self._settings)
+            self._memory._pipeline = self._pipeline
+            self._memory._texts = list(self._texts)
 
     # --- helpers -------------------------------------------------------------
     def _member_texts(self, node) -> list[str]:
@@ -137,13 +139,15 @@ class KnowledgeBase:
         """Return up to k diversified, scored hits with confidence signals for agent self-regulation."""
         if k <= 0:
             raise ValueError("k must be positive")
-        if self._pipeline is None or not query:
-            return []
-        self._metrics["queries"] += 1
-        engine = self._pipeline.engine
-        hits: list[SearchHit] = []
-        top_score: float | None = None
-        for node, score, epc in self._ranked(query, k, priority):
+        with self._lock:
+            if self._pipeline is None or not query:
+                return []
+            self._metrics["queries"] += 1
+            engine = self._pipeline.engine
+            hits: list[SearchHit] = []
+            top_score: float | None = None
+            ranked = self._ranked(query, k, priority)
+        for node, score, epc in ranked:
             if top_score is None:
                 top_score = score
             members = self._member_texts(node)
@@ -160,8 +164,4 @@ class KnowledgeBase:
             norm_score = float(score) / max(top_score, 1e-9) if top_score else 0.0
             hits.append(SearchHit(
                 text=members[0] if members else self._primary_text(node),
-                score=float(score), node_id=str(node.id), octave=int(node.prefix),
-                members=tuple(members),
-                aperture=ap,
-                local_entropy=float(entropy),
-                evid
+                score=float(score

@@ -1,4 +1,4 @@
-core/cone_engine.py:61:479 HyperbolicConeEngine
+core/cone_engine.py:62:501 HyperbolicConeEngine
 class HyperbolicConeEngine:
     """Fits Ganea 2018-style entailment cones on the Lorentz manifold (ConeEmbedder protocol)."""
 
@@ -92,7 +92,15 @@ class HyperbolicConeEngine:
                 opt.step()
 
         apex_np = apex.detach().cpu().numpy().astype(np.float64)
+        if not np.all(np.isfinite(apex_np)):
+            # a poisoned apex (inf/nan from optimizer overflow) must not reach the store;
+            # renormalize onto the manifold from a clamped tangent copy instead.
+            clamped = torch.clamp(apex.detach(), min=-_MAX_APEX_NORM, max=_MAX_APEX_NORM)
+            apex = self.manifold.projx(clamped)
+            apex_np = apex.detach().cpu().numpy().astype(np.float64)
+            apex_np = np.nan_to_num(apex_np, nan=0.0, posinf=_MAX_APEX_NORM, neginf=-_MAX_APEX_NORM)
         psi_np = self._half_aperture(apex.detach()).cpu().numpy()
+        psi_np = np.nan_to_num(psi_np, nan=_MIN_APERTURE, posinf=np.pi / 2, neginf=_MIN_APERTURE)
 
         members: dict[str, list[str]] = {nid: [] for nid in ids}
         for pid, nid in tree.assignments.items():
@@ -159,19 +167,4 @@ class HyperbolicConeEngine:
         """Symmetric soft cone overlap; 1.0 means one fully contains the other."""
         return float(min(self.contains(a, b), self.contains(b, a)))
 
-    def find_entailments(
-        self,
-        nodes: "Sequence[ConeNode]",
-        threshold: float = 0.0,
-    ) -> "list[tuple[ConeNode, ConeNode]]":
-        """Return all (parent, child) pairs where contains(parent, child) > threshold."""
-        result = []
-        for i, p in enumerate(nodes):
-            for j, c in enumerate(nodes):
-                if i != j and self.contains(p, c) > threshold:
-                    result.append((p, c))
-        return result
-
-    # --- semiotic distancing: tension, flow, energy --------------------------
-    def containment_asymmetry(self, a: ConeNode, b: ConeNode) -> float:
-        "
+    def find_enta

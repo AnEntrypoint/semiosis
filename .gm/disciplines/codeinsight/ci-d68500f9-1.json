@@ -1,4 +1,4 @@
-core/cone_engine.py:38:58 ConeFitConfig
+core/cone_engine.py:39:59 ConeFitConfig
 class ConeFitConfig:
     curvature: float = 1.0
     dim: int = 8                 # cone-space dim (small; the octave prefix is separate)

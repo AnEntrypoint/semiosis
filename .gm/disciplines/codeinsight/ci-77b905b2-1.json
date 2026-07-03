@@ -1,4 +1,4 @@
-core/encoder.py:48:93 SentenceTransformerEncoder
+core/encoder.py:55:100 SentenceTransformerEncoder
 class SentenceTransformerEncoder:
     """Encoder wrapping a sentence-transformers model; renormalizes Matryoshka sub-vectors on slice."""
 

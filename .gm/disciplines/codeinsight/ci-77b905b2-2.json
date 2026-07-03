@@ -1,4 +1,4 @@
-core/encoder.py:37:45 FixedClusterer
+core/encoder.py:44:52 FixedClusterer
 class FixedClusterer:
     """HierarchicalClusterer that wraps a pre-built ClusterTree; for pipeline testing."""
 

@@ -85,7 +85,7 @@ class DiagnoseReport:
     entropy_divergence: float = 0.0
     failure_mode: FailureMode = FailureMode.NONE
     recovery_suggestions: tuple[str, ...] = ()
-    activation_sparsity: float = 0.0
+    activation_sparsity: float | None = None  # None = no fitted activation predictor to measure
 
 
 @dataclass(frozen=True, slots=True)

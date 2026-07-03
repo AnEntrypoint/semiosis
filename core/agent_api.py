@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import threading
 from typing import Any
 
 from .context_pack import ContextPack, ContextPackBuilder, ContextPackConfig
@@ -66,6 +67,7 @@ class KnowledgeBase:
         }
         self._summarizer = summarizer or StubSummarizer()
         self._bm25 = BM25Index(k1=self._settings.store.bm25_k1, b=self._settings.store.bm25_b)
+        self._lock = threading.RLock()
         if _ActivationPredictor is not None:
             enc_dim = getattr(getattr(self._settings, 'encoder', None), 'dim', 64) or 64
             self._act_predictor = _ActivationPredictor(input_dim=64, output_dim=enc_dim)
@@ -77,17 +79,18 @@ class KnowledgeBase:
         """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
         if not texts:
             return
-        start_idx = len(self._texts)
-        self._texts.extend(texts)
-        for i, t in enumerate(texts):
-            self._bm25.add(str(start_idx + i), t)
-        self._metrics["ingests"] += 1
-        if self._pipeline is not None and self._settings.agent.incremental_ingest:
-            self._pipeline.ingest(texts)
-        else:
-            self._pipeline = KnowledgePipeline(self._texts, self._settings)
-        self._memory._pipeline = self._pipeline
-        self._memory._texts = list(self._texts)
+        with self._lock:
+            start_idx = len(self._texts)
+            self._texts.extend(texts)
+            for i, t in enumerate(texts):
+                self._bm25.add(str(start_idx + i), t)
+            self._metrics["ingests"] += 1
+            if self._pipeline is not None and self._settings.agent.incremental_ingest:
+                self._pipeline.ingest(texts)
+            else:
+                self._pipeline = KnowledgePipeline(self._texts, self._settings)
+            self._memory._pipeline = self._pipeline
+            self._memory._texts = list(self._texts)
 
     # --- helpers -------------------------------------------------------------
     def _member_texts(self, node) -> list[str]:
@@ -187,16 +190,20 @@ class KnowledgeBase:
 
     # --- retrieval -----------------------------------------------------------
     def search(self, query: str, k: int = 5, priority: QueryPriority = QueryPriority.MEDIUM) -> list[SearchHit]:
-        """Return up to k diversified, scored hits with confidence signals for agent self-regulation."""
+        """Return up to k diversified, scored hits; raises ValueError on invalid k or empty/whitespace query, may return fewer than k hits if the corpus lacks that many distinct candidates."""
         if k <= 0:
             raise ValueError("k must be positive")
-        if self._pipeline is None or not query:
-            return []
-        self._metrics["queries"] += 1
-        engine = self._pipeline.engine
-        hits: list[SearchHit] = []
-        top_score: float | None = None
-        for node, score, epc in self._ranked(query, k, priority):
+        if not query or not query.strip():
+            raise ValueError("query must be non-empty")
+        with self._lock:
+            if self._pipeline is None:
+                return []
+            self._metrics["queries"] += 1
+            engine = self._pipeline.engine
+            hits: list[SearchHit] = []
+            top_score: float | None = None
+            ranked = self._ranked(query, k, priority)
+        for node, score, epc in ranked:
             if top_score is None:
                 top_score = score
             members = self._member_texts(node)
@@ -292,17 +299,18 @@ class KnowledgeBase:
     def record_outcome(self, query: str, useful_texts: list[str],
                        useless_texts: list[str] | None = None) -> dict[str, int]:
         """Feed back which retrieved texts proved useful; usage counts steer future ranking."""
-        self._metrics["record_outcomes"] += 1
-        known = set(self._texts)
-        applied = 0
-        for t in useful_texts:
-            if t in known:
-                self._usage[t] = self._usage.get(t, 0) + 1
-                applied += 1
-        for t in (useless_texts or []):
-            if t in known and self._usage.get(t, 0) > 0:
-                self._usage[t] -= 1
-        return {"applied": applied, "ignored": len(useful_texts) - applied}
+        with self._lock:
+            self._metrics["record_outcomes"] += 1
+            known = set(self._texts)
+            applied = 0
+            for t in useful_texts:
+                if t in known:
+                    self._usage[t] = self._usage.get(t, 0) + 1
+                    applied += 1
+            for t in (useless_texts or []):
+                if t in known and self._usage.get(t, 0) > 0:
+                    self._usage[t] -= 1
+            return {"applied": applied, "ignored": len(useful_texts) - applied}
 
     def consolidate(self) -> ConsolidateReport:
         """Self-improve the KB: scan tension, merge redundant pairs; idempotent."""
@@ -372,6 +380,14 @@ class KnowledgeBase:
         elif entropy_div > 0.4:
             failure = FailureMode.OCTAVE_MISMATCH
             suggestions.append("check for missing octave levels; use deep_search() for cross-octave queries")
+        # activation_sparsity: fraction of near-zero weights in the fitted NLA projection;
+        # None (not 0.0) when no predictor has been fit, so callers can't mistake "unmeasured" for "dense".
+        act_sparsity: float | None = None
+        if self._act_predictor is not None and getattr(self._act_predictor, '_fitted', False):
+            W = getattr(self._act_predictor, '_W', None)
+            if W is not None and _np is not None:
+                w = _np.asarray(W)
+                act_sparsity = float(_np.mean(_np.abs(w) < 1e-6)) if w.size else 0.0
         return DiagnoseReport(
             nodes=len(nodes), octaves=octaves, texts=len(self._texts),
             facts=len(self._memory.facts()), mean_aperture=float(mean_ap),
@@ -380,6 +396,7 @@ class KnowledgeBase:
             entropy_divergence=float(entropy_div),
             failure_mode=failure,
             recovery_suggestions=tuple(suggestions),
+            activation_sparsity=act_sparsity,
         )
 
     def metrics(self) -> dict[str, int]:
@@ -612,11 +629,19 @@ class KnowledgeBase:
         store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
         node_a = store_nodes.get(node_id_a)
         node_b = store_nodes.get(node_id_b)
-        p = octave or 256
+        if octave is not None:
+            p = octave
+        else:
+            # auto-select the common octave: the smaller of the two centroid dims,
+            # so neither side gets silently broadcast-mismatched.
+            lens = [len(n.centroid) for n in (node_a, node_b) if n is not None and n.centroid]
+            p = min(lens) if lens else 256
         def get_centroid(node):
             if node is None or not node.centroid:
                 return _np.zeros(p)
             c = _np.array(list(node.centroid)[:p], dtype=float)
+            if len(c) < p:
+                c = _np.pad(c, (0, p - len(c)))
             return c / (_np.linalg.norm(c) + 1e-9)
         ca = get_centroid(node_a)
         cb = get_centroid(node_b)

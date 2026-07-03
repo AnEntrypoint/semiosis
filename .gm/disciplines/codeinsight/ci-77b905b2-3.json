@@ -1,4 +1,4 @@
-core/encoder.py:11:34 RandomEncoder
+core/encoder.py:18:41 RandomEncoder
 class RandomEncoder:
     """Satisfies the Encoder protocol with deterministic per-text unit vectors; for testing only."""
 
@@ -15,7 +15,7 @@ class RandomEncoder:
         out = np.empty((len(texts), dim), dtype=np.float32)
         for i, text in enumerate(texts):
             # deterministic per text: hash combines base seed with text content
-            rng = np.random.default_rng(self._base_seed ^ (hash(text) & 0xFFFF_FFFF_FFFF_FFFF))
+            rng = np.random.default_rng(self._base_seed ^ (_stable_text_hash(text) & 0xFFFF_FFFF_FFFF_FFFF))
             v = rng.standard_normal(dim).astype(np.float32)
             norm = float(np.linalg.norm(v))
             out[i] = v / norm if norm > 0 else v

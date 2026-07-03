@@ -211,12 +211,15 @@ sd = kb.compute_direction(str(nodes[0].id), str(nodes[1].id))
 **Direction search**: find what lies in a given direction from an anchor.
 
 ```python
-results = kb.direction_search("quantum", sd.direction_vec, k=5)
-# results: list[DirectionSearchResult] at alpha=[0.1, 0.5, 1.0, 2.0]
-# each result: hits ranked by alignment with direction_vec
+steps = kb.direction_search("quantum", sd.direction_vec, k=5)
+# steps: list[DirectionSearchResult], one entry per alpha step (e.g. alpha=[0.1, 0.5, 1.0, 2.0])
+# each entry: .hits (ranked by alignment with direction_vec), .alpha, .alignment
+for step in steps:
+    print(step.alpha, step.alignment, [h.text for h in step.hits])
+best = max(steps, key=lambda s: s.alignment)
 ```
 
-Example: "what is more abstract than quantum?" -> compute_direction(quantum_node, abstract_node) -> direction_search("quantum", direction).
+Example: "what is more abstract than quantum?" -> compute_direction(quantum_node, abstract_node) -> direction_search("quantum", direction), then iterate `steps` to see how hits shift as alpha grows.
 
 **Hierarchy folding**: map the downward intuition from a parent node.
 

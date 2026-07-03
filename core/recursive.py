@@ -149,6 +149,7 @@ class RecursiveAnswerEngine:
             evidence_texts=tuple(self._evidence_texts(merged)),
             depth_reached=max((s.depth_reached for s in subs), default=0),
             sub_answers=tuple(subs),
+            trace=sum((s.trace for s in subs), ()),
         )
 
     def _answer_one(self, query: str, beam_k: "int | None" = None,

@@ -1,4 +1,4 @@
-core/agent_api.py:45:52 StubSummarizer
+core/agent_api.py:46:53 StubSummarizer
 class StubSummarizer:
     """Summarizer that combines first two member texts; no LLM required; used by default."""
 

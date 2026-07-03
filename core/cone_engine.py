@@ -32,6 +32,7 @@ except Exception:  # pragma: no cover
 _EPS = 1e-7              # arccos / sqrt guard
 _MIN_APERTURE = 0.1      # radians; cones never collapse to a ray
 _MAX_GRAD_NORM = 1.0     # tangent-space gradient clip
+_MAX_APEX_NORM = 20.0    # tangent-space clamp before expmap/projx to avoid float32 cosh/sinh overflow
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,7 +152,15 @@ class HyperbolicConeEngine:
                 opt.step()
 
         apex_np = apex.detach().cpu().numpy().astype(np.float64)
+        if not np.all(np.isfinite(apex_np)):
+            # a poisoned apex (inf/nan from optimizer overflow) must not reach the store;
+            # renormalize onto the manifold from a clamped tangent copy instead.
+            clamped = torch.clamp(apex.detach(), min=-_MAX_APEX_NORM, max=_MAX_APEX_NORM)
+            apex = self.manifold.projx(clamped)
+            apex_np = apex.detach().cpu().numpy().astype(np.float64)
+            apex_np = np.nan_to_num(apex_np, nan=0.0, posinf=_MAX_APEX_NORM, neginf=-_MAX_APEX_NORM)
         psi_np = self._half_aperture(apex.detach()).cpu().numpy()
+        psi_np = np.nan_to_num(psi_np, nan=_MIN_APERTURE, posinf=np.pi / 2, neginf=_MIN_APERTURE)
 
         members: dict[str, list[str]] = {nid: [] for nid in ids}
         for pid, nid in tree.assignments.items():
@@ -236,9 +245,26 @@ class HyperbolicConeEngine:
         """Signed entailment direction contains(a,b) - contains(b,a); >0 means a entails b."""
         return float(self.contains(a, b) - self.contains(b, a))
 
+    def centroid_overlap(self, a: ConeNode, b: ConeNode) -> float:
+        """Cosine similarity in [-1,1] between raw embedding centroids; sibling clusters
+        are only ever pushed apart by cone training's star-tree negative sampling
+        (root->cluster edges, no cluster-cluster edges), so cone overlap_score is
+        near-arbitrary for sibling pairs -- centroid similarity is the actual
+        semantic-redundancy signal for those pairs."""
+        if a.centroid is None or b.centroid is None:
+            return float(self.overlap_score(a, b))
+        va = np.asarray(a.centroid, dtype=np.float64)
+        vb = np.asarray(b.centroid, dtype=np.float64)
+        n = min(len(va), len(vb))
+        va, vb = va[:n], vb[:n]
+        na, nb = np.linalg.norm(va), np.linalg.norm(vb)
+        if na < _EPS or nb < _EPS:
+            return 0.0
+        return float(np.clip(np.dot(va, vb) / (na * nb), -1.0, 1.0))
+
     def tension(self, a: ConeNode, b: ConeNode) -> float:
-        """High overlap with symmetric (ambiguous) containment = redundancy/contradiction tension."""
-        return float(self.overlap_score(a, b) - abs(self.containment_asymmetry(a, b)))
+        """High centroid overlap with symmetric (ambiguous) cone containment = redundancy/contradiction tension."""
+        return float(self.centroid_overlap(a, b) - abs(self.containment_asymmetry(a, b)))
 
     def info_flow_metrics(self, parent: ConeNode, child: ConeNode) -> InfoFlowMetrics:
         """Compute information-theoretic metrics for a parent-child pair."""
@@ -260,7 +286,7 @@ class HyperbolicConeEngine:
         dir_margin: float = 0.05,
     ) -> str:
         """Bucket a pair as entailment, redundancy, contradiction, or independent."""
-        overlap = self.overlap_score(a, b)
+        overlap = self.centroid_overlap(a, b)
         if overlap <= min_overlap:
             return "independent"
         if abs(a.aperture - _MIN_APERTURE) < _EPS and abs(b.aperture - _MIN_APERTURE) < _EPS:
@@ -280,7 +306,7 @@ class HyperbolicConeEngine:
         max_candidates: int = 256,
     ) -> "list[tuple[NodeId, NodeId, float, str]]":
         """Return the top_n worst (a_id, b_id, tension, kind) pairs sharing an octave."""
-        pool = list(nodes)[:max_candidates]
+        pool = [n for n in nodes if n.members][:max_candidates]
         if len(pool) < 2:
             return []
         result: list[tuple[NodeId, NodeId, float, str]] = []
@@ -289,7 +315,7 @@ class HyperbolicConeEngine:
                 a, b = pool[i], pool[j]
                 if a.prefix != b.prefix:
                     continue
-                ov = self.overlap_score(a, b)
+                ov = self.centroid_overlap(a, b)
                 if ov <= min_overlap:
                     continue
                 result.append((a.id, b.id, self.tension(a, b), self.pair_kind(a, b, min_overlap)))
@@ -364,19 +390,32 @@ class HyperbolicConeEngine:
     def _lorentz_mean(self, apices: "Sequence[np.ndarray]") -> "np.ndarray":
         """Euclidean-mean the apices then project back onto the hyperboloid (guarded centroid)."""
         stacked = torch.from_numpy(np.stack(apices)).float()
+        # clamp tangent-scale magnitude before projx; unclamped inputs can overflow
+        # projx's internal cosh/sinh in float32 once the norm gets large.
+        stacked = torch.clamp(stacked, min=-_MAX_APEX_NORM, max=_MAX_APEX_NORM)
         mean = stacked.mean(dim=0)
         proj = self.manifold.projx(mean)
-        return proj.detach().cpu().numpy().astype(np.float64)
+        out = proj.detach().cpu().numpy().astype(np.float64)
+        if not np.all(np.isfinite(out)):
+            # fall back to the first finite input apex rather than poison the store
+            for a in apices:
+                if np.all(np.isfinite(a)):
+                    return np.asarray(a, dtype=np.float64)
+            raise ValueError("_lorentz_mean: no finite apex among inputs")
+        return out
 
     # --- dispel operations ---------------------------------------------------
     def merge_nodes(self, a: ConeNode, b: ConeNode) -> ConeNode:
         """Collapse a redundant pair to one cone: midpoint apex, widest aperture, union members."""
         import dataclasses
         apex = self._lorentz_mean([a.apex, b.apex])
+        aperture = max(a.aperture, b.aperture)
+        if not np.isfinite(aperture):
+            aperture = _MIN_APERTURE
         return dataclasses.replace(
             a,
             apex=apex,
-            aperture=max(a.aperture, b.aperture),
+            aperture=float(aperture),
             members=tuple(dict.fromkeys((*a.members, *b.members))),
         )
 

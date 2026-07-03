@@ -70,6 +70,7 @@ class ContextPackBuilder:
         self._counter = counter or HeuristicTokenCounter()
 
     def _degraded(self) -> bool:
+        """True iff the real encoder failed to load (see pipeline.encoder_fallback_reason for why)."""
         enc = getattr(self._pipeline, "_encoder", None)
         return type(enc).__name__ == "RandomEncoder"
 

@@ -25,6 +25,7 @@ class KnowledgePipeline:
         cfg = settings or Settings()
         self._settings = cfg
         self._texts: list[str] = list(texts)
+        self.encoder_fallback_reason: str | None = None
         try:
             from .encoder import SentenceTransformerEncoder
             self._encoder = SentenceTransformerEncoder(
@@ -33,7 +34,9 @@ class KnowledgePipeline:
                 device=cfg.encoder.device,
                 fp16=cfg.encoder.fp16,
             )
-        except RuntimeError:
+        except RuntimeError as e:
+            # deliberate fallback (e.g. sentence-transformers not installed, or model fetch failed)
+            self.encoder_fallback_reason = str(e)
             self._encoder = RandomEncoder(octaves=cfg.encoder.octaves)
 
         n = max(1, len(texts))

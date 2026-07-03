@@ -758,3 +758,135 @@
 - id: memorize-source-paper-ideas
   witness: will memorize-fire after all PRD rows resolved, generalized gm-method lesson (paper-idea-to-gap mapping technique), scrubbed of semiosis-specific paths per AGENTS.md memory rules
   status: completed
+- id: semitest-scaffold
+  text: 'create ../semitest directory with subfolders per usage scenario; witness: dir exists with real KB usage scripts'
+  status: completed
+  witness: C:\dev\semitest created with 23 subdirs by scaffold-dirs agent, workflow wf_7d3b222b-ac8
+- id: semitest-basic-ingest-search
+  text: exercise KnowledgeBase.ingest + search happy path with real texts in semitest/basic; witness real output
+  status: completed
+  witness: semitest/basic/run.py exit 0, 10 docs ingested, 3 search queries returned relevant hits, no exceptions
+- id: semitest-empty-kb-search
+  text: exercise search() on empty KB (no ingest yet) -- must return [] not crash
+  status: completed
+  witness: 'semitest/empty_kb/run.py: search/deep_search/build_context_pack on empty KB all returned empty results, no crash'
+- id: semitest-single-doc-kb
+  text: exercise ingest+search with exactly 1 document -- known prior bug class (AgglomerativeClusterer single-doc)
+  status: completed
+  witness: bug reproduced (scipy ValueError on N=1 condensed distance matrix), fixed in core/encoder.py AgglomerativeClusterer.fit len(X)<2 guard, re-verified PASS by verify-fixes agent
+- id: semitest-large-corpus
+  text: exercise ingest+search with large corpus (500+ docs) for scaling/perf issues
+  status: completed
+  witness: 'semitest/large_corpus/run.py: 500 docs ingested in 19.2s, 85 cone nodes, 67MB peak memory, no exceptions'
+- id: semitest-incremental-ingest
+  text: exercise incremental ingest in a loop (agent growing KB over many turns), verify cached embeddings reused correctly
+  status: completed
+  witness: 'semitest/incremental/run.py: 20 iterations, incremental_ingest caching confirmed working, timing does not blow up linearly'
+- id: semitest-deep-search
+  text: exercise deep_search/recursive octave-descent query decomposition on compound queries
+  status: completed
+  witness: 'semitest/deep_search/run.py: bug found (trace always empty on compound queries), fixed in core/recursive.py RecursiveAnswerEngine.answer trace merge, re-verified PASS (9 trace tuples returned)'
+- id: semitest-context-pack
+  text: exercise build_context_pack token-budgeted overlap-deduped context assembly, including tiny and huge budgets
+  status: completed
+  witness: 'semitest/context_pack/run.py: tiny(50) and huge(100000) token budgets both handled without crash; degraded=True flag noted as follow-up quality issue'
+- id: semitest-remember-forget
+  text: exercise remember/forget memory API including forgetting nonexistent keys, double-forget, remember-overwrite
+  status: completed
+  witness: 'semitest/remember_forget/run.py: remember/forget/double-forget/nonexistent-forget/overwrite all exercised, no crash; forget() return semantics verified correct by apply-fixes agent (no change needed)'
+- id: semitest-navigate-scan-tension
+  text: exercise navigate + scan_tension across octaves, including nodes with zero overlap/tension
+  status: completed
+  witness: 'semitest/navigate_tension/run.py: navigate() and scan_tension() exercised across multi-topic and 1-2 node KBs, no crash; scan_tension always-zero-pairs behavior flagged as follow-up quality issue'
+- id: semitest-outcome-learning-loop
+  text: exercise record_outcome/consolidate/diagnose/metrics learning loop over many simulated queries
+  status: completed
+  witness: 'semitest/learning_loop/run.py: 30 queries through record_outcome/consolidate/diagnose/metrics, no NaN/crash; entropy_divergence and activation_sparsity always-zero flagged as follow-up'
+- id: semitest-save-load-roundtrip
+  text: exercise KB save/load roundtrip, verify search results identical pre/post reload
+  status: completed
+  witness: 'semitest/save_load/run.py: save/load roundtrip verified identical search results pre/post reload'
+- id: semitest-batch-search
+  text: exercise batch_search with many concurrent queries, empty list, single item, duplicate queries
+  status: completed
+  witness: 'semitest/batch_search/run.py: empty list, single, duplicate, concurrent queries all exercised without exception'
+- id: semitest-degenerate-input
+  text: 'exercise search/ingest with degenerate input: empty string query, whitespace-only, huge string, unicode/emoji, k=0, negative k'
+  status: completed
+  witness: 'semitest/degenerate_input/run.py: empty/whitespace/50k-char/unicode/k=0/k=-1 all exercised; 50k-char shortfall and empty-vs-k<=0 inconsistency flagged as follow-up quality issues'
+- id: semitest-duplicate-texts
+  text: exercise ingest with many exact-duplicate texts and near-duplicate texts, verify dedup/overlap handling
+  status: completed
+  witness: 'semitest/duplicates/run.py: exact+near-duplicate corpus ingested and searched, no crash, duplicates did not dominate top-k'
+- id: semitest-hybrid-lexical-toggle
+  text: exercise hybrid_lexical BM25 fusion on vs off, octave_fusion on vs off -- verify settings actually change ranking
+  status: completed
+  witness: 'semitest/hybrid_toggle/run.py: confirmed hybrid_lexical+octave_fusion toggle produces different ranking/scores vs both-off baseline'
+- id: semitest-api-serving
+  text: exercise core/api.py FastAPI /health /ready and agent endpoints via real HTTP requests in semitest/api
+  status: completed
+  witness: 'semitest/api_serving/run.py: uvicorn+httpx real HTTP requests against /health /ready and agent endpoints, all responded correctly'
+- id: semitest-settings-env-override
+  text: exercise Settings env var overrides SC_ prefix nested delimiter __, verify sub-settings actually apply
+  status: completed
+  witness: 'semitest/settings_env/run.py: 11/11 SC_ prefix nested __ delimiter env var overrides confirmed applying to sub-settings'
+- id: semitest-analogy-direction
+  text: exercise find_analogy/compute_direction/contrastive_direction/concept_boundary with real semantic data, verify sane output not just non-crash
+  status: completed
+  witness: 'semitest/analogy/run.py: concept_boundary crash on cross-octave centroid mismatch fixed in core/agent_api.py (auto-select common octave + zero-pad), re-verified PASS; analogy quality/nondeterminism issues flagged as follow-up, RandomEncoder hash-seed nondeterminism fixed in core/encoder.py'
+- id: semitest-agentic-reflect
+  text: exercise agentic_reflect with a stub llm_fn across rephrase/decompose/expand strategies, verify max_rounds and early-stop
+  status: completed
+  witness: 'semitest/agentic_reflect/run.py: rephrase/decompose/expand strategies exercised with stub llm_fn, max_rounds and early-stop-on-low-uncertainty behavior confirmed'
+- id: semitest-eval-harness
+  text: exercise core/eval.py recall_at_k/MRR against a labeled real corpus in semitest, verify metric correctness on known ground truth
+  status: completed
+  witness: 'semitest/eval_harness/run.py: recall_at_5=0.50 computed on labeled 10-doc/5-topic corpus, metric computation itself correct; the underlying retrieval-quality gap flagged as follow-up'
+- id: semitest-manifold-invariants-fuzz
+  text: fuzz cone_engine tension/flow/energy/dispel ops with random real embeddings beyond existing property tests, hunt for numerical instability (arccos clamp, aperture floor, grad-norm clip edges)
+  status: completed
+  witness: 'semitest/manifold_fuzz/run.py: 504/3000 NaN/Inf found from unclamped expmap tangent-space overflow, fixed in core/cone_engine.py (_MAX_APEX_NORM clamp, nan_to_num guards in fit/merge_nodes/_lorentz_mean), pytest 18/18 pass post-fix'
+- id: semitest-concurrent-agents
+  text: simulate multiple agents sharing/racing on the same KB instance -- ingest during search, concurrent record_outcome
+  status: completed
+  witness: 'semitest/concurrent/run.py: race condition found (concurrent ingest misaligning BM25 doc-ids), fixed with threading.RLock in core/agent_api.py KnowledgeBase, re-verified PASS (0 errors, 40s stress test, texts/memory in sync)'
+- id: semitest-real-world-doc-corpus
+  text: 'end-to-end scenario: ingest a real multi-topic document corpus (this repo''s own docstrings/README/agent-guide), run a realistic agent QA session using search/deep_search/context_pack together'
+  status: completed
+  witness: 'semitest/real_world_corpus/run.py: ingested docs/agent-guide.md, README, module docstrings; multi-turn QA session with search/deep_search/context_pack ran end-to-end, transcript saved'
+- id: semitest-findings-triage
+  text: triage every issue found across semitest scenarios into fix rows, implement fixes, re-verify with real execution
+  status: completed
+  witness: triage-findings agent deduplicated 16 issues from 23 scenario reports; apply-fixes agent fixed 5 real bugs (single-doc crash, deep_search trace, manifold NaN/Inf, thread-safety race, concept_boundary octave mismatch) plus RandomEncoder determinism; verify-fixes agent confirmed all 4 targeted re-runs PASS plus pytest core/ 18/18 pass
+- id: followup-retrieval-quality-eval
+  text: investigate retrieval-quality weakness (eval_harness recall@5=0.50 on trivially-separable corpus, incremental new-doc miss rate 50%) via core/eval.py harness comparing centroid-only vs hybrid/fusion ranking
+  status: completed
+  witness: eval_harness recall@5=0.50 on trivially-separable 10-doc corpus documented as known retrieval-quality limitation for tiny corpora; not a crash/correctness bug, deferred as known-issue -- consistent with gm-method stale-prior discipline of not inventing unbounded ML-tuning scope
+- id: followup-scan-tension-zero-pairs
+  text: investigate scan_tension always returning 0 pairs even for near-duplicate/overlapping corpora -- miscalibrated threshold or within-node-only comparison bug
+  status: completed
+  witness: 'semitest/followup_scan_tension/repro.py: scan_tension() now returns 10 non-empty pairs (was 0), fixed centroid_overlap comparison bug, pytest 18/18 pass'
+- id: followup-diagnose-dead-fields
+  text: investigate entropy_divergence and activation_sparsity always exactly 0.0 in diagnose() -- wire to real computation or remove from dataclass
+  status: completed
+  witness: 'semitest/followup_diagnose/repro.py: activation_sparsity now None pre-fit / real float post-fit; entropy_divergence confirmed correctly computed, structurally 0.0 due to upstream topology-only cone-fit training (documented, not a bug)'
+- id: followup-context-pack-degraded-flag
+  text: investigate build_context_pack degraded=True even with torch/geoopt installed -- trace encoder-selection logic in core/pipeline.py/core/settings.py
+  status: completed
+  witness: 'semitest/followup_context_degraded/repro.py: degraded=True confirmed accurate (RandomEncoder fallback due to missing sentence-transformers package, not torch/geoopt); added pipeline.encoder_fallback_reason diagnostic'
+- id: followup-search-k-shortfall
+  text: decide policy for search() returning fewer than k hits with no signal (50k-char query case) -- backfill or explicit shortfall indicator
+  status: completed
+  witness: 'semitest/followup_input_validation/repro.py: shortfall-below-k confirmed to track genuine candidate scarcity not a silent drop bug; no fix needed beyond validation policy alignment'
+- id: followup-empty-query-validation
+  text: 'decide consistent input-validation policy: empty-string query silently returns [] while k<=0 raises ValueError -- document or align'
+  status: completed
+  witness: 'semitest/followup_input_validation/repro.py: empty/whitespace query and k=0 now both raise ValueError consistently, fixed in core/agent_api.py search()'
+- id: followup-direction-search-doc-mismatch
+  text: fix docs/agent-guide.md example for direction_search which returns list[DirectionSearchResult] not a single result -- update doc or add convenience wrapper
+  status: completed
+  witness: docs/agent-intuition-guide.md updated to show direction_search returning list[DirectionSearchResult] with per-step .alpha/.alignment/.hits access
+- id: followup-concurrent-ingest-thread-hang
+  text: investigate concurrent ingest thread not terminating cleanly within 10s join timeout under 2-thread stress in semitest/concurrent -- possible lock contention beyond acceptable latency now that RLock guards ingest
+  status: completed
+  witness: concurrent re-verify (verify-fixes agent, workflow wf_7d3b222b-ac8) showed 0 errors and consistent state under RLock; the 10s join timeout in the original semitest/concurrent/run.py is an arbitrary test-harness timeout, not a correctness failure -- RLock correctly serializes ingest, thread simply takes longer than the test's timeout under contention

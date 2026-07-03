@@ -3,9 +3,16 @@ from __future__ import annotations
 
 from typing import Sequence
 
+import hashlib
+
 import numpy as np
 
 from .interfaces import ClusterTree, EuclideanVec, NodeId, PhraseId, Prefix
+
+
+def _stable_text_hash(text: str) -> int:
+    """Process-independent text hash; Python's builtin hash() is salted per-process (PYTHONHASHSEED)."""
+    return int.from_bytes(hashlib.blake2b(text.encode("utf-8"), digest_size=8).digest(), "big")
 
 
 class RandomEncoder:
@@ -24,7 +31,7 @@ class RandomEncoder:
         out = np.empty((len(texts), dim), dtype=np.float32)
         for i, text in enumerate(texts):
             # deterministic per text: hash combines base seed with text content
-            rng = np.random.default_rng(self._base_seed ^ (hash(text) & 0xFFFF_FFFF_FFFF_FFFF))
+            rng = np.random.default_rng(self._base_seed ^ (_stable_text_hash(text) & 0xFFFF_FFFF_FFFF_FFFF))
             v = rng.standard_normal(dim).astype(np.float32)
             norm = float(np.linalg.norm(v))
             out[i] = v / norm if norm > 0 else v
@@ -101,15 +108,20 @@ class AgglomerativeClusterer:
         self._linkage = linkage
 
     def fit(self, vecs: EuclideanVec, prefix: Prefix) -> ClusterTree:
-        try:
-            from scipy.cluster.hierarchy import fcluster, linkage as _linkage
-        except ImportError:
-            raise RuntimeError("scipy is required for AgglomerativeClusterer; pip install scipy")
         X = np.asarray(vecs, dtype=np.float64)[..., :prefix]
         n = len(X)
-        k = min(self._n_clusters, max(1, n - 1))
-        Z = _linkage(X, method=self._linkage)
-        labels = fcluster(Z, k, criterion="maxclust")
+        if n < 2:
+            # scipy linkage cannot handle a <2-observation condensed distance matrix;
+            # short-circuit to a single trivial cluster holding whatever is present.
+            labels = np.ones(n, dtype=int)
+        else:
+            try:
+                from scipy.cluster.hierarchy import fcluster, linkage as _linkage
+            except ImportError:
+                raise RuntimeError("scipy is required for AgglomerativeClusterer; pip install scipy")
+            k = min(self._n_clusters, max(1, n - 1))
+            Z = _linkage(X, method=self._linkage)
+            labels = fcluster(Z, k, criterion="maxclust")
         cluster_ids = {int(c): NodeId(f"cluster_{c}@{int(prefix)}") for c in np.unique(labels)}
         root = NodeId(f"root@{int(prefix)}")
         edges = tuple((root, cid) for cid in cluster_ids.values())
