@@ -2,13 +2,13 @@
 
 ## Hard Rule: Browser Witness Mandate
 
-**Every edit to code that runs in a browser requires a live `browser` dispatch in the same turn as the edit.** Client-side surfaces -- `.html`, `.js`, `.jsx`, `.ts`, `.tsx`, `.vue`, `.svelte`, `.mjs`, `.css`, web components, service workers, every asset loaded by `<script>`, every path reached by `import` from a browser-side entry -- must be witnessed by a live `page.evaluate` of the specific invariant the edit establishes. A passing node test, build, `curl` of the HTML, or static-analysis pass witnesses server delivery, not browser behavior, and is non-substitutive. The witness IS the proof; prose is not.
+**Every edit to browser-run code requires a live `browser` dispatch, same turn as the edit.** Client-side surfaces -- `.html`, `.js`, `.jsx`, `.ts`, `.tsx`, `.vue`, `.svelte`, `.mjs`, `.css`, web components, service workers, every `<script>`-loaded asset, every `import`-reached path from a browser entry -- witnessed by live `page.evaluate` of the specific invariant the edit establishes. Passing node test / build / `curl` of HTML / static-analysis witnesses server delivery, not browser behavior -- non-substitutive. The witness IS the proof; prose is not.
 
 The witness is a live `page.evaluate` asserting the specific invariant against the real surface -- server up, HTTP 200, the global the change affects polled until present -- values captured into `stdout`; variance means a root-cause fix and re-witness, not advance. Anything short of the live assertion -- unwitnessed behavior, an assert fired before the global is present, validation queued for "later" -- leaves the edit unproven, and an unproven client edit is forced closure.
 
 Fires across phases: **EXECUTE** edit -> same-turn browser dispatch asserting the invariant; **EMIT** post-emit re-witness (page still passes after the full diff); **VERIFY** final gate -- `deviation.browser-witness-hash-mismatch` fires if a witnessed file changed without re-witnessing. Pure-prose static-document edits (no JS, no CSS-driven behavior, no DOM mutation) are the ONLY exempt category, and the exemption must be named explicitly in the response so the skip is auditable. Silent skip on actual behavior change is forced closure.
 
-YOU drive the browser through the spool: plugkit holds the Chromium handle, per-project profile, and session table; you advance by writing `.gm/exec-spool/in/browser/<N>.txt` and reading `out/<N>.json`. There is no library import, no puppeteer/playwright/CDP handle that shortcuts this. The verb is the surface; every other reach is fabrication.
+YOU drive the browser through the spool: plugkit holds Chromium handle, per-project profile, session table; advance by writing `.gm/exec-spool/in/browser/<N>.txt`, reading `out/<N>.json`. No library import, no puppeteer/playwright/CDP shortcut. The verb is the surface; every other reach = fabrication.
 
 ## Body shapes
 
@@ -44,9 +44,13 @@ dom=<css-selector>\n
 
 **`dom=<css-selector>\n` is the zero-boilerplate element probe.** Returns `{selector, match_count, elements:[{tag, text, attrs, visible, rect}]}` for up to 20 matches -- the fastest answer to "is this element there and what does it say." An invalid selector returns `result.error` (no crash). Composes with `url=`.
 
+**One session per run -- reuse it, then close it.** A browser session is keyed by its spool `sessionId`; every dispatch carrying the SAME sessionId reuses the SAME chromium. A DIFFERENT sessionId opens its OWN chromium -- so a run that invents `probe`/`w2`/`w3`/... names leaks one browser per name. Pick one sessionId, use it for every dispatch, and end with `session close` so nothing is left open; the eval envelope carries a `multi_session_warning` the moment a second distinct session opens. The idle reaper (closes sessions unused past the idle window) and the OS-orphan reaper (kills managed chromiums no live session owns, sparing in-use ones and your own Chrome) are backstops for crashes, not a license to leave sessions open -- close yours.
+
+**The session closes when YOU expect it to, not under you.** A session stays open across turns and think-gaps -- the idle window is generous (15 min of no use), measured from the END of your last dispatch, so a long read or a slow eval never shortens it. A dispatch in flight is never closed mid-run: the idle reaper and the orphan reaper both skip a session while its eval is executing, and a just-launched browser has a grace period before any reaper can touch it. An explicit `session close` is immediate. If the idle/orphan backstop did close a session and you dispatch to it again, it transparently re-launches and the envelope carries `session_relaunched: true` with a `relaunch_note` -- your in-page `window.*` state was reset, so re-establish it; you are told, never silently surprised.
+
 ## Envelope
 
-`{ok, stdout, stderr, exit_code, session_id?, navigation_requested, landed_on_blank?, hint?}`. `stdout` = stringified eval result; `stderr` = page errors + launch diagnostics; `exit_code` non-zero = the dispatch did not land -- read `stderr` and re-dispatch, never blind. `navigation_requested` reflects whether the dispatch carried a `url=`/bare-URL navigation; `landed_on_blank: true` with a `hint` means the expression ran against `about:blank` -- prefix `url=<target>` and re-dispatch.
+`{ok, stdout, stderr, exit_code, session_id?, navigation_requested, landed_on_blank?, hint?, multi_session_warning?}`. `stdout` = stringified eval result; `stderr` = page errors + launch diagnostics; `exit_code` non-zero = the dispatch did not land -- read `stderr` and re-dispatch, never blind. `navigation_requested` reflects whether the dispatch carried a `url=`/bare-URL navigation; `landed_on_blank: true` with a `hint` means the expression ran against `about:blank` -- prefix `url=<target>` and re-dispatch.
 
 ## Headed by default
 

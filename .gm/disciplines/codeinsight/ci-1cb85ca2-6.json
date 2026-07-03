@@ -1,0 +1,10 @@
+core/settings.py:42:50 StoreSettings
+class StoreSettings(BaseModel):
+    backend: Literal["memory", "qdrant", "pgvector"] = "memory"
+    hnsw_m: int = 16
+    hnsw_ef_construct: int = 200
+    lakefs_repo: str = "semantic-cones"
+    hilbert_partitions: int = Field(16, ge=1)   # Hilbert-bucket count per octave; VStream-style partition template
+    catapult_cache_size: int = Field(512, ge=1)  # LRU-bounded query-locality shortcut cache (CatapultDB)
+    bm25_k1: float = Field(1.5, gt=0)
+    bm25_b: float = Field(0.75, ge=0.0, le=1.0)

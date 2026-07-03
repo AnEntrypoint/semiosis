@@ -1,0 +1,11 @@
+core/test_manifold_invariants.py:185:194 test_research_loop_persist_roundtrip
+def test_research_loop_persist_roundtrip() -> None:
+    kb = _kb()
+    p = os.path.join(tempfile.gettempdir(), "ri.json")
+    if os.path.exists(p): os.remove(p)
+    s = _s(); s.research.instruction_persist_path = p
+    ResearchLoop(kb, s).run(_agent(kb))
+    assert "look near it" in ResearchLoop(kb, s).instructions["propose"]
+    with open(p, "w") as f: f.write("{bad")
+    assert "keeps coming up" in ResearchLoop(kb, s).instructions["propose"]
+    os.remove(p)

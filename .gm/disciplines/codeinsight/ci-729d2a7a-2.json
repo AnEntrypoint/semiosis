@@ -1,0 +1,3 @@
+core/locality_index.py:61:62 hamming
+def hamming(a: int, b: int) -> int:
+    return bin(a ^ b).count("1")

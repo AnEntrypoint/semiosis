@@ -1,9 +1,0 @@
-core/settings.py:30:37 ConeSettings
-class ConeSettings(BaseModel):
-    curvature: float = Field(1.0, gt=0)
-    dim: int = Field(8, ge=1)
-    epochs: int = Field(200, ge=1)
-    lr: float = Field(1e-2, gt=0)
-    margin: float = Field(0.01, gt=0)
-    neg_samples: int = Field(5, ge=1)
-    seed: int = 0

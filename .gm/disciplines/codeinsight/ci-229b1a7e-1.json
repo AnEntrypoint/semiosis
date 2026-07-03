@@ -1,0 +1,47 @@
+core/encoder.py:48:93 SentenceTransformerEncoder
+class SentenceTransformerEncoder:
+    """Encoder wrapping a sentence-transformers model; renormalizes Matryoshka sub-vectors on slice."""
+
+    def __init__(
+        self,
+        model_name: str = "nomic-ai/nomic-embed-text-v1.5",
+        octaves: tuple[int, ...] = (64, 128, 256, 512, 1024),
+        device: "str | None" = None,
+        normalize: bool = True,
+        fp16: bool = False,
+    ) -> None:
+        try:
+            from sentence_transformers import SentenceTransformer as _ST
+        except ImportError:
+            raise RuntimeError(
+                "sentence-transformers is required; install with: pip install sentence-transformers"
+            )
+        self._model = _ST(model_name, device=device)
+        if fp16:  # halve VRAM for the sub-4GB target on GPU
+            try:
+                self._model = self._model.half()
+            except Exception:
+                pass
+        self._octaves = octaves
+        self._normalize = normalize
+
+    @property
+    def dims(self) -> "list[Prefix]":
+        return [Prefix(d) for d in self._octaves]
+
+    def encode(self, texts: "Sequence[str]") -> EuclideanVec:
+        vecs = self._model.encode(
+            list(texts),
+            normalize_embeddings=self._normalize,
+            show_progress_bar=False,
+        )
+        full = max(self._octaves)
+        return np.asarray(vecs, dtype=np.float32)[..., :full]
+
+    def slice(self, vec: EuclideanVec, prefix: Prefix) -> EuclideanVec:
+        """Slice to prefix dims and re-normalize (Matryoshka sub-vectors need renorm)."""
+        sliced = np.asarray(vec)[..., :prefix].astype(np.float32)
+        if self._normalize:
+            norms = np.linalg.norm(sliced, axis=-1, keepdims=True)
+            sliced = np.where(norms > 0, sliced / norms, sliced)
+        return sliced

@@ -1,0 +1,15 @@
+core/settings.py:16:29 EncoderSettings
+class EncoderSettings(BaseModel):
+    # local HuggingFace Matryoshka model; override SC_ENCODER__MODEL for OpenAI/API-backed models
+    model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    octaves: tuple[int, ...] = (64, 128, 256, 512, 1024)
+    batch_size: int = Field(128, ge=1)
+    device: str | None = None   # 'cpu'|'cuda'|None(auto); set cpu for zero-VRAM
+    fp16: bool = False          # half-precision weights; halves encoder VRAM on GPU
+
+    @field_validator("octaves")
+    @classmethod
+    def _ascending_and_nested(cls, v: tuple[int, ...]) -> tuple[int, ...]:
+        if list(v) != sorted(v):
+            raise ValueError("octaves must be ascending (nested prefixes)")
+        return v

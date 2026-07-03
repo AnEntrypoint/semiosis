@@ -1,0 +1,5 @@
+core/test_manifold_invariants.py:118:121 test_kb_recall_and_forget
+def test_kb_recall_and_forget() -> None:
+    kb = _kb()
+    kb.remember("user prefers ascii only", "p1")
+    assert "ascii" in kb.recall("draw call", budget_tokens=300) and kb.forget("p1") is True

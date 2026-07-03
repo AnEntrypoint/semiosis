@@ -48,7 +48,10 @@ class KnowledgePipeline:
             seed=cfg.cone.seed,
         )
         self._engine = HyperbolicConeEngine(cone_cfg)
-        self._store = InMemoryStore()
+        self._store = InMemoryStore(
+            n_partitions=self._settings.store.hilbert_partitions,
+            catapult_size=self._settings.store.catapult_cache_size,
+        )
         self._query = InMemoryQuery(self._store, self._engine)
         self._vec_cache: dict[str, np.ndarray] = {}
         self._commit: CommitId | None = None
@@ -70,7 +73,10 @@ class KnowledgePipeline:
         vecs = self._encode_cached(self._texts)
         n = max(1, len(self._texts))
         self._clusterer = AgglomerativeClusterer(n_clusters=min(n, 16))
-        self._store = InMemoryStore()
+        self._store = InMemoryStore(
+            n_partitions=self._settings.store.hilbert_partitions,
+            catapult_size=self._settings.store.catapult_cache_size,
+        )
         self._query = InMemoryQuery(self._store, self._engine)
         commit_id = CommitId(str(uuid.uuid4()))
         all_nodes: list = []

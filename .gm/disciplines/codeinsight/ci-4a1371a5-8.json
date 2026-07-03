@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:129:131 test_kb_exact_text_top_hit
-def test_kb_exact_text_top_hit() -> None:
-    hits = _kb().search("gamma separate idea", k=1)
-    assert hits and hits[0].text == "gamma separate idea"

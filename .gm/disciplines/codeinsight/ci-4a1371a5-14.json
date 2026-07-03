@@ -1,6 +1,0 @@
-core/test_manifold_invariants.py:72:76 test_points_stay_on_manifold
-def test_points_stay_on_manifold(seed: int) -> None:
-    torch.manual_seed(seed)
-    m = geoopt.Lorentz(k=torch.tensor(1.0))
-    x = m.random_normal((8, 6), std=0.3)
-    assert torch.allclose(-x[:, 0] ** 2 + (x[:, 1:] ** 2).sum(-1), torch.full((8,), -1.0), atol=1e-4)

@@ -1,0 +1,70 @@
+core/locality_index.py:65:133 HilbertBucketIndex
+class HilbertBucketIndex:
+    """Per-octave Hilbert-bucketed candidate index; VStream-style dynamic partitioning templates.
+
+    Falls back to full scan when bucket count is too small to prune meaningfully.
+    """
+
+    def __init__(self, n_partitions: int = 16) -> None:
+        self._n_partitions = max(1, n_partitions)
+        self._by_prefix: dict[Prefix, dict[NodeId, int]] = {}   # nid -> hilbert key
+        self._templates: dict[Prefix, list[int]] = {}           # sorted key boundaries (dynamic partitioning template)
+        self._simhash: dict[Prefix, dict[NodeId, int]] = {}
+
+    def upsert(self, nid: NodeId, prefix: Prefix, vec: np.ndarray) -> None:
+        """Insert/update one node's locality keys; invalidates cached partition template for this octave."""
+        keys = self._by_prefix.setdefault(prefix, {})
+        keys[nid] = hilbert_key(vec)
+        sh = self._simhash.setdefault(prefix, {})
+        sh[nid] = simhash(vec)
+        self._templates.pop(prefix, None)
+
+    def remove(self, nid: NodeId, prefix: Prefix) -> None:
+        self._by_prefix.get(prefix, {}).pop(nid, None)
+        self._simhash.get(prefix, {}).pop(nid, None)
+        self._templates.pop(prefix, None)
+
+    def _template(self, prefix: Prefix) -> list[int]:
+        """Rebuild partition boundaries from current key distribution (VStream Sec 3.2)."""
+        if prefix in self._templates:
+            return self._templates[prefix]
+        keys = sorted(self._by_prefix.get(prefix, {}).values())
+        if not keys:
+            self._templates[prefix] = []
+            return []
+        p = min(self._n_partitions, max(1, len(keys)))
+        step = max(1, len(keys) // p)
+        boundaries = [keys[i] for i in range(0, len(keys), step)][1:]
+        self._templates[prefix] = boundaries
+        return boundaries
+
+    def candidates(self, prefix: Prefix, q_vec: np.ndarray, simhash_prefilter: bool = True) -> set[NodeId] | None:
+        """Return a pruned candidate set for this octave, or None if bucketing isn't warranted yet."""
+        keys = self._by_prefix.get(prefix)
+        if not keys or len(keys) < self._n_partitions * 2:
+            return None  # too few nodes to prune; caller should fall back to full scan
+        boundaries = self._template(prefix)
+        qk = hilbert_key(q_vec)
+        import bisect
+        bucket = bisect.bisect_left(boundaries, qk)
+        # include the query's bucket plus its two neighbors -- boundary vectors can land either side
+        target_buckets = {bucket - 1, bucket, bucket + 1}
+        sorted_items = sorted(keys.items(), key=lambda kv: kv[1])
+        n_buckets = len(boundaries) + 1
+        out: set[NodeId] = set()
+        idx = 0
+        cur_bucket = 0
+        for nid, k in sorted_items:
+            while cur_bucket < len(boundaries) and k >= boundaries[cur_bucket]:
+                cur_bucket += 1
+            if cur_bucket in target_buckets:
+                out.add(nid)
+        if not out:
+            return None
+        if simhash_prefilter and prefix in self._simhash:
+            qsh = simhash(q_vec)
+            sh_map = self._simhash[prefix]
+            budget = max(len(out) // 2, 8)
+            ranked = sorted(out, key=lambda n: hamming(sh_map.get(n, 0), qsh))
+            out = set(ranked[:budget]) if len(ranked) > budget else out
+        return out

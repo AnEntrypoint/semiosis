@@ -1,0 +1,3 @@
+## Resolved mutable: mut-single-doc-cluster-preexisting
+
+confirmed via git stash: identical scipy ValueError in AgglomerativeClusterer.fit on master before this session's changes; out-of-scope pre-existing bug, not introduced by hybrid-search/locality-index work, filed as known-issue not fixed

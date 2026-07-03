@@ -1,0 +1,4 @@
+core/test_manifold_invariants.py:114:116 test_kb_explain_hierarchy
+def test_kb_explain_hierarchy() -> None:
+    info = _kb(WEBGL).explain_hierarchy("texture compression")
+    assert "node_id" in info and "aperture" in info

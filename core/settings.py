@@ -44,6 +44,10 @@ class StoreSettings(BaseModel):
     hnsw_m: int = 16
     hnsw_ef_construct: int = 200
     lakefs_repo: str = "semantic-cones"
+    hilbert_partitions: int = Field(16, ge=1)   # Hilbert-bucket count per octave; VStream-style partition template
+    catapult_cache_size: int = Field(512, ge=1)  # LRU-bounded query-locality shortcut cache (CatapultDB)
+    bm25_k1: float = Field(1.5, gt=0)
+    bm25_b: float = Field(0.75, ge=0.0, le=1.0)
 
 
 class MemorySettings(BaseModel):
@@ -85,6 +89,7 @@ class AgentSettings(BaseModel):
     usage_weight: float = Field(0.0, ge=0.0)        # blend of usage feedback into ranking; 0 == pure relevance
     mmr_lambda: float = Field(0.7, ge=0.0, le=1.0)  # 1.0 == pure relevance, lower == more diversity
     octave_fusion: bool = False                     # fuse rankings across octaves (RRF)
+    hybrid_lexical: bool = False                    # fuse BM25 lexical rank into the RRF accumulator
     incremental_ingest: bool = True                 # reuse cached embeddings on ingest
     consolidate_tension: float = 0.3                # tension threshold above which consolidate acts
     max_query_chars: int = Field(2048, ge=1)        # serving-side query length cap

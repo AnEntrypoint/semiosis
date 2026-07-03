@@ -1,0 +1,7 @@
+core/test_manifold_invariants.py:71:76 test_cone_engine_and_config
+def test_cone_engine_and_config() -> None:
+    engine = HyperbolicConeEngine(ConeSettings())
+    nodes = engine.fit(_tree(n=3))
+    mat = engine.batch_contains(nodes, nodes)
+    assert mat.shape == (len(nodes), len(nodes)) and all(n.aperture >= 0.1 for n in nodes)
+    assert ConeFitConfig.from_settings(_s().cone).epochs == _s().cone.epochs

@@ -1,0 +1,3 @@
+core/test_manifold_invariants.py:42:43 _tmp
+def _tmp() -> str:
+    fd, p = tempfile.mkstemp(suffix=".json"); os.close(fd); return p

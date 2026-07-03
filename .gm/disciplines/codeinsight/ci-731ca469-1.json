@@ -1,0 +1,3 @@
+core/lexical_index.py:11:12 _tokenize
+def _tokenize(text: str) -> list[str]:
+    return _TOKEN_RE.findall(text.lower())

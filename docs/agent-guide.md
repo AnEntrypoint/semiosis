@@ -67,5 +67,13 @@ docs/auto-research.md.
 ## Tuning
 
 Env prefix `SC_`, nested `__`. Agent knobs under `SC_AGENT__`: `usage_weight`,
-`mmr_lambda`, `octave_fusion`, `incremental_ingest`, `consolidate_tension`,
+`mmr_lambda`, `octave_fusion`, `hybrid_lexical`, `incremental_ingest`, `consolidate_tension`,
 `max_query_chars`. Measure changes with `core.eval.evaluate(kb, labeled, k)`.
+
+`hybrid_lexical=True` fuses a BM25 lexical ranking over ingested texts into the same
+RRF accumulator `octave_fusion` uses across Matryoshka prefixes -- exact-keyword and
+embedding-similarity signals combine into one ranked list, no separate lexical API.
+Store knobs under `SC_STORE__`: `hilbert_partitions` (Hilbert-curve bucket count per
+octave, prunes `knn`/`knn_scored` candidate scans once a store octave holds enough
+nodes), `catapult_cache_size` (LRU-bounded query-locality shortcut cache size),
+`bm25_k1`/`bm25_b` (standard BM25 term-frequency saturation / length-normalization).

@@ -35,3 +35,7 @@
   status: witnessed
   description: 'Each target repo''s git tree state before I touch it (spoint on cluster-lod may have uncommitted work; commit-straight-to-branch means I must not bundle unrelated dirty files into my perf commits). Witness: git status per repo.'
   witness_evidence: 'git -C status --porcelain empty for all three: spoint(cluster-lod), mapspinner(main), streaming-gltf(master) all clean. Perf commits will not bundle unrelated changes.'
+- id: mut-single-doc-cluster-preexisting
+  status: witnessed
+  witness: 'pre-existing bug (confirmed via git stash on master before this session''s changes): ingest([one_text]) raises scipy ValueError in AgglomerativeClusterer.fit (core/encoder.py:111) on empty distance matrix; unrelated to hybrid-search/locality-index work this session, out of scope, filed for a future session'
+  witness_evidence: 'confirmed via git stash: identical scipy ValueError in AgglomerativeClusterer.fit on master before this session''s changes; out-of-scope pre-existing bug, not introduced by hybrid-search/locality-index work, filed as known-issue not fixed'

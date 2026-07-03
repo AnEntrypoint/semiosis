@@ -1,5 +1,0 @@
-core/test_manifold_invariants.py:123:126 test_kb_empty_and_diagnose
-def test_kb_empty_and_diagnose() -> None:
-    assert KnowledgeBase().search("x") == [] and KnowledgeBase().diagnose().nodes == 0
-    rep = _kb().diagnose()
-    assert isinstance(rep, DiagnoseReport) and rep.nodes > 0

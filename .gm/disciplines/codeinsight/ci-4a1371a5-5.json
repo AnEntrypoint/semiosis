@@ -1,5 +1,0 @@
-core/test_manifold_invariants.py:145:148 test_kb_input_validation
-def test_kb_input_validation() -> None:
-    kb = _kb()
-    with pytest.raises(ValueError): kb.search("x", k=0)
-    with pytest.raises(ValueError): kb.build_context_pack("x", max_tokens=-1)

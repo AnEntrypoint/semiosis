@@ -8,6 +8,7 @@ from typing import Any
 
 from .context_pack import ContextPack, ContextPackBuilder, ContextPackConfig
 from .interfaces import Prefix, phrase_to_text_index
+from .lexical_index import BM25Index
 from .kb_types import (  # noqa: F401 -- re-exported for backwards compat
     QueryPriority, FailureMode,
     SearchHit, ConsolidateReport, FlowNeighbor, TensionPair, DeepSearchResult,
@@ -64,6 +65,7 @@ class KnowledgeBase:
             "queries": 0, "ingests": 0, "record_outcomes": 0, "consolidations": 0,
         }
         self._summarizer = summarizer or StubSummarizer()
+        self._bm25 = BM25Index(k1=self._settings.store.bm25_k1, b=self._settings.store.bm25_b)
         if _ActivationPredictor is not None:
             enc_dim = getattr(getattr(self._settings, 'encoder', None), 'dim', 64) or 64
             self._act_predictor = _ActivationPredictor(input_dim=64, output_dim=enc_dim)
@@ -75,7 +77,10 @@ class KnowledgeBase:
         """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
         if not texts:
             return
+        start_idx = len(self._texts)
         self._texts.extend(texts)
+        for i, t in enumerate(texts):
+            self._bm25.add(str(start_idx + i), t)
         self._metrics["ingests"] += 1
         if self._pipeline is not None and self._settings.agent.incremental_ingest:
             self._pipeline.ingest(texts)
@@ -127,6 +132,8 @@ class KnowledgeBase:
             for nid, s in store.knn_scored(q_vec[:prefix], k * 4, prefix):
                 scored[nid] = s
                 octave_hits[nid] = 1
+        if a.hybrid_lexical:
+            self._fuse_lexical_rrf(query, scored, octave_hits, prefix=Prefix(enc.dims[0]))
         cands = []
         for nid, base in scored.items():
             node = store.get(nid)
@@ -136,6 +143,24 @@ class KnowledgeBase:
         cands.sort(key=lambda t: t[1], reverse=True)
         lam = (0.3 if p == QueryPriority.HIGH else (0.7 if p == QueryPriority.LOW else a.mmr_lambda))
         return self._mmr(cands, k, lam)
+
+    def _fuse_lexical_rrf(self, query: str, scored: dict[str, float], octave_hits: dict[str, int], prefix: Prefix) -> None:
+        """Fuse BM25 lexical rank into the vector-side RRF accumulator (SeekStorm-style hybrid fusion)."""
+        bm25_hits = self._bm25.score(query)[:40]
+        if not bm25_hits:
+            return
+        store = self._pipeline.store
+        members_to_nodes = store.members_to_nodes(prefix)
+        for rank, (doc_id, _s) in enumerate(bm25_hits):
+            idx = int(doc_id) if doc_id.isdigit() else -1
+            if idx < 0 or idx >= len(self._texts):
+                continue
+            phrase_id = next((pid for pid in members_to_nodes if phrase_to_text_index(pid, len(self._texts)) == idx), None)
+            if phrase_id is None:
+                continue
+            nid = members_to_nodes[phrase_id]
+            scored[nid] = scored.get(nid, 0.0) + 1.0 / (60 + rank)
+            octave_hits[nid] = octave_hits.get(nid, 0) + 1
 
     def _mmr(self, cands: list[tuple[Any, float, int]], k: int, lam: float) -> list[tuple[Any, float, int]]:
         engine = self._pipeline.engine

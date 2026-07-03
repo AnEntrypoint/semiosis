@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Sequence
 import numpy as np
 
 from .interfaces import CommitId, ConeNode, EuclideanVec, NodeId, Phrase, Prefix
+from .locality_index import CatapultCache, HilbertBucketIndex
 from .serialization import cone_node_from_dict, cone_node_to_dict
 
 def _compute_entropy(values: np.ndarray) -> float:
@@ -27,28 +28,49 @@ if TYPE_CHECKING:
 class InMemoryStore:
     """Satisfies the Store protocol with a plain dict; no HNSW, no lakeFS."""
 
-    def __init__(self) -> None:
+    def __init__(self, n_partitions: int = 16, catapult_size: int = 512) -> None:
         self._nodes: dict[NodeId, ConeNode] = {}
+        self._locality = HilbertBucketIndex(n_partitions=n_partitions)
+        self._catapult = CatapultCache(max_size=catapult_size)
+        self._member_index_cache: dict[Prefix, dict[Phrase, NodeId]] = {}
+
+    def _index_node(self, node: ConeNode) -> None:
+        vec = self._retrieval_vec(node, node.prefix)
+        if len(vec):
+            self._locality.upsert(node.id, node.prefix, vec)
 
     def write(self, nodes: Sequence[ConeNode], at: CommitId) -> CommitId:
         """Store nodes under the given commit handle and return it."""
         for n in nodes:
             self._nodes[n.id] = n
+            self._index_node(n)
+            self._member_index_cache.pop(n.prefix, None)
         return at
+
+    def _candidate_nodes(self, prefix: Prefix, q_flat: np.ndarray) -> dict[NodeId, ConeNode]:
+        """Hilbert-bucket-pruned candidate set when the octave has enough nodes to prune; else full scan."""
+        cand_ids = self._locality.candidates(prefix, q_flat)
+        if cand_ids is None:
+            return self._nodes
+        return {nid: self._nodes[nid] for nid in cand_ids if nid in self._nodes}
 
     def knn(self, q: EuclideanVec, k: int, prefix: Prefix) -> Sequence[NodeId]:
         """Return up to k node IDs ranked by cosine similarity to q on spatial apex dims."""
         if not self._nodes:
             return []
         q_flat = np.asarray(q, dtype=np.float32).ravel()[:prefix]
+        candidates = self._candidate_nodes(prefix, q_flat)
         scores: list[tuple[float, NodeId]] = []
-        for nid, node in self._nodes.items():
+        for nid, node in candidates.items():
             vec = self._retrieval_vec(node, prefix)
             length = min(len(vec), len(q_flat))
             s = float(np.dot(vec[:length], q_flat[:length]))
             scores.append((s, nid))
         scores.sort(reverse=True)
-        return [nid for _, nid in scores[:k]]
+        result = [nid for _, nid in scores[:k]]
+        if result:
+            self._catapult.record(prefix, q_flat, result[0])
+        return result
 
     @staticmethod
     def _retrieval_vec(node: ConeNode, prefix: Prefix) -> np.ndarray:
@@ -63,8 +85,9 @@ class InMemoryStore:
             return []
         q_flat = np.asarray(q, dtype=np.float32).ravel()[:prefix]
         qn = float(np.linalg.norm(q_flat)) or 1.0
+        candidates = self._candidate_nodes(prefix, q_flat)
         scores: list[tuple[float, NodeId]] = []
-        for nid, node in self._nodes.items():
+        for nid, node in candidates.items():
             vec = self._retrieval_vec(node, prefix)
             length = min(len(vec), len(q_flat))
             sn = float(np.linalg.norm(vec[:length])) or 1.0
@@ -77,10 +100,15 @@ class InMemoryStore:
                 cos = cos * (1.0 - entropy_weight * h)
             scores.append((cos, nid))
         scores.sort(reverse=True)
-        return [(nid, (c + 1.0) / 2.0) for c, nid in scores[:k]]
+        result = scores[:k]
+        if result:
+            self._catapult.record(prefix, q_flat, result[0][1])
+        return [(nid, (c + 1.0) / 2.0) for c, nid in result]
 
     def upsert(self, node: ConeNode) -> None:
         self._nodes[node.id] = node
+        self._index_node(node)
+        self._member_index_cache.pop(node.prefix, None)
 
     def get(self, nid: NodeId) -> ConeNode:
         return self._nodes[nid]
@@ -93,13 +121,16 @@ class InMemoryStore:
         return [n for n in self._nodes.values() if n.prefix == prefix]
 
     def members_to_nodes(self, prefix: Prefix) -> dict[PhraseId, NodeId]:
-        """Reverse map PhraseId -> NodeId at a given octave; the recurse-into-members edge."""
+        """Reverse map PhraseId -> NodeId at a given octave; cached, invalidated on upsert/write."""
+        if prefix in self._member_index_cache:
+            return self._member_index_cache[prefix]
         out: dict[PhraseId, NodeId] = {}
         for n in self._nodes.values():
             if n.prefix != prefix:
                 continue
             for m in n.members:
                 out[m] = n.id
+        self._member_index_cache[prefix] = out
         return out
 
     def save(self, path: "str | os.PathLike[str]") -> None:

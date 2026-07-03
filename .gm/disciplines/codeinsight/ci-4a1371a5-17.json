@@ -1,3 +1,0 @@
-core/test_manifold_invariants.py:47:48 _apex
-def _apex(dim: int = 64):
-    import numpy as np; v = np.zeros(dim + 1, dtype=np.float64); v[0] = 1.0; return v

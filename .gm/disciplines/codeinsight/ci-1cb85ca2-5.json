@@ -1,0 +1,8 @@
+core/settings.py:53:59 MemorySettings
+class MemorySettings(BaseModel):
+    budget_tokens: int = Field(2048, ge=0)
+    digest_min_members: int = Field(2, ge=1)
+    digest_tau: float = 0.0
+    recency_lambda: float = Field(0.05, ge=0.0)
+    max_pinned: int = Field(64, ge=1)
+    summary_max_chars: int = Field(160, ge=8)
