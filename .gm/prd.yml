@@ -1050,3 +1050,55 @@
   text: gh run list shows a real 'ci' workflow exists but only triggers on dependabot branches (pull_request/push to dependabot/github_actions/*), and its last 4 runs on actions/setup-python-6 and actions/checkout-7 bumps all FAILED. It never runs against direct pushes to master, so this session's commit has no CI run to witness at all -- consistent with prior session's finding, but the failing dependency-bump runs are themselves an unaddressed residual (likely a workflow YAML incompatibility with the new action versions).
   witness: 'exec_js: no .github/workflows/ directory exists in the local master checkout (ENOENT); the failing ''ci'' workflow runs from gh run list are historical/GitHub-side artifacts scoped to now-vanished dependabot branches, not a file this repo''s master currently ships or that gates pushes to master. Nothing to fix locally -- root cause (mypy strict on non-strict-clean code) already addressed by the mypy-strict-claim-unenforced fix in this same session, in case the workflow is ever restored.'
   status: completed
+- id: critique-architecture-coupling
+  title: 'Audit module coupling: mixins reaching into KnowledgeBase privates, pipeline rebuild-on-ingest cost, protocol adherence'
+  witness: kb_retrieval.py:15/kb_geometry.py:12/kb_hierarchy.py:11/kb_diagnostics.py:14 mixins all dereference host privates _pipeline/_settings/_texts/_lock/_bm25/_summarizer with no declared protocol; god-object split across 6 files, coupling unchanged
+  status: completed
+- id: critique-cone-math-correctness
+  title: 'Audit cone_engine math: half-aperture formula vs Ganea 2018, angle_at derivation, star-tree training signal value'
+  witness: encoder.py:103-131 star tree (root over flat<=16 clusters) means cone fit trains on root->cluster edges only; cone_engine.py:224 centroid_overlap docstring admits cone overlap is near-arbitrary for sibling pairs; heavy Riemannian machinery decorative in live retrieval path
+  status: completed
+- id: critique-retrieval-correctness
+  title: 'Audit retrieval path: knn ranks centroids not cones, octave fusion defaults off, MMR primary-text dedup, uncertainty semantics'
+  witness: settings.py:94-103 octave_fusion/hybrid_lexical default False so flagship machinery off; context_pack.py:127+141 dedups/collapses on engine.overlap_score which kb_retrieval.py:_mmr comment calls seed noise -- internal contradiction; search() last-hit uncertainty=0.0 semantics wrong kb_retrieval.py:126-131
+  status: completed
+- id: critique-dead-code-stubs
+  title: 'Inventory dead/stub surfaces: dag.py NotImplementedError, analogy stub, ActivationPredictor never fitted, aperture_updates always 0'
+  witness: dag.py all NotImplementedError; store.py:167-171 analogy stub ignores a/b; agent_api.py:63-66 ActivationPredictor never fitted anywhere + getattr encoder.dim always defaults 64 (EncoderSettings has no dim field); kb_diagnostics.py:37-51 consolidate drops reparent/summarize ops, aperture_updates always 0; agent_api.py:88 ingest_stream threshold param unused; recursive.py decompose_by_octaves never called in answer path; locality_index.py:107 Hilbert index needs 32+ nodes/octave but pipeline caps at 17 so index+simhash+catapult never activate
+  status: completed
+- id: critique-api-surface-bloat
+  title: Count public KnowledgeBase methods vs used/tested; identify paper-driven accretion without consumers
+  witness: ~48 public KnowledgeBase methods across 6 mixins + kb_types.py 313 lines of per-method result dataclasses; store tops out ~85 nodes (17/octave x 5) regardless of corpus size; paper-per-session accretion pattern confirmed by recall sessions 4-9
+  status: completed
+- id: critique-test-coverage-gap
+  title: Assess 18-test surface vs ~60 public methods; which mixins have zero coverage
+  witness: 19 test functions in test_manifold_invariants.py vs ~48 public methods; navigate/scan_tension/compress_*/fold_*/deep_search/explain_retrieval/agentic_reflect/hybrid_score/direction_search/trajectory/consolidate untested; 200-line single-file cap structurally guarantees the gap
+  status: completed
+- id: critique-docs-accuracy
+  title: Check README/CLAUDE.md/AGENTS.md claims against code reality (test count, module list, invariants)
+  witness: README.md:120 still claims lakeFS CommitId (corrected elsewhere per resolved mutable dag-py-keep-decision); README:112+CLAUDE.md say 18 tests, file has 19; interfaces.py:85 Store protocol docstring claims versioned HNSW, InMemoryStore is neither; pyproject store/eval/labels extras (hnswlib qdrant mlflow anthropic) never imported
+  status: completed
+- id: critique-performance-scaling
+  title: Audit O(n^2) scans (tension_scan, find_entailments, overlap_nodes), full rebuild on ingest, per-hit re-encoding in search
+  witness: pipeline.py ingest=_rebuild full re-cluster+5-octave cone refit per call (incremental flag only caches embeddings); kb_retrieval.py:117 search re-encodes member texts per hit per query uncached; kb_retrieval.py:333 categorical_parent_score summarizes+encodes every node per query (O(n) LLM calls if real summarizer); kb_hierarchy.py:90 fold_budget encodes per-text in loop; cone_engine.py select_representatives O(k n^2) single-item torch dist calls
+  status: completed
+- id: critique-security-serving
+  title: 'Audit api.py: no auth, no rate limit, unbounded KB growth via /ingest, summarizer key handling'
+  witness: api.py no auth/rate-limit on any endpoint; /ingest per-request caps only, unbounded cumulative growth + full-refit amplification (1 text triggers 5-octave Riemannian refit); summarizer.py:12-56 ships member texts to hardcoded OpenAI endpoint w/ env key; pipeline.py:29-35 silent RandomEncoder fallback means /ready reports warm while serving garbage rankings
+  status: completed
+- id: critique-concurrency
+  title: 'Audit threading: RLock held across ingest full-rebuild, search releases lock before re-encoding, api asyncio.to_thread on shared KB'
+  witness: agent_api.py:96-103 ingest_stream rebalanced branch mutates _texts/_bm25/_pipeline with NO lock; search() exits lock before _member_texts iteration; Geometry/Hierarchy mixin methods take no lock at all; api.py asyncio.to_thread fans concurrent requests into these unlocked paths
+  status: completed
+- id: critique-persistence-reproducibility
+  title: 'Audit save/load: cones rebuilt-not-restored, CommitId uuid theater, store.save unused by KB path'
+  witness: kb_persistence.py load() re-ingests texts = full re-encode+refit on every load, cones never restored; store.py save/load JSON layer exists but KB path never uses it (two persistence layers, one orphaned); CommitId=uuid4 per rebuild, no versioning/rollback despite protocol claim
+  status: completed
+- id: critique-clusterer-hierarchy
+  title: 'Audit AgglomerativeClusterer: star tree (root over flat k clusters) means no real multi-level hierarchy despite hierarchical branding'
+  witness: pipeline.py:44+76 AgglomerativeClusterer(n_clusters=min(n,16)) hardcoded, not settings-driven; hierarchy depth frozen at 2 levels/octave, node count ceiling ~85 total regardless of corpus; kb_geometry.py:270 best_octave_trajectory argmax-distance contradicts best_octave second-derivative definition
+  status: completed
+- id: critique-residual-git-triage
+  title: Triage dirty .gm/ tree (modified manifests, deleted vec shards, untracked mixin manifests) and commit
+  witness: clean porcelain after commit
+  status: pending
