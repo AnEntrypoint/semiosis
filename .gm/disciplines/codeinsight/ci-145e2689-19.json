@@ -1,7 +1,0 @@
-core/kb_types.py:143:148 RecursiveAnswerResult
-class RecursiveAnswerResult:
-    """Result of recursive LLM-driven octave descent."""
-    answer_nodes: tuple
-    depth_reached: int
-    energy_total: float
-    sub_queries: tuple

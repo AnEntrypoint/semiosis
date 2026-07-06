@@ -1,7 +1,0 @@
-core/kb_types.py:160:165 FoldBudgetResult
-class FoldBudgetResult:
-    """Energy-aware greedy candidate selection under token budget."""
-    included: tuple
-    excluded: tuple
-    tokens_used: int
-    energy_cost: float

@@ -1,0 +1,3 @@
+## Resolved mutable: dag-py-keep-decision
+
+core/dag.py left in place (honest NotImplementedError stubs, gated _HAS_DAGSTER); only StoreSettings.backend/hnsw_m/hnsw_ef_construct/lakefs_repo removed from settings.py, plus lakeFS invariant claim corrected in README.md/CLAUDE.md/AGENTS.md to describe uuid CommitId reality

@@ -1,6 +1,0 @@
-core/test_manifold_invariants.py:48:52 _tree
-def _tree(n: int = 2) -> ClusterTree:
-    ids = [NodeId(f"n{i}") for i in range(n)]
-    return ClusterTree(edges=tuple((ids[0], ids[i]) for i in range(1, n)),
-                       assignments={f"p{i}": ids[i % n] for i in range(n)},
-                       prefix=Prefix(64))

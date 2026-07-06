@@ -1,4 +1,0 @@
-core/kb_types.py:69:71 CompressResult
-class CompressResult:
-    texts: tuple[str, ...]
-    energy_reduction: float

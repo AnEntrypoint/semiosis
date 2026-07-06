@@ -1,8 +1,0 @@
-core/kb_types.py:37:43 ConsolidateReport
-class ConsolidateReport:
-    changed: bool
-    nodes_before: int
-    nodes_after: int
-    merges: int
-    aperture_updates: int
-    dispel_count: int

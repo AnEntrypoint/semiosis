@@ -1,0 +1,3 @@
+## Resolved mutable: cone-fit-actual-load-bearing-site
+
+core/agent_api.py:180 now calls engine.centroid_overlap instead of engine.overlap_score; witnessed via exec_js MMR search returning diversified hits (gamma/zeta/alpha/epsilon/delta, 5 distinct texts, not collapsed duplicates)

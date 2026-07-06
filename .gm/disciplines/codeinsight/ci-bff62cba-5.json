@@ -1,3 +1,0 @@
-core/interfaces.py:73:74 HierarchicalClusterer
-class HierarchicalClusterer(Protocol):
-    def fit(self, vecs: EuclideanVec, prefix: Prefix) -> ClusterTree: ...

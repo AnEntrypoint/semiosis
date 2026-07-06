@@ -177,7 +177,9 @@ class KnowledgeBase:
                 if pt in seen_text:
                     best_i = i if best_i < 0 else best_i
                     continue
-                div = max((engine.overlap_score(s, node) for s, _, _e in selected), default=0.0)
+                # centroid_overlap (embedding cosine), not overlap_score (untrained cone
+                # apex angle -- seed noise for sibling pairs; see cone_engine.py comment).
+                div = max((engine.centroid_overlap(s, node) for s, _, _e in selected), default=0.0)
                 mmr = lam * rel - (1.0 - lam) * div
                 if mmr > best_mmr:
                     best, best_mmr, best_i = (node, rel, epc), mmr, i
@@ -200,24 +202,29 @@ class KnowledgeBase:
                 return []
             self._metrics["queries"] += 1
             engine = self._pipeline.engine
+            enc = self._pipeline._encoder
             hits: list[SearchHit] = []
-            top_score: float | None = None
             ranked = self._ranked(query, k, priority)
-        for node, score, epc in ranked:
-            if top_score is None:
-                top_score = score
+        scores = [float(score) for _, score, _ in ranked]
+        for i, (node, score, epc) in enumerate(ranked):
             members = self._member_texts(node)
             ap = float(getattr(node, "aperture", 0.0))
             try:
                 import numpy as np
-                store = self._pipeline.store
-                enc = self._pipeline._encoder
-                q_vec = enc.encode([query])[0]
-                vecs = np.stack([q_vec for _ in node.members]) if node.members else np.zeros((1, len(q_vec)))
-                entropy = engine._member_entropy(vecs)
+                if len(members) >= 2:
+                    vecs = np.asarray(enc.encode(members), dtype=np.float64)
+                    entropy = engine._member_entropy(vecs)
+                else:
+                    entropy = 0.0
             except Exception:
                 entropy = 0.0
-            norm_score = float(score) / max(top_score, 1e-9) if top_score else 0.0
+            # uncertainty: relative gap to the next-best hit, not self-normalized against
+            # the top hit (that construction made the top hit's uncertainty always 0.0).
+            nxt = scores[i + 1] if i + 1 < len(scores) else None
+            if nxt is None or score <= 1e-9:
+                uncertainty = 0.0 if score > 1e-9 else 1.0
+            else:
+                uncertainty = float(max(0.0, min(1.0, nxt / score)))
             hits.append(SearchHit(
                 text=members[0] if members else self._primary_text(node),
                 score=float(score), node_id=str(node.id), octave=int(node.prefix),
@@ -225,7 +232,7 @@ class KnowledgeBase:
                 aperture=ap,
                 local_entropy=float(entropy),
                 evidence_path_count=int(epc),
-                uncertainty_score=float(1.0 - norm_score),
+                uncertainty_score=uncertainty,
             ))
         return hits
 
@@ -316,26 +323,27 @@ class KnowledgeBase:
         """Self-improve the KB: scan tension, merge redundant pairs; idempotent."""
         if self._pipeline is None:
             return ConsolidateReport(changed=False, nodes_before=0, nodes_after=0, merges=0, aperture_updates=0, dispel_count=0)
-        self._metrics["consolidations"] += 1
-        engine = self._pipeline.engine
-        store = self._pipeline.store
-        nodes = store.all_nodes()
-        nodes_before = len(nodes)
-        scan = engine.tension_scan(nodes, top_n=len(nodes))
-        thr = self._settings.agent.consolidate_tension
-        plan = [row for row in engine.dispel_plan(scan)
-                if any(s[0] == row[1] and s[1] == row[2] and s[2] >= thr for s in scan)]
-        merges = 0
-        aperture_updates = 0
-        for op, a_id, b_id in plan:
-            if op == "merge":
-                try:
-                    merged = engine.merge_nodes(store.get(a_id), store.get(b_id))
-                    store.upsert(merged)
-                    merges += 1
-                except KeyError:
-                    continue
-        nodes_after = len(store.all_nodes())
+        with self._lock:
+            self._metrics["consolidations"] += 1
+            engine = self._pipeline.engine
+            store = self._pipeline.store
+            nodes = store.all_nodes()
+            nodes_before = len(nodes)
+            scan = engine.tension_scan(nodes, top_n=len(nodes))
+            thr = self._settings.agent.consolidate_tension
+            plan = [row for row in engine.dispel_plan(scan)
+                    if any(s[0] == row[1] and s[1] == row[2] and s[2] >= thr for s in scan)]
+            merges = 0
+            aperture_updates = 0
+            for op, a_id, b_id in plan:
+                if op == "merge":
+                    try:
+                        merged = engine.merge_nodes(store.get(a_id), store.get(b_id))
+                        store.upsert(merged)
+                        merges += 1
+                    except KeyError:
+                        continue
+            nodes_after = len(store.all_nodes())
         return ConsolidateReport(
             changed=merges > 0,
             nodes_before=nodes_before,
@@ -409,7 +417,7 @@ class KnowledgeBase:
     def compress_hierarchy(self, query: str, max_nodes: int = 10) -> "CompressedHierarchy":
         """Retain highest-relevance nodes under info-bottleneck criterion."""
         import numpy as _np
-        nodes = list(self._pipeline.store._nodes.values()) if hasattr(self._pipeline.store, '_nodes') else []
+        nodes = self._pipeline.store.all_nodes() if self._pipeline is not None else []
         if not nodes:
             return CompressedHierarchy((), (), 1.0)
         q_vec = self._pipeline._encoder.encode([query])[0]
@@ -436,7 +444,7 @@ class KnowledgeBase:
         hits = self.search(query, k=k)
         if len(hits) < 3:
             return ManifoldComplexity(1.0, 64, "constant")
-        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        store_nodes = self._pipeline.store.nodes_by_id() if self._pipeline is not None else {}
         vecs = []
         for h in hits[:k]:
             if h.node_id in store_nodes:
@@ -499,18 +507,24 @@ class KnowledgeBase:
         results.sort(key=lambda r: r.sparse_score, reverse=True)
         return results[:k]
 
-    def optimal_octave(self, query: str, entropy_budget: float = 1.5) -> int:
-        """Find octave minimizing energy_cost subject to retrieval entropy <= entropy_budget."""
+    def optimal_octave(self, query: str, entropy_budget: float = 1.5, k: int = 5) -> int:
+        """Smallest octave whose knn-scored retrieval entropy stays within entropy_budget."""
         import math as _math
         import numpy as _np
-        octaves = [64, 128, 256, 512, 1024]
-        best_octave = 64
+        if self._pipeline is None:
+            return 64
+        enc = self._pipeline._encoder
+        store = self._pipeline.store
+        q_vec = enc.encode([query])[0]
+        octaves = [int(d) for d in enc.dims]
+        best_octave = octaves[0] if octaves else 64
         best_energy = float("inf")
         for idx, octave in enumerate(octaves):
-            hits = self.search(query, k=5)
-            if not hits:
+            prefix = Prefix(octave)
+            scored = store.knn_scored(q_vec[:prefix], k, prefix)
+            if not scored:
                 continue
-            scores = _np.array([h.score for h in hits])
+            scores = _np.array([s for _, s in scored], dtype=float)
             scores = scores / (scores.sum() + 1e-9)
             entropy = -float(_np.sum(scores * _np.log(scores + 1e-9))) / (_math.log(len(scores) + 1) + 1e-9)
             energy = idx * 0.2
@@ -522,7 +536,7 @@ class KnowledgeBase:
     def information_content(self, node_id: str) -> float:
         """IC = -log2(aperture/pi); high IC = specific concept."""
         import math as _math
-        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        store_nodes = self._pipeline.store.nodes_by_id() if self._pipeline is not None else {}
         node = store_nodes.get(node_id)
         if node is None:
             return 0.0
@@ -530,28 +544,32 @@ class KnowledgeBase:
         return max(0.0, -_math.log2(max(aperture, 1e-9) / _math.pi))
 
     def ingest_stream(self, texts, threshold: float = 0.7, rebalance_threshold: int = 20) -> "IngestStreamResult":
-        """Incremental ingest: add each text and optionally rebalance."""
+        """Batch ingest; rebalances (full re-cluster) once if the batch crosses rebalance_threshold."""
         import time as _time
+        texts = list(texts)
         t0 = _time.monotonic()
-        before = len(self._pipeline.store._nodes) if hasattr(self._pipeline.store, '_nodes') else 0
-        count = 0
-        for text in texts:
-            self.ingest([text])
-            count += 1
-        after = len(self._pipeline.store._nodes) if hasattr(self._pipeline.store, '_nodes') else 0
+        before = len(self._pipeline.store.all_nodes()) if self._pipeline is not None else 0
+        count = len(texts)
+        rebalanced = count > rebalance_threshold
+        if rebalanced and self._pipeline is not None:
+            # force a full rebuild instead of the default incremental-ingest path
+            self._texts.extend(texts)
+            for i, t in enumerate(texts):
+                self._bm25.add(str(before + i), t)
+            self._pipeline = KnowledgePipeline(self._texts, self._settings)
+            self._memory._pipeline = self._pipeline
+            self._memory._texts = list(self._texts)
+        else:
+            self.ingest(texts)
+        after = len(self._pipeline.store.all_nodes()) if self._pipeline is not None else 0
         new_nodes = max(0, after - before)
-        rebalanced = False
-        if new_nodes > rebalance_threshold:
-            self._pipeline.build(list(self._pipeline._vec_cache.keys()) if hasattr(self._pipeline, '_vec_cache') else [])
-            rebalanced = True
         elapsed = (_time.monotonic() - t0) * 1000.0
         return IngestStreamResult(count, new_nodes, rebalanced, elapsed)
 
     def contrastive_direction(self, text_a: str, text_b: str, octave: int | None = None) -> "ContrastiveDirection":
         """Direction = normalize(embed(a) - embed(b)); contrast_score = norm of difference."""
         import numpy as _np
-        va = _np.array(self._pipeline._encoder.encode([text_a])[0], dtype=float)
-        vb = _np.array(self._pipeline._encoder.encode([text_b])[0], dtype=float)
+        va, vb = _np.array(self._pipeline._encoder.encode([text_a, text_b]), dtype=float)
         if octave is not None:
             va, vb = va[:octave], vb[:octave]
         diff = va - vb
@@ -581,14 +599,17 @@ class KnowledgeBase:
         return QueryDecomposition(tuple(parts), tuple(octave_assignments), compound_score)
 
     def attention_score(self, node_id: str, query: str, temperature: float = 1.0) -> "AttentionScore":
-        """NLA-style scaled dot-product attention weight over all nodes."""
+        """NLA-style scaled dot-product attention weight over all nodes at the finest octave."""
         import numpy as _np
         import math as _math
-        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
-        if not store_nodes:
+        if self._pipeline is None:
             return AttentionScore(node_id, 0.0, 64, temperature)
-        q_vec = _np.array(self._pipeline._encoder.encode([query])[0], dtype=float)
-        p = 64
+        enc = self._pipeline._encoder
+        p = int(enc.dims[0])
+        store_nodes = {n.id: n for n in self._pipeline.store.all_nodes()}
+        if not store_nodes:
+            return AttentionScore(node_id, 0.0, p, temperature)
+        q_vec = _np.array(enc.encode([query])[0], dtype=float)
         q_slice = q_vec[:p] / (_np.linalg.norm(q_vec[:p]) + 1e-9)
         raw_scores = {}
         for nid, node in store_nodes.items():
@@ -605,16 +626,12 @@ class KnowledgeBase:
         exp_scores = {nid: _math.exp(s - max_s) for nid, s in raw_scores.items()}
         total = sum(exp_scores.values()) + 1e-9
         weight = exp_scores.get(node_id, 0.0) / total
-        octave = 64
-        return AttentionScore(node_id, weight, octave, temperature)
+        return AttentionScore(node_id, weight, p, temperature)
 
     def find_analogy(self, text_a: str, text_b: str, text_c: str, k: int = 5) -> "AnalogyResult":
         """word2vec analogy: embed(c) + (embed(b) - embed(a)) -> nearest nodes."""
         import numpy as _np
-        enc = self._pipeline._encoder.encode
-        va = _np.array(enc([text_a])[0], dtype=float)
-        vb = _np.array(enc([text_b])[0], dtype=float)
-        vc = _np.array(enc([text_c])[0], dtype=float)
+        va, vb, vc = _np.array(self._pipeline._encoder.encode([text_a, text_b, text_c]), dtype=float)
         direction = vb - va
         hits = self.direction_search(text_c, direction.tolist(), k=k)
         analogy_score = float(hits[0].alignment) if hits else 0.0
@@ -626,7 +643,7 @@ class KnowledgeBase:
     def concept_boundary(self, node_id_a: str, node_id_b: str, octave: int | None = None) -> "ConceptBoundary":
         """Compute decision boundary between two concept nodes."""
         import numpy as _np
-        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        store_nodes = self._pipeline.store.nodes_by_id() if self._pipeline is not None else {}
         node_a = store_nodes.get(node_id_a)
         node_b = store_nodes.get(node_id_b)
         if octave is not None:
@@ -653,30 +670,30 @@ class KnowledgeBase:
         return ConceptBoundary(tuple(midpoint.tolist()), tuple(normal_unit.tolist()), margin, p)
 
     def entropy_dispel(self, entropy_ceiling: float = 2.0) -> "DispelReport":
-        """Auto-dispel nodes with entropy proxy exceeding ceiling."""
+        """Remove nodes whose entropy proxy exceeds ceiling; report before/after mean entropy."""
         import math as _math
-        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
-        if not store_nodes:
+        if self._pipeline is None:
             return DispelReport((), 0.0, 0.0)
-        def node_entropy(node):
-            aperture = getattr(node, 'aperture', 0.5) or 0.5
-            n = max(1, len(getattr(node, 'members', []) or []))
-            return _math.log(1.0 + aperture * n)
-        entropies = {nid: node_entropy(n) for nid, n in store_nodes.items()}
-        before = sum(entropies.values()) / (len(entropies) + 1e-9)
-        to_dispel = [nid for nid, e in entropies.items() if e > entropy_ceiling]
-        if to_dispel:
-            try:
-                self._pipeline.engine.dispel_plan(to_dispel)
-            except Exception:
-                pass
-        after_entropies = {nid: node_entropy(n) for nid, n in store_nodes.items() if nid not in to_dispel}
-        after = sum(after_entropies.values()) / (len(after_entropies) + 1e-9) if after_entropies else 0.0
-        return DispelReport(tuple(to_dispel), before, after)
+        with self._lock:
+            store_nodes = {n.id: n for n in self._pipeline.store.all_nodes()}
+            if not store_nodes:
+                return DispelReport((), 0.0, 0.0)
+            def node_entropy(node):
+                aperture = getattr(node, 'aperture', 0.5) or 0.5
+                n = max(1, len(getattr(node, 'members', []) or []))
+                return _math.log(1.0 + aperture * n)
+            entropies = {nid: node_entropy(n) for nid, n in store_nodes.items()}
+            before = sum(entropies.values()) / (len(entropies) + 1e-9)
+            to_dispel = tuple(nid for nid, e in entropies.items() if e > entropy_ceiling)
+            for nid in to_dispel:
+                self._pipeline.store.delete(nid)
+            after_entropies = {nid: e for nid, e in entropies.items() if nid not in to_dispel}
+            after = sum(after_entropies.values()) / (len(after_entropies) + 1e-9) if after_entropies else 0.0
+            return DispelReport(to_dispel, before, after)
 
     def build_digest_chain(self, summarizer=None) -> dict:
         """Bottom-up hierarchy digest chain: leaf->parent using summarizer."""
-        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        store_nodes = self._pipeline.store.nodes_by_id() if self._pipeline is not None else {}
         if not store_nodes:
             return {}
         digests = {}
@@ -700,19 +717,34 @@ class KnowledgeBase:
         return digests
 
     def compute_transition_matrix(self, node_ids: list) -> dict:
-        """Transition matrix P(octave_j | octave_i) from node octave labels."""
-        import re as _re
-        octaves = [64, 128, 256, 512, 1024]
-        counts = {}
-        for o1 in octaves:
-            for o2 in octaves:
-                counts[(o1, o2)] = 0.0
-        for nid in node_ids:
-            m = _re.search(r'@(\d+)', nid)
-            if m:
-                o = int(m.group(1))
-                if o in octaves:
-                    counts[(o, o)] += 1.0
+        """P(octave_j | octave_i): fraction of octave_i nodes whose members resolve into an octave_j node."""
+        if self._pipeline is None:
+            return {}
+        enc = self._pipeline._encoder
+        store = self._pipeline.store
+        octaves = [int(d) for d in enc.dims]
+        counts = {(o1, o2): 0.0 for o1 in octaves for o2 in octaves}
+        by_octave: dict[int, list] = {o: [] for o in octaves}
+        wanted = set(node_ids) if node_ids else None
+        for n in store.all_nodes():
+            if wanted is not None and str(n.id) not in wanted:
+                continue
+            if int(n.prefix) in by_octave:
+                by_octave[int(n.prefix)].append(n)
+        for oi_idx, oi in enumerate(octaves[:-1]):
+            oj = octaves[oi_idx + 1]
+            member_map = store.members_to_nodes(Prefix(oj))
+            for node in by_octave[oi]:
+                targets = {member_map[m] for m in node.members if m in member_map}
+                if targets:
+                    counts[(oi, oi)] += 0.0  # no self-transition credit; real edge found below
+                    for _ in targets:
+                        counts[(oi, oj)] += 1.0 / len(targets)
+                else:
+                    counts[(oi, oi)] += 1.0
+        if octaves:
+            last = octaves[-1]
+            counts[(last, last)] += float(len(by_octave[last]))
         matrix = {}
         for o1 in octaves:
             row_sum = sum(counts[(o1, o2)] for o2 in octaves) + 1e-9
@@ -839,8 +871,7 @@ class KnowledgeBase:
         if self._pipeline is None:
             return 0.0 if octave is not None else {}
         enc = self._pipeline._encoder
-        va = enc.encode([text_a])[0]
-        vb = enc.encode([text_b])[0]
+        va, vb = enc.encode([text_a, text_b])
         import numpy as np
         prefixes = [int(octave)] if octave is not None else [int(d) for d in enc.dims]
         results: dict[int, float] = {}
@@ -1128,69 +1159,79 @@ class KnowledgeBase:
         import numpy as _np
         if self._pipeline is None or not query:
             return []
-        store_nodes = self._pipeline.store._nodes if hasattr(self._pipeline.store, '_nodes') else {}
+        store_nodes = self._pipeline.store.nodes_by_id()
         enc = self._pipeline._encoder
         q_vec = _np.array(enc.encode([query])[0], dtype=float)
         qn = _np.linalg.norm(q_vec)
         q_unit = q_vec / (qn + 1e-9)
+        parent_nodes = [(nid, node) for nid, node in store_nodes.items() if node.members]
+        if not parent_nodes:
+            return []
+        summaries = [self._summarizer.summarize(str(nid), self._member_texts(node)) for nid, node in parent_nodes]
+        sv_batch = _np.array(enc.encode(summaries), dtype=float)
         results = []
-        for nid, node in store_nodes.items():
-            if not node.members:
-                continue
-            members = self._member_texts(node)
-            summary = self._summarizer.summarize(str(nid), members)
-            sv = _np.array(enc.encode([summary])[0], dtype=float)
+        for (nid, _node), summary, sv in zip(parent_nodes, summaries, sv_batch):
             sn = _np.linalg.norm(sv)
-            sv = sv / (sn + 1e-9)
-            sim = float(_np.dot(q_unit, sv))
+            sv_unit = sv / (sn + 1e-9)
+            sim = float(_np.dot(q_unit, sv_unit))
             results.append(CategoricalParentHit(node_id=str(nid), summary=summary, embedding_sim=sim))
         results.sort(key=lambda h: h.embedding_sim, reverse=True)
         return results[:k]
 
     def activation_embed(self, text: str) -> list:
-        """Blend encoder (0.8) + activation projection (0.2) with LRU cache."""
-        import numpy as _np
-        if not hasattr(self, '_act_embed_cache'):
-            from functools import lru_cache
-            self._act_embed_cache: dict = {}
-        if text in self._act_embed_cache:
-            return self._act_embed_cache[text]
-        if self._pipeline is None:
-            base = list(_stub_activations(text, dim=64)) if _stub_activations else [0.0] * 64
-        else:
-            base = list(self._pipeline._encoder.encode([text])[0].tolist())
-        act_vec = None
-        if self._act_predictor is not None and getattr(self._act_predictor, '_fitted', False) and _stub_activations is not None:
-            try:
-                act_raw = self._act_predictor.predict_embedding(_stub_activations(text))
-                act_arr = _np.array(act_raw, dtype=float)
-                base_arr = _np.array(base, dtype=float)
-                if act_arr.shape == base_arr.shape:
-                    blended = 0.8 * base_arr + 0.2 * act_arr
-                    act_vec = blended.tolist()
-            except Exception:
-                pass
-        result = act_vec if act_vec is not None else base
-        if len(self._act_embed_cache) < 1024:
-            self._act_embed_cache[text] = result
-        return result
+        """Blend encoder + activation projection (weights in AgentSettings) with LRU cache."""
+        return self.activation_embed_batch([text])[0]
 
     def activation_embed_batch(self, texts: list) -> list:
-        """Batch version of activation_embed; returns list of embedding lists."""
-        return [self.activation_embed(t) for t in texts]
+        """Batch-encode texts once; blend each with its activation projection; LRU-cached per text."""
+        import numpy as _np
+        if not hasattr(self, '_act_embed_cache'):
+            self._act_embed_cache: dict = {}
+        w = self._settings.agent.activation_blend_encoder_weight
+        results: list = [None] * len(texts)
+        to_encode: list[tuple[int, str]] = []
+        for i, text in enumerate(texts):
+            if text in self._act_embed_cache:
+                results[i] = self._act_embed_cache[text]
+            else:
+                to_encode.append((i, text))
+        if to_encode:
+            missing_texts = [t for _, t in to_encode]
+            if self._pipeline is None:
+                bases = [list(_stub_activations(t, dim=64)) if _stub_activations else [0.0] * 64
+                         for t in missing_texts]
+            else:
+                bases = self._pipeline._encoder.encode(missing_texts).tolist()
+            for (i, text), base in zip(to_encode, bases):
+                act_vec = None
+                if self._act_predictor is not None and getattr(self._act_predictor, '_fitted', False) and _stub_activations is not None:
+                    try:
+                        act_raw = self._act_predictor.predict_embedding(_stub_activations(text))
+                        act_arr = _np.array(act_raw, dtype=float)
+                        base_arr = _np.array(base, dtype=float)
+                        if act_arr.shape == base_arr.shape:
+                            act_vec = (w * base_arr + (1.0 - w) * act_arr).tolist()
+                    except Exception:
+                        pass
+                result = act_vec if act_vec is not None else list(base)
+                results[i] = result
+                if len(self._act_embed_cache) < 1024:
+                    self._act_embed_cache[text] = result
+        return results
 
     def hybrid_score(self, query: str, texts: list, llm_fn=None) -> list:
-        """Rerank texts by 0.7*SBERT_cosine + 0.3*LLM_score; returns (text, score) pairs."""
+        """Rerank texts by w*SBERT_cosine + (1-w)*LLM_score (w in AgentSettings); returns (text, score) pairs."""
         import numpy as _np
         if self._pipeline is None or not texts:
             return [(t, 0.0) for t in texts]
         enc = self._pipeline._encoder
+        w = self._settings.agent.hybrid_score_cosine_weight
         q_vec = _np.array(enc.encode([query])[0], dtype=float)
         qn = _np.linalg.norm(q_vec) + 1e-9
         q_unit = q_vec / qn
+        text_vecs = _np.array(enc.encode(texts), dtype=float)
         results = []
-        for t in texts:
-            tv = _np.array(enc.encode([t])[0], dtype=float)
+        for t, tv in zip(texts, text_vecs):
             tn = _np.linalg.norm(tv) + 1e-9
             cos_score = float(_np.dot(q_unit, tv / tn))
             llm_score = 0.5  # neutral default
@@ -1200,7 +1241,7 @@ class KnowledgeBase:
                     llm_score = float(raw) if raw is not None else 0.5
                 except Exception:
                     pass
-            combined = 0.7 * cos_score + 0.3 * llm_score
+            combined = w * cos_score + (1.0 - w) * llm_score
             results.append((t, combined))
         results.sort(key=lambda x: x[1], reverse=True)
         return results
@@ -1211,11 +1252,11 @@ class KnowledgeBase:
         if self._pipeline is None:
             return {"octaves": [], "distances": [], "best_octave": 64}
         enc = self._pipeline._encoder
-        octaves = [64, 128, 256, 512, 1024]
+        octaves = [int(d) for d in enc.dims]
+        va_full, vb_full = _np.array(enc.encode([text_a, text_b]), dtype=float)
         distances = []
         for oct in octaves:
-            va = _np.array(enc.encode([text_a])[0], dtype=float)[:oct]
-            vb = _np.array(enc.encode([text_b])[0], dtype=float)[:oct]
+            va, vb = va_full[:oct], vb_full[:oct]
             na, nb = _np.linalg.norm(va) + 1e-9, _np.linalg.norm(vb) + 1e-9
             cos = float(_np.dot(va / na, vb / nb))
             distances.append(1.0 - cos)
@@ -1228,10 +1269,9 @@ class KnowledgeBase:
         if self._pipeline is None:
             return []
         enc = self._pipeline._encoder
-        octaves = [64, 128, 256, 512, 1024]
+        octaves = [int(d) for d in enc.dims]
         results = []
-        va_full = _np.array(enc.encode([node_a])[0], dtype=float)
-        vb_full = _np.array(enc.encode([node_b])[0], dtype=float)
+        va_full, vb_full = _np.array(enc.encode([node_a, node_b]), dtype=float)
         for oct in octaves:
             va = va_full[:oct]; vb = vb_full[:oct]
             diff = vb - va
@@ -1264,7 +1304,7 @@ class KnowledgeBase:
         hits = self.search(query, k=1)
         if not hits:
             return {"steps": [], "terminal_node_id": "", "total_energy_drop": 0.0}
-        store_nodes = store._nodes if hasattr(store, '_nodes') else {}
+        store_nodes = store.nodes_by_id()
         current_id = hits[0].node_id
         steps = []
         start_energy: float | None = None

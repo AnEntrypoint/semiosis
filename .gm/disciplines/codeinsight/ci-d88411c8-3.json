@@ -1,8 +1,0 @@
-core/context_pack.py:24:30 ContextEntry
-class ContextEntry:
-    node_id: NodeId
-    text: str
-    tokens: int
-    relevance: float
-    is_summary: bool = False
-    represented: tuple[NodeId, ...] = ()

@@ -1,7 +1,0 @@
-core/kb_types.py:176:181 IngestStreamResult
-class IngestStreamResult:
-    """Result of incremental streaming ingest."""
-    ingested_count: int
-    new_nodes: int
-    rebalanced: bool
-    elapsed_ms: float

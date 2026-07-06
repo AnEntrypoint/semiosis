@@ -1,7 +1,0 @@
-core/kb_types.py:283:288 Hypothesis
-class Hypothesis:
-    """A proposed claim about an under-explored KB region; status set on observe."""
-    text: str
-    support_score: float = 0.0
-    octave: int = 0
-    status: str = "open"  # open | supported | refuted

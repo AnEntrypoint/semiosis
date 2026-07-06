@@ -1,8 +1,0 @@
-core/kb_types.py:102:108 SemanticDirection
-class SemanticDirection:
-    from_node: str
-    to_node: str
-    octave: int
-    direction_vec: tuple[float, ...]
-    magnitude: float
-    cosine_alignment: float

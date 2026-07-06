@@ -1,7 +1,0 @@
-core/kb_types.py:274:279 Observation
-class Observation:
-    """Calling agent's reply to a Directive; success_signal in [0,1]."""
-    directive_stage: str
-    result_text: str = ""
-    evidence: tuple[str, ...] = ()
-    success_signal: float = 0.0

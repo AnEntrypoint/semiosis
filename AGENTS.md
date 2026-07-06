@@ -9,8 +9,7 @@
 - No filler comments explaining what code does; only WHY when non-obvious.
 
 ## Package structure
-- Source lives under `core/`; root-level `cone_engine.py`, `interfaces.py`, `settings.py`,
-  `test_manifold_invariants.py` are stale copies -- delete them.
+- Source lives under `core/`; no root-level module copies exist.
 - Sub-settings (`EncoderSettings`, `ConeSettings`, `StoreSettings`) are `BaseModel`,
   not `BaseSettings`; only root `Settings` loads from env.
 
@@ -21,7 +20,8 @@
 
 ## Settings
 - Env prefix `SC_`, nested delimiter `__` (e.g. `SC_ENCODER__MODEL=...`).
-- Any state = `Settings` snapshot x lakeFS `CommitId` for reproducibility.
+- Any state = `Settings` snapshot x `CommitId` for reproducibility (uuid handle today;
+  no lakeFS-backed versioning implemented).
 
 ## Invariants
 - Manifold: Lorentz/hyperboloid (not Poincare ball); numerical guards in rs-learn key `semiosis-stability-invariants`.

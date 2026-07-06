@@ -1,4 +1,0 @@
-core/test_manifold_invariants.py:101:103 test_pipeline_ingest_and_search
-def test_pipeline_ingest_and_search() -> None:
-    hits = _kb(WEBGL).search("draw call optimization", k=3)
-    assert hits and all(isinstance(h, SearchHit) for h in hits)

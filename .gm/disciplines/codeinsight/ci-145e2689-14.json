@@ -1,6 +1,0 @@
-core/kb_types.py:185:189 ContrastiveDirection
-class ContrastiveDirection:
-    """Direction vector representing what separates two concepts."""
-    direction_vec: tuple
-    contrast_score: float
-    octave: int

@@ -1,3 +1,0 @@
-core/kb_types.py:257:258 SemanticDirectionError
-class SemanticDirectionError(ValueError):
-    pass

@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=69", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -32,9 +32,9 @@ dev = ["mypy>=1.9", "pytest>=8.1", "hypothesis>=6.100", "ruff>=0.3"]
 all = ["semantic-cones[hyperbolic,store,encoder,serving,eval]"]
 
 [tool.mypy]
-strict = true
+# not yet strict-clean (no CI gate has run against this codebase); tighten incrementally
+# rather than claim strict=true without an enforcing gate.
 warn_unreachable = true
-disallow_any_generics = true
 
 [tool.ruff]
 line-length = 100

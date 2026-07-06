@@ -1,7 +1,0 @@
-core/test_manifold_invariants.py:164:169 _agent
-def _agent(kb):
-    def fn(d):
-        hits = kb.search(d.target_query, k=2) if d.target_query else []
-        return Observation(directive_stage=d.stage, result_text="ok",
-                           evidence=tuple(h.text for h in hits), success_signal=0.85)
-    return fn

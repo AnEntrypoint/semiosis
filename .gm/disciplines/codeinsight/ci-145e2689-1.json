@@ -1,6 +1,0 @@
-core/kb_types.py:292:296 ResearchStep
-class ResearchStep:
-    cycle: int
-    directive: Directive
-    observation: "Observation | None"
-    energy_delta: float = 0.0

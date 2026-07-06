@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,9 +13,10 @@ class Env(str, Enum):
 
 
 class EncoderSettings(BaseModel):
-    # local HuggingFace Matryoshka model; override SC_ENCODER__MODEL for OpenAI/API-backed models
-    model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    octaves: tuple[int, ...] = (64, 128, 256, 512, 1024)
+    # real Matryoshka model (native dim 768); override SC_ENCODER__MODEL for OpenAI/API-backed models
+    model: str = "nomic-ai/nomic-embed-text-v1.5"
+    native_dim: int = Field(768, ge=1)  # native output dim of `model`; octaves must not exceed this
+    octaves: tuple[int, ...] = (64, 128, 256, 512, 768)
     batch_size: int = Field(128, ge=1)
     device: str | None = None   # 'cpu'|'cuda'|None(auto); set cpu for zero-VRAM
     fp16: bool = False          # half-precision weights; halves encoder VRAM on GPU
@@ -26,6 +26,16 @@ class EncoderSettings(BaseModel):
     def _ascending_and_nested(cls, v: tuple[int, ...]) -> tuple[int, ...]:
         if list(v) != sorted(v):
             raise ValueError("octaves must be ascending (nested prefixes)")
+        if len(set(v)) != len(v):
+            raise ValueError("octaves must be distinct")
+        return v
+
+    @field_validator("octaves")
+    @classmethod
+    def _within_native_dim(cls, v: tuple[int, ...], info) -> tuple[int, ...]:
+        native = info.data.get("native_dim")
+        if native is not None and any(o > native for o in v):
+            raise ValueError(f"octaves {v} exceed native_dim={native}; slicing past it duplicates the last real octave")
         return v
 
 
@@ -40,10 +50,6 @@ class ConeSettings(BaseModel):
 
 
 class StoreSettings(BaseModel):
-    backend: Literal["memory", "qdrant", "pgvector"] = "memory"
-    hnsw_m: int = 16
-    hnsw_ef_construct: int = 200
-    lakefs_repo: str = "semantic-cones"
     hilbert_partitions: int = Field(16, ge=1)   # Hilbert-bucket count per octave; VStream-style partition template
     catapult_cache_size: int = Field(512, ge=1)  # LRU-bounded query-locality shortcut cache (CatapultDB)
     bm25_k1: float = Field(1.5, gt=0)
@@ -93,6 +99,8 @@ class AgentSettings(BaseModel):
     incremental_ingest: bool = True                 # reuse cached embeddings on ingest
     consolidate_tension: float = 0.3                # tension threshold above which consolidate acts
     max_query_chars: int = Field(2048, ge=1)        # serving-side query length cap
+    hybrid_score_cosine_weight: float = Field(0.7, ge=0.0, le=1.0)   # hybrid_score: SBERT cosine share
+    activation_blend_encoder_weight: float = Field(0.8, ge=0.0, le=1.0)  # activation_embed: encoder share
 
 
 class Settings(BaseSettings):

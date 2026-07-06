@@ -11,16 +11,6 @@ from .interfaces import CommitId, ConeNode, EuclideanVec, NodeId, Phrase, Prefix
 from .locality_index import CatapultCache, HilbertBucketIndex
 from .serialization import cone_node_from_dict, cone_node_to_dict
 
-def _compute_entropy(values: np.ndarray) -> float:
-    """Shannon entropy of normalized value distribution."""
-    if len(values) == 0:
-        return 0.0
-    v = np.abs(values)
-    if np.sum(v) == 0:
-        return 0.0
-    p = v / np.sum(v)
-    return float(-np.sum(p * (np.log(p + 1e-10))))
-
 if TYPE_CHECKING:
     from .cone_engine import HyperbolicConeEngine
 
@@ -92,11 +82,11 @@ class InMemoryStore:
             length = min(len(vec), len(q_flat))
             sn = float(np.linalg.norm(vec[:length])) or 1.0
             cos = float(np.dot(vec[:length], q_flat[:length]) / (qn * sn))
-            # entropy weight: penalize high-entropy (uncertain) clusters
-            if entropy_weight > 0 and node.centroid is not None:
-                centroid = np.asarray(node.centroid, dtype=np.float32)[:prefix]
-                member_distances = np.array([np.linalg.norm(np.asarray(node.centroid, dtype=np.float32)[:length] - np.asarray(vec, dtype=np.float32)[:length]) for _ in range(max(1, len(node.members)))])
-                h = _compute_entropy(member_distances) / (np.log(max(2, len(node.members))) + 1e-6)
+            # entropy weight: penalize wide-aperture (diffuse) clusters using the fitted
+            # cone aperture as the entropy proxy -- no per-member vectors are stored here,
+            # so aperture (already entropy-tuned upstream) is the available uncertainty signal.
+            if entropy_weight > 0 and node.members:
+                h = min(1.0, float(getattr(node, "aperture", 0.0)) / (np.pi / 2))
                 cos = cos * (1.0 - entropy_weight * h)
             scores.append((cos, nid))
         scores.sort(reverse=True)
@@ -110,11 +100,24 @@ class InMemoryStore:
         self._index_node(node)
         self._member_index_cache.pop(node.prefix, None)
 
+    def delete(self, nid: NodeId) -> bool:
+        """Remove a node by id; returns False if it was already absent."""
+        node = self._nodes.pop(nid, None)
+        if node is None:
+            return False
+        self._locality.remove(nid, node.prefix)
+        self._member_index_cache.pop(node.prefix, None)
+        return True
+
     def get(self, nid: NodeId) -> ConeNode:
         return self._nodes[nid]
 
     def all_nodes(self) -> list[ConeNode]:
         return list(self._nodes.values())
+
+    def nodes_by_id(self) -> dict[NodeId, ConeNode]:
+        """Read-only view of the id->node map; callers must not mutate the store through it."""
+        return dict(self._nodes)
 
     def nodes_at(self, prefix: Prefix) -> list[ConeNode]:
         """Return nodes belonging to one Matryoshka octave (prefix)."""

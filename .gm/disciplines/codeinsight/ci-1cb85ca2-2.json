@@ -1,8 +1,0 @@
-core/settings.py:79:85 ResearchSettings
-class ResearchSettings(BaseModel):
-    max_cycles: int = Field(8, ge=1)                       # hard cap; fail loud past it
-    convergence_energy_delta: float = Field(0.01, ge=0.0)  # stop when energy improves less than this
-    frontier_top_k: int = Field(5, ge=1)                   # candidate regions per propose stage
-    min_support_score: float = Field(0.5, ge=0.0, le=1.0)  # observation success threshold
-    max_no_observation: int = Field(3, ge=1)               # bound on empty-observation skips
-    instruction_persist_path: str = ""                     # sidecar for refined instructions; empty == no persist

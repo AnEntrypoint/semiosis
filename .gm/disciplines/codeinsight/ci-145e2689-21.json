@@ -1,5 +1,0 @@
-core/kb_types.py:128:131 DirectionSearchResult
-class DirectionSearchResult:
-    hits: tuple["SearchHit", ...]
-    alpha: float
-    alignment: float

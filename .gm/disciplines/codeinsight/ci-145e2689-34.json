@@ -1,5 +1,0 @@
-core/kb_types.py:9:12 QueryPriority
-class QueryPriority(Enum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"

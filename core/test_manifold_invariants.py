@@ -16,6 +16,7 @@ from core.agent_api import (  # noqa: E402
 )
 from core.research_loop import ResearchLoop  # noqa: E402
 from core.kb_types import Observation, ResearchResult  # noqa: E402
+from core.eval import evaluate  # noqa: E402
 
 FACTS = [
     "alpha unique term", "beta distinct phrase", "gamma separate idea",
@@ -181,6 +182,21 @@ def test_research_loop_e2e_and_edges() -> None:
     assert not silent.converged                                    # no-observation degrade
     s = _s(); s.research.max_cycles = 2; s.research.convergence_energy_delta = -1.0
     assert len(ResearchLoop(kb, s).run(_agent(kb)).steps) <= 2     # non-convergence cap
+
+def test_real_encoder_eval_baseline() -> None:
+    st = pytest.importorskip("sentence_transformers")
+    s = Settings(); s.cone.epochs = 2
+    kb = KnowledgeBase(s); kb.ingest(WEBGL)
+    labeled = [
+        ("reduce draw calls", {WEBGL[0]}),
+        ("attribute binding overhead", {WEBGL[1]}),
+        ("texture memory on GPU", {WEBGL[2]}),
+    ]
+    metrics = evaluate(kb, labeled, k=3)
+    # baseline witnessed against nomic-embed-text-v1.5 on this fixture (2026-07-06); a real
+    # encoder must beat a random one -- regression below this signals encoder/octave misconfig.
+    assert metrics["recall_at_k"] >= 0.5
+    assert metrics["mrr"] >= 0.5
 
 def test_research_loop_persist_roundtrip() -> None:
     kb = _kb()

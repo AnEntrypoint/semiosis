@@ -1,4 +1,0 @@
-core/interfaces.py:108:110 Summarizer
-class Summarizer(Protocol):
-    """Generate an opinionated summary of a cone node's member texts for direction grounding."""
-    def summarize(self, node_id: str, member_texts: list[str]) -> str: ...

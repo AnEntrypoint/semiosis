@@ -1,6 +1,0 @@
-core/semiotic_memory.py:12:16 MemoryKind
-class MemoryKind(str, Enum):
-    session = "session"          # ephemeral environment metadata
-    fact = "fact"                # explicit long-term pinned fact
-    summary = "summary"          # lightweight cluster digest (semiotic distancing)
-    working = "working"          # sliding window of recent ingests

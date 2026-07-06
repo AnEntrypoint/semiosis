@@ -1,3 +1,0 @@
-core/test_manifold_invariants.py:36:37 _s
-def _s() -> Settings:
-    s = Settings(); s.cone.epochs = 4; return s

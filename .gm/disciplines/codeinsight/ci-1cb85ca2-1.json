@@ -1,9 +1,0 @@
-core/settings.py:88:95 AgentSettings
-class AgentSettings(BaseModel):
-    usage_weight: float = Field(0.0, ge=0.0)        # blend of usage feedback into ranking; 0 == pure relevance
-    mmr_lambda: float = Field(0.7, ge=0.0, le=1.0)  # 1.0 == pure relevance, lower == more diversity
-    octave_fusion: bool = False                     # fuse rankings across octaves (RRF)
-    hybrid_lexical: bool = False                    # fuse BM25 lexical rank into the RRF accumulator
-    incremental_ingest: bool = True                 # reuse cached embeddings on ingest
-    consolidate_tension: float = 0.3                # tension threshold above which consolidate acts
-    max_query_chars: int = Field(2048, ge=1)        # serving-side query length cap

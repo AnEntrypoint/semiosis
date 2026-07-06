@@ -1,3 +1,0 @@
-core/test_manifold_invariants.py:128:129 test_kb_batch_search
-def test_kb_batch_search() -> None:
-    assert len(_kb().batch_search(["alpha", "beta"], k=2)) == 2

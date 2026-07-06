@@ -1,6 +1,0 @@
-core/api.py:51:55 _get_kb
-def _get_kb() -> KnowledgeBase:
-    global _kb
-    if _kb is None:
-        _kb = KnowledgeBase(_get_settings())
-    return _kb

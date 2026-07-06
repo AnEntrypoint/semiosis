@@ -1,5 +1,0 @@
-core/manifold_ops.py:9:12 lorentz_project
-def lorentz_project(vec: np.ndarray) -> np.ndarray:
-    """Project unit vector in R^d to Lorentz hyperboloid: prepend x0=sqrt(1+||v||^2)."""
-    x0 = math.sqrt(1.0 + float(np.dot(vec, vec)))
-    return np.concatenate([[x0], vec])

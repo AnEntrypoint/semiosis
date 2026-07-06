@@ -1,7 +1,0 @@
-core/test_manifold_invariants.py:56:61 test_expmap_logmap_roundtrip
-def test_expmap_logmap_roundtrip(scale: float, seed: int) -> None:
-    torch.manual_seed(seed)
-    m = geoopt.Lorentz(k=torch.tensor(1.0))
-    x = m.random_normal((4, 6), std=0.1)
-    v = m.proju(x, torch.randn(4, 6) * scale)
-    assert torch.allclose(v, m.logmap(x, m.expmap(x, v)), atol=1e-3)

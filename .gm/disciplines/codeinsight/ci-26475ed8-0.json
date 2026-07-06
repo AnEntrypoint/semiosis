@@ -1,3 +1,0 @@
-core/conftest.py:20:21 default_cfg
-def default_cfg() -> ConeFitConfig:
-    return ConeFitConfig(epochs=20, dim=4, seed=0)

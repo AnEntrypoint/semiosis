@@ -21,7 +21,7 @@ in embedding space at any chosen dimensionality.
 pip install -e ".[hyperbolic,dev]"
 ```
 
-Requires Python 3.10+, `torch`, `geoopt`.
+Requires Python 3.11+, `torch`, `geoopt`.
 
 ## Quick start
 
@@ -29,7 +29,12 @@ Requires Python 3.10+, `torch`, `geoopt`.
 from core.agent_api import KnowledgeBase
 
 kb = KnowledgeBase()
-kb.ingest(["instanced drawing cuts draw calls", "VAO binds all attributes in one call"])
+kb.ingest([
+    "instanced drawing cuts draw calls",
+    "VAO binds all attributes in one call",
+    "compressed textures stay compressed on GPU",
+    "CPU frustum culling cuts GPU work before the rasterizer",
+])
 
 hits = kb.search("draw call optimization", k=3)
 print(hits[0].text, hits[0].score)
@@ -37,11 +42,16 @@ print(hits[0].text, hits[0].score)
 d = kb.semantic_distance("draw calls", "GPU rasterizer", octave=64)
 print(f"distance: {d:.4f}")
 
-direction = kb.compute_direction("VAO", "bufferSubData")
+# compute_direction/compute_trajectory operate on store node ids, resolved via search;
+# distinct node ids require the two concepts to land in different clusters, so a
+# small/degenerate corpus (e.g. 2 texts) can collapse both into the same cluster id.
+a_id = kb.search("VAO binds all attributes")[0].node_id
+b_id = kb.search("compressed textures on GPU")[0].node_id
+direction = kb.compute_direction(a_id, b_id)
 print(direction.direction_vec[:4])
 
-traj = kb.compute_trajectory("WebGL performance", octaves=[64, 128, 256])
-print([(t.octave, t.complexity_estimate) for t in traj.steps])
+traj = kb.compute_trajectory("WebGL performance", answer_node_id=b_id)
+print([(s.octave, s.distance_from_prev) for s in traj.steps])
 ```
 
 ## Key primitives
@@ -55,7 +65,7 @@ print([(t.octave, t.complexity_estimate) for t in traj.steps])
 | `energy_gradient_search(query)` | Follow tension gradient through cone tree |
 | `agentic_reflect(query, llm_fn)` | Iterative reflect-and-refine retrieval |
 | `hybrid_score(query, texts, llm_fn)` | SBERT + LLM weighted reranking |
-| `compress_hierarchy(k)` | Fold hierarchy to k leaves (info bottleneck) |
+| `compress_hierarchy(query, max_nodes)` | Fold hierarchy to max_nodes leaves (info bottleneck) |
 | `sense_complexity(query)` | Estimate manifold complexity near query |
 | `entropy_dispel()` | Find and remove high-entropy nodes |
 | `remember(fact, key)` / `recall(query)` | Pinned long-term fact store |
@@ -85,9 +95,9 @@ core/
 All settings use prefix `SC_` with nested delimiter `__`:
 
 ```
-SC_ENCODER__MODEL=sentence-transformers/all-MiniLM-L6-v2
+SC_ENCODER__MODEL=nomic-ai/nomic-embed-text-v1.5
 SC_CONE__EPOCHS=10
-SC_STORE__MAX_NODES=50000
+SC_STORE__HILBERT_PARTITIONS=32
 ```
 
 Sub-settings (`EncoderSettings`, `ConeSettings`, `StoreSettings`) are `BaseModel`, not
@@ -99,7 +109,7 @@ Sub-settings (`EncoderSettings`, `ConeSettings`, `StoreSettings`) are `BaseModel
 pytest core/
 ```
 
-16 tests, single file (`core/test_manifold_invariants.py`, 195 lines). Requires `torch`
+18 tests, single file (`core/test_manifold_invariants.py`). Requires `torch`
 and `geoopt`; tests auto-skip if absent.
 
 ## Invariants

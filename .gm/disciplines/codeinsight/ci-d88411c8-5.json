@@ -1,3 +1,0 @@
-core/context_pack.py:12:13 TokenCounter
-class TokenCounter(Protocol):
-    def count(self, text: str) -> int: ...

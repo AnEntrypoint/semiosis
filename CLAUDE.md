@@ -33,16 +33,13 @@ per-node embedding centroids (ConeNode.centroid), not the cone apex -- the cone 
 drives containment/tension/flow, embedding centroids drive relevance. Octave cluster ids
 are prefix-namespaced (root@64) so all Matryoshka octaves coexist in the store.
 
-Root files `cone_engine.py`, `interfaces.py`, `settings.py`, `test_manifold_invariants.py`
-are stale copies superseded by `core/`; delete them.
-
 ## Build order (hardest node first)
 
 1. `core/cone_engine.py` + `core/interfaces.py` -- done
-2. Encoder + HierarchicalClusterer (real Matryoshka model)
-3. Store (tangent-projection HNSW + lakeFS versioning)
-4. Query impl
-5. Serving (FastAPI /health /ready) + Dagster DAG + observability
+2. Encoder + HierarchicalClusterer (real Matryoshka model) -- done
+3. Store (in-memory, Hilbert-bucketed) -- done; HNSW/versioned backend still open
+4. Query impl -- done
+5. Serving (FastAPI /health /ready) + Dagster DAG + observability -- API done, DAG stubbed
 6. Optional NLA Labeler last
 
 ## Test
@@ -51,7 +48,7 @@ are stale copies superseded by `core/`; delete them.
 pytest core/
 ```
 
-Requires `torch` + `geoopt` (install `.[hyperbolic,dev]`); tests auto-skip if absent.
+18 tests. Requires `torch` + `geoopt` (install `.[hyperbolic,dev]`); tests auto-skip if absent.
 
 ## Key invariants
 
@@ -62,7 +59,7 @@ Requires `torch` + `geoopt` (install `.[hyperbolic,dev]`); tests auto-skip if ab
   (e.g. `SC_ENCODER__MODEL=...` overrides `settings.encoder.model`).
 - Sub-settings (`EncoderSettings`, `ConeSettings`, `StoreSettings`) are `BaseModel`,
   not `BaseSettings` -- only the root `Settings` loads from env.
-- Reproducibility: any state = `Settings` snapshot x lakeFS `CommitId`.
+- Reproducibility: any state = `Settings` snapshot x `CommitId` (uuid handle today; lakeFS-backed versioning not yet implemented).
 
 ## Rules
 

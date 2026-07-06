@@ -1,6 +1,0 @@
-core/kb_types.py:193:197 QueryDecomposition
-class QueryDecomposition:
-    """Compound query split into sub-queries with octave assignments."""
-    sub_queries: tuple
-    octave_assignments: tuple
-    compound_score: float

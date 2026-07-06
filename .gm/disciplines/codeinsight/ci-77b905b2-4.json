@@ -1,4 +1,0 @@
-core/encoder.py:13:15 _stable_text_hash
-def _stable_text_hash(text: str) -> int:
-    """Process-independent text hash; Python's builtin hash() is salted per-process (PYTHONHASHSEED)."""
-    return int.from_bytes(hashlib.blake2b(text.encode("utf-8"), digest_size=8).digest(), "big")

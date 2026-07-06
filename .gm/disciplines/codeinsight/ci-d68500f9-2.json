@@ -1,6 +1,0 @@
-core/cone_engine.py:16:20 InfoFlowMetrics
-class InfoFlowMetrics:
-    """Information-theoretic metrics for cone relationships."""
-    mutual_info: float = 0.0
-    jensen_shannon_divergence: float = 0.0
-    information_loss: float = 0.0
