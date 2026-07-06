@@ -1100,5 +1100,5 @@
   status: completed
 - id: critique-residual-git-triage
   title: Triage dirty .gm/ tree (modified manifests, deleted vec shards, untracked mixin manifests) and commit
-  witness: clean porcelain after commit
-  status: pending
+  witness: git_finalize sha b3a0248 committed+pushed on master; porcelain clean
+  status: completed
