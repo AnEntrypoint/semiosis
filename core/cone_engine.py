@@ -177,31 +177,6 @@ class HyperbolicConeEngine:
             for nid in ids
         )
 
-    def tune_apertures_by_entropy(self, nodes: Sequence[ConeNode]) -> Sequence[ConeNode]:
-        """Adjust apertures based on member entropy: tight for coherent clusters, wide for diverse."""
-        result = []
-        for node in nodes:
-            if not node.members or node.centroid is None:
-                result.append(node)
-                continue
-            h = self._member_entropy(np.asarray(node.centroid).reshape(1, -1))
-            aperture_scale = 1.0 + 0.5 * h
-            adjusted_aperture = float(np.clip(node.aperture * aperture_scale, _MIN_APERTURE, np.pi / 2))
-            result.append(
-                ConeNode(
-                    id=node.id,
-                    apex=node.apex,
-                    aperture=adjusted_aperture,
-                    prefix=node.prefix,
-                    members=node.members,
-                    label=node.label,
-                    digest=node.digest,
-                    pinned=node.pinned,
-                    centroid=node.centroid,
-                )
-            )
-        return tuple(result)
-
     def contains(self, parent: ConeNode, child: ConeNode) -> float:
         """Soft containment margin in [-pi, +psi]; >0 => parent entails child."""
         p = torch.from_numpy(parent.apex).float()
