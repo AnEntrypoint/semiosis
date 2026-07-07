@@ -254,7 +254,7 @@ class GeometryMixin:
         )
 
     def best_octave_trajectory(self, text_a: str, text_b: str) -> dict:
-        """Track semantic drift between two concepts across all Matryoshka octaves."""
+        """Semantic drift across all Matryoshka octaves; best = sharpest signal per best_octave()."""
         import numpy as _np
         if self._pipeline is None:
             return {"octaves": [], "distances": [], "best_octave": 64}
@@ -267,8 +267,9 @@ class GeometryMixin:
             na, nb = _np.linalg.norm(va) + 1e-9, _np.linalg.norm(vb) + 1e-9
             cos = float(_np.dot(va / na, vb / nb))
             distances.append(1.0 - cos)
-        best_idx = int(_np.argmax(distances))  # octave with most separation
-        return {"octaves": octaves, "distances": distances, "best_octave": octaves[best_idx]}
+        # single best-octave definition project-wide: max second derivative (see best_octave)
+        return {"octaves": octaves, "distances": distances,
+                "best_octave": self.best_octave(text_a, text_b)}
 
     def multi_octave_direction(self, node_a: str, node_b: str) -> list:
         """Direction vectors from node_a to node_b at each Matryoshka octave."""
@@ -298,6 +299,8 @@ class GeometryMixin:
     def contrastive_direction(self, text_a: str, text_b: str, octave: int | None = None) -> "ContrastiveDirection":
         """Direction = normalize(embed(a) - embed(b)); contrast_score = norm of difference."""
         import numpy as _np
+        if self._pipeline is None:
+            return ContrastiveDirection((), 0.0, octave or 0)
         va, vb = _np.array(self._pipeline._encoder.encode([text_a, text_b]), dtype=float)
         if octave is not None:
             va, vb = va[:octave], vb[:octave]
@@ -339,6 +342,8 @@ class GeometryMixin:
     def find_analogy(self, text_a: str, text_b: str, text_c: str, k: int = 5) -> "AnalogyResult":
         """word2vec analogy: embed(c) + (embed(b) - embed(a)) -> nearest nodes."""
         import numpy as _np
+        if self._pipeline is None:
+            return AnalogyResult((), (), 0.0)
         va, vb, vc = _np.array(self._pipeline._encoder.encode([text_a, text_b, text_c]), dtype=float)
         direction = vb - va
         hits = self.direction_search(text_c, direction.tolist(), k=k)

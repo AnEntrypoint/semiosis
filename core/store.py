@@ -1,4 +1,4 @@
-"""In-memory Store and Query stubs satisfying the Store/Query protocols; for testing only."""
+"""In-memory Store + Query implementations; leaf-scoped centroid knn over the recursive cone tree."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
 
-from .interfaces import CommitId, ConeNode, EuclideanVec, NodeId, Phrase, Prefix
+from .interfaces import CommitId, ConeNode, EuclideanVec, NodeId, PhraseId, Prefix
 from .locality_index import CatapultCache, HilbertBucketIndex
 from .serialization import cone_node_from_dict, cone_node_to_dict
 
@@ -16,36 +16,64 @@ if TYPE_CHECKING:
 
 
 class InMemoryStore:
-    """Satisfies the Store protocol with a plain dict; no HNSW, no lakeFS."""
+    """Satisfies the Store protocol with a plain dict; commit ids are uuid handles."""
 
     def __init__(self, n_partitions: int = 16, catapult_size: int = 512) -> None:
         self._nodes: dict[NodeId, ConeNode] = {}
         self._locality = HilbertBucketIndex(n_partitions=n_partitions)
         self._catapult = CatapultCache(max_size=catapult_size)
-        self._member_index_cache: dict[Prefix, dict[Phrase, NodeId]] = {}
+        self._member_index_cache: dict[Prefix, dict[PhraseId, NodeId]] = {}
+        self._children_cache: dict[Prefix, dict[NodeId, list[NodeId]]] = {}
 
     def _index_node(self, node: ConeNode) -> None:
         vec = self._retrieval_vec(node, node.prefix)
         if len(vec):
             self._locality.upsert(node.id, node.prefix, vec)
 
+    def _invalidate(self, prefix: Prefix) -> None:
+        self._member_index_cache.pop(prefix, None)
+        self._children_cache.pop(prefix, None)
+
     def write(self, nodes: Sequence[ConeNode], at: CommitId) -> CommitId:
         """Store nodes under the given commit handle and return it."""
         for n in nodes:
             self._nodes[n.id] = n
             self._index_node(n)
-            self._member_index_cache.pop(n.prefix, None)
+            self._invalidate(n.prefix)
         return at
 
-    def _candidate_nodes(self, prefix: Prefix, q_flat: np.ndarray) -> dict[NodeId, ConeNode]:
-        """Hilbert-bucket-pruned candidate set when the octave has enough nodes to prune; else full scan."""
+    def children_of(self, prefix: Prefix) -> dict[NodeId, list[NodeId]]:
+        """Parent -> children map at one octave, derived from ConeNode.parent; cached."""
+        if prefix in self._children_cache:
+            return self._children_cache[prefix]
+        out: dict[NodeId, list[NodeId]] = {}
+        for n in self._nodes.values():
+            if n.prefix == prefix and n.parent is not None:
+                out.setdefault(n.parent, []).append(n.id)
+        self._children_cache[prefix] = out
+        return out
+
+    def leaves_at(self, prefix: Prefix) -> list[ConeNode]:
+        """Nodes at this octave with no children -- the retrieval candidate pool."""
+        children = self.children_of(prefix)
+        return [n for n in self._nodes.values()
+                if n.prefix == prefix and n.id not in children]
+
+    def _candidate_nodes(self, prefix: Prefix, q_flat: np.ndarray,
+                         leaf_only: bool = True) -> dict[NodeId, ConeNode]:
+        """Leaf pool (default), Hilbert-pruned when the octave is large enough; else full scan."""
+        if leaf_only:
+            pool = {n.id: n for n in self.leaves_at(prefix)}
+        else:
+            pool = {nid: n for nid, n in self._nodes.items() if n.prefix == prefix}
         cand_ids = self._locality.candidates(prefix, q_flat)
         if cand_ids is None:
-            return self._nodes
-        return {nid: self._nodes[nid] for nid in cand_ids if nid in self._nodes}
+            return pool
+        pruned = {nid: pool[nid] for nid in cand_ids if nid in pool}
+        return pruned or pool
 
     def knn(self, q: EuclideanVec, k: int, prefix: Prefix) -> Sequence[NodeId]:
-        """Return up to k node IDs ranked by cosine similarity to q on spatial apex dims."""
+        """Return up to k leaf node IDs ranked by dot product to q on centroid dims."""
         if not self._nodes:
             return []
         q_flat = np.asarray(q, dtype=np.float32).ravel()[:prefix]
@@ -69,7 +97,8 @@ class InMemoryStore:
             return np.asarray(node.centroid, dtype=np.float32)[:prefix]
         return node.apex[1:prefix + 1].astype(np.float32)
 
-    def knn_scored(self, q: EuclideanVec, k: int, prefix: Prefix, entropy_weight: float = 0.0) -> list[tuple[NodeId, float]]:
+    def knn_scored(self, q: EuclideanVec, k: int, prefix: Prefix,
+                   entropy_weight: float = 0.0) -> list[tuple[NodeId, float]]:
         """Like knn but return (node_id, cosine-in-[0,1]) pairs for calibrated relevance."""
         if not self._nodes:
             return []
@@ -98,7 +127,7 @@ class InMemoryStore:
     def upsert(self, node: ConeNode) -> None:
         self._nodes[node.id] = node
         self._index_node(node)
-        self._member_index_cache.pop(node.prefix, None)
+        self._invalidate(node.prefix)
 
     def delete(self, nid: NodeId) -> bool:
         """Remove a node by id; returns False if it was already absent."""
@@ -106,7 +135,7 @@ class InMemoryStore:
         if node is None:
             return False
         self._locality.remove(nid, node.prefix)
-        self._member_index_cache.pop(node.prefix, None)
+        self._invalidate(node.prefix)
         return True
 
     def get(self, nid: NodeId) -> ConeNode:
@@ -124,13 +153,11 @@ class InMemoryStore:
         return [n for n in self._nodes.values() if n.prefix == prefix]
 
     def members_to_nodes(self, prefix: Prefix) -> dict[PhraseId, NodeId]:
-        """Reverse map PhraseId -> NodeId at a given octave; cached, invalidated on upsert/write."""
+        """Reverse map PhraseId -> leaf NodeId at a given octave; cached, invalidated on upsert/write."""
         if prefix in self._member_index_cache:
             return self._member_index_cache[prefix]
         out: dict[PhraseId, NodeId] = {}
-        for n in self._nodes.values():
-            if n.prefix != prefix:
-                continue
+        for n in self.leaves_at(prefix):
             for m in n.members:
                 out[m] = n.id
         self._member_index_cache[prefix] = out
@@ -149,6 +176,8 @@ class InMemoryStore:
         for d in data:
             node = cone_node_from_dict(d)
             self._nodes[node.id] = node
+            self._index_node(node)
+            self._invalidate(node.prefix)
 
 
 class InMemoryQuery:
@@ -164,24 +193,30 @@ class InMemoryQuery:
     def containment_score(self, parent: NodeId, child: NodeId) -> float:
         return self._engine.contains(self._store.get(parent), self._store.get(child))
 
-    def analogy(self, a: NodeId, b: NodeId, c: NodeId) -> Sequence[NodeId]:
-        # stub: return top-k neighbors of c (proper impl needs parallel transport)
-        node_c = self._store.get(c)
-        q = node_c.apex[1:].astype(np.float32)
-        return self._store.knn(q, k=5, prefix=Prefix(len(q)))
+    def analogy(self, a: NodeId, b: NodeId, c: NodeId, k: int = 5) -> Sequence[NodeId]:
+        """A:B :: C:X via centroid arithmetic: knn around centroid(c) + (centroid(b) - centroid(a))."""
+        def _vec(nid: NodeId) -> np.ndarray:
+            n = self._store.get(nid)
+            if n.centroid is not None:
+                return np.asarray(n.centroid, dtype=np.float32)
+            return n.apex[1:].astype(np.float32)
+        va, vb, vc = _vec(a), _vec(b), _vec(c)
+        m = min(len(va), len(vb), len(vc))
+        q = vc[:m] + (vb[:m] - va[:m])
+        return self._store.knn(q, k=k, prefix=Prefix(m))
 
     def overlap_nodes(self, node: NodeId, threshold: float) -> Sequence[NodeId]:
-        """Return nodes whose symmetric overlap with node exceeds threshold."""
+        """Return same-octave nodes whose centroid overlap with node exceeds threshold."""
         n = self._store.get(node)
         return [
-            c.id for c in self._store.all_nodes()
-            if c.id != node and self._engine.overlap_score(n, c) > threshold
+            c.id for c in self._store.nodes_at(n.prefix)
+            if c.id != node and self._engine.centroid_overlap(n, c) > threshold
         ]
 
     def tension_nodes(self, node: NodeId, threshold: float) -> Sequence[NodeId]:
         """Return same-octave nodes whose semantic tension with node exceeds threshold."""
         n = self._store.get(node)
         return [
-            c.id for c in self._store.all_nodes()
-            if c.id != node and c.prefix == n.prefix and self._engine.tension(n, c) > threshold
+            c.id for c in self._store.nodes_at(n.prefix)
+            if c.id != node and self._engine.tension(n, c) > threshold
         ]

@@ -17,6 +17,7 @@ from .interfaces import (
     Encoder, HierarchicalClusterer, ConeEmbedder, Store, Labeler, Query,
     phrase_to_text_index,
 )
+from .markdown_store import load_markdown_tree, save_markdown_tree
 from .pipeline import KnowledgePipeline
 from .recursive import RecursiveAnswerEngine, RecursiveResult
 from .research_loop import ResearchLoop
@@ -24,11 +25,11 @@ from .kb_types import Directive, Observation, Hypothesis, ResearchStep, Research
 from .semiotic_memory import SemioticMemory, MemoryKind, SessionMetadata, Fact
 from .serialization import cone_node_to_dict, cone_node_from_dict
 from .settings import (
-    Settings, EncoderSettings, ConeSettings, StoreSettings,
+    Settings, EncoderSettings, ClusterSettings, ConeSettings, StoreSettings,
     MemorySettings, ContextSettings, RecursiveSettings, ResearchSettings, AgentSettings,
 )
 from .store import InMemoryStore, InMemoryQuery
-from . import dag, eval
+from . import eval
 
 __all__ = [
     "KnowledgeBase", "KnowledgePipeline",
@@ -43,11 +44,12 @@ __all__ = [
     "RandomEncoder", "FixedClusterer", "SentenceTransformerEncoder", "AgglomerativeClusterer",
     "InMemoryStore", "InMemoryQuery",
     "cone_node_to_dict", "cone_node_from_dict",
+    "save_markdown_tree", "load_markdown_tree",
     "ConeNode", "ClusterTree", "Phrase",
     "PhraseId", "NodeId", "Prefix", "CommitId",
     "EuclideanVec", "LorentzVec", "phrase_to_text_index",
     "Encoder", "HierarchicalClusterer", "ConeEmbedder", "Store", "Labeler", "Query",
-    "Settings", "EncoderSettings", "ConeSettings", "StoreSettings",
+    "Settings", "EncoderSettings", "ClusterSettings", "ConeSettings", "StoreSettings",
     "MemorySettings", "ContextSettings", "RecursiveSettings", "ResearchSettings", "AgentSettings",
-    "dag", "eval",
+    "eval",
 ]

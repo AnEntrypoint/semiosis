@@ -76,19 +76,33 @@ print([(s.octave, s.distance_from_prev) for s in traj.steps])
 core/
   interfaces.py          -- Protocols + dataclasses (ConeNode, ClusterTree, ...)
   cone_engine.py         -- HyperbolicConeEngine: fit, batch_contains, tension, flow
-  encoder.py             -- Matryoshka encoder (octave-prefix namespaced)
-  store.py               -- InMemoryStore + InMemoryQuery (HNSW-compatible interface)
+  encoder.py             -- Matryoshka encoder + recursive Ward clusterer (depth grows with corpus)
+  store.py               -- InMemoryStore + InMemoryQuery; leaf-scoped centroid knn over the tree
   serialization.py       -- JSON cone_node_to_dict / cone_node_from_dict
+  markdown_store.py      -- primary persistence: browsable markdown folder tree + _meta companion
   manifold_ops.py        -- frechet_mean, twonn_intrinsic_dim, lorentz_project
-  activation_predictor.py -- NLA ActivationPredictor + sparse activation routing
   semiotic_memory.py     -- 4-layer memory: facts/summaries/working/session
   context_pack.py        -- Token-budgeted, overlap-deduped context packing
-  recursive.py           -- RLM octave-descent query decomposition
+  recursive.py           -- beam descent through the within-octave cone tree
   agent_api.py           -- KnowledgeBase: all search, direction, agentic methods
   settings.py            -- Pydantic-settings (prefix SC_, delimiter __)
   eval.py                -- Retrieval quality harness: recall@k, MRR
   api.py                 -- FastAPI: /health /ready + /tools manifest
 ```
+
+## Persistence: markdown knowledge base
+
+`kb.save("some_dir")` writes the structure as a human-readable, grep-searchable
+markdown tree: folders are internal cones, leaf `.md` files carry frontmatter
+(name + one-line description) and the member texts; every parent folder has a
+`README.md` linking its children (progressive disclosure). The `_meta/` companion
+holds one JSON per cone node (every octave), so `KnowledgeBase.load("some_dir")`
+restores the fitted structure verbatim -- no re-encoding, no refit.
+`kb.save("snapshot.json")` keeps the single-file snapshot path.
+
+Intelligence tasks that need a mind (labeling clusters, adjudicating contradictions)
+are delegated to the calling agent: `kb.structure_directives()` emits Directive
+objects; the caller answers via `kb.apply_label(node_id, label)`.
 
 ## Settings
 
@@ -109,7 +123,7 @@ Sub-settings (`EncoderSettings`, `ConeSettings`, `StoreSettings`) are `BaseModel
 pytest core/
 ```
 
-18 tests, single file (`core/test_manifold_invariants.py`). Requires `torch`
+21 tests, single file (`core/test_manifold_invariants.py`). Requires `torch`
 and `geoopt`; tests auto-skip if absent.
 
 ## Invariants
@@ -117,5 +131,10 @@ and `geoopt`; tests auto-skip if absent.
 - Manifold: Lorentz/hyperboloid (not Poincare ball -- no boundary blowup).
 - Stability: `_EPS=1e-7` arccos clamp, `_MIN_APERTURE=0.1` rad floor,
   `_MAX_GRAD_NORM=1.0` tangent-space clip, `stabilize=10` on RiemannianAdam.
-- Reproducibility: any state = `Settings` snapshot x lakeFS `CommitId`.
+- Hierarchy is real: recursive Ward tree, depth and node count grow with the corpus
+  (`SC_CLUSTER__BRANCHING_FACTOR`, `SC_CLUSTER__MAX_LEAF_SIZE`); ingest routes new
+  texts to leaves, splits locally on overflow, and only rebuilds globally past
+  `SC_CLUSTER__REBALANCE_TENSION`.
+- Reproducibility: any state = `Settings` snapshot x uuid `CommitId` (no versioned
+  backend yet); the markdown tree restores fitted cones verbatim.
 - No Unicode box-drawing or arrow symbols anywhere in source (ASCII only).

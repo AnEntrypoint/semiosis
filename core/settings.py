@@ -39,6 +39,13 @@ class EncoderSettings(BaseModel):
         return v
 
 
+class ClusterSettings(BaseModel):
+    branching_factor: int = Field(8, ge=2)    # children per internal node in the recursive Ward tree
+    max_leaf_size: int = Field(16, ge=2)      # leaf splits locally when it grows past this
+    max_depth: int = Field(32, ge=1)          # recursion safety bound
+    rebalance_tension: float = Field(0.6, ge=0.0)  # mean leaf tension above this triggers a full rebuild
+
+
 class ConeSettings(BaseModel):
     curvature: float = Field(1.0, gt=0)
     dim: int = Field(8, ge=1)
@@ -67,8 +74,8 @@ class MemorySettings(BaseModel):
 
 class ContextSettings(BaseModel):
     max_tokens: int = Field(2048, ge=0)
-    overlap_threshold: float = 0.5
-    distance_summary_threshold: float = 0.0
+    overlap_threshold: float = 0.95           # centroid cosine above this = redundant duplicate
+    distance_summary_threshold: float = 0.3   # centroid cosine below this = distant, collapse to summary
     max_members_per_node: int = Field(4, ge=1)
     reserve_tokens: int = Field(64, ge=0)
     max_dedup_candidates: int = Field(256, ge=1)
@@ -96,17 +103,17 @@ class AgentSettings(BaseModel):
     mmr_lambda: float = Field(0.7, ge=0.0, le=1.0)  # 1.0 == pure relevance, lower == more diversity
     octave_fusion: bool = False                     # fuse rankings across octaves (RRF)
     hybrid_lexical: bool = False                    # fuse BM25 lexical rank into the RRF accumulator
-    incremental_ingest: bool = True                 # reuse cached embeddings on ingest
+    incremental_ingest: bool = True                 # route new texts to leaves instead of full rebuild
     consolidate_tension: float = 0.3                # tension threshold above which consolidate acts
     max_query_chars: int = Field(2048, ge=1)        # serving-side query length cap
     hybrid_score_cosine_weight: float = Field(0.7, ge=0.0, le=1.0)   # hybrid_score: SBERT cosine share
-    activation_blend_encoder_weight: float = Field(0.8, ge=0.0, le=1.0)  # activation_embed: encoder share
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SC_", env_nested_delimiter="__")
     env: Env = Env.dev
     encoder: EncoderSettings = EncoderSettings()
+    cluster: ClusterSettings = ClusterSettings()
     cone: ConeSettings = ConeSettings()
     store: StoreSettings = StoreSettings()
     memory: MemorySettings = MemorySettings()

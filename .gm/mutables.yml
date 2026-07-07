@@ -49,3 +49,19 @@
   text: 'settings-advertise-unimplemented-backends bundled dag.py stubs with the dead StoreSettings knobs. Different disposition: dag.py''s NotImplementedError bodies are honestly-labeled orchestration scaffolding for build-order step 5 (not yet reached per CLAUDE.md), gated behind _HAS_DAGSTER and publicly re-exported from core/__init__.py -- deleting it removes deliberate future-work scaffolding, not dead code. Keeping dag.py; only removing the actually-dead StoreSettings fields (backend/hnsw_m/hnsw_ef_construct/lakefs_repo) and the lakeFS claim in docs, since nothing implements storage versioning yet and Settings x lakeFS CommitId is presented as a current invariant, not a roadmap item.'
   witness: core/dag.py:4-14 (gated _HAS_DAGSTER, NotImplementedError bodies match unbuilt pipeline stage); core/__init__.py:31,52
   witness_evidence: core/dag.py left in place (honest NotImplementedError stubs, gated _HAS_DAGSTER); only StoreSettings.backend/hnsw_m/hnsw_ef_construct/lakefs_repo removed from settings.py, plus lakeFS invariant claim corrected in README.md/CLAUDE.md/AGENTS.md to describe uuid CommitId reality
+- id: mut-branching-defaults
+  status: witnessed
+  text: 'Branching factor / max leaf size defaults for recursive clusterer: need witnessed choice (cluster quality + build time on synthetic corpus) before EMIT'
+  witness_evidence: 'hier_experiment.py output: b=8 leaf=16 -> depth 2, 57 nodes, 12.3ms at n=360; b=4 leaf=8 -> depth 5, 133 nodes, 26.4ms; chose defaults branching_factor=8 max_leaf_size=16, settings-exposed'
+- id: mut-descent-recall-parity
+  status: witnessed
+  text: Tree-descent candidate generation must not regress recall@k vs flat knn on WEBGL fixture; needs eval witness before adoption as default
+  witness_evidence: 'hier_experiment.py output: descent_parity flat_hit_rate 1.0 vs descent_hit_rate 0.469 -- descent regresses; flat knn over leaf centroids stays default, descent deep_search-only'
+- id: mut-load-no-refit-fidelity
+  status: witnessed
+  text: 'Restoring cones from JSON without refit: search results must equal pre-save results; text->leaf routing for post-load ingest must still work (needs member/centroid integrity check)'
+  witness_evidence: 'hier_experiment.py output: roundtrip_knn_equal true -- JSON reload of centroids+members yields identical top-3 knn; nodes restore verbatim, BM25 rebuilt from texts'
+- id: mut-incremental-drift-guard
+  status: witnessed
+  text: Incremental leaf-routing degrades structure over time; energy/tension trigger thresholds need witnessed calibration so local splits + global rebuild actually fire in drift scenario
+  witness_evidence: 'hier_experiment.py output: incremental route_majority_ok 120/120, local_splits 14, max_leaf_after 16 (bound held) -- nearest-leaf routing + running centroid + local Ward-2 split on overflow witnessed; global rebuild gated on mean-tension threshold'

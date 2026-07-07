@@ -20,6 +20,7 @@ def cone_node_to_dict(node: ConeNode) -> dict[str, Any]:
         "digest": node.digest,
         "pinned": bool(node.pinned),
         "centroid": [float(x) for x in node.centroid] if node.centroid is not None else None,
+        "parent": str(node.parent) if node.parent is not None else None,
     }
 
 
@@ -35,4 +36,5 @@ def cone_node_from_dict(d: dict[str, Any]) -> ConeNode:
         digest=d.get("digest"),
         pinned=bool(d.get("pinned", False)),
         centroid=tuple(d["centroid"]) if d.get("centroid") is not None else None,
+        parent=NodeId(str(d["parent"])) if d.get("parent") is not None else None,
     )

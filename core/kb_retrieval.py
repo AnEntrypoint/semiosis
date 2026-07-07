@@ -45,7 +45,7 @@ class RetrievalMixin:
             cands.append((node, base + a.usage_weight * math.log1p(self._node_uses(node)), octave_hits.get(nid, 1)))
         cands.sort(key=lambda t: t[1], reverse=True)
         lam = (0.3 if p == QueryPriority.HIGH else (0.7 if p == QueryPriority.LOW else a.mmr_lambda))
-        return self._mmr(cands, k, lam)
+        return self._mmr(cands, k, lam), q_vec
 
     def _fuse_lexical_rrf(self, query: str, scored: dict[str, float], octave_hits: dict[str, int], prefix: Prefix) -> None:
         """Fuse BM25 lexical rank into the vector-side RRF accumulator (SeekStorm-style hybrid fusion)."""
@@ -103,29 +103,44 @@ class RetrievalMixin:
             engine = self._pipeline.engine
             enc = self._pipeline._encoder
             hits: list[SearchHit] = []
-            ranked = self._ranked(query, k, priority)
+            ranked, q_vec = self._ranked(query, k, priority)
+        import numpy as np
+        base = int(enc.dims[0])
+        qp = np.asarray(q_vec[:base], dtype=np.float64)
+        qn = float(np.linalg.norm(qp)) or 1.0
         scores = [float(score) for _, score, _ in ranked]
         for i, (node, score, epc) in enumerate(ranked):
             members = self._member_texts(node)
             ap = float(getattr(node, "aperture", 0.0))
+            text = members[0] if members else self._primary_text(node)
+            entropy = 0.0
             try:
-                import numpy as np
-                if len(members) >= 2:
-                    vecs = np.asarray(enc.encode(members), dtype=np.float64)
-                    entropy = engine._member_entropy(vecs)
-                else:
-                    entropy = 0.0
+                if members:
+                    # corpus texts are already in the pipeline embedding cache; no model call
+                    vecs = np.asarray(self._pipeline._encode_cached(members), dtype=np.float64)
+                    sl = vecs[:, :base]
+                    norms = np.linalg.norm(sl, axis=1)
+                    norms[norms == 0] = 1.0
+                    sims = (sl @ qp) / (norms * qn)
+                    text = members[int(np.argmax(sims))]
+                    if len(members) >= 2:
+                        entropy = engine._member_entropy(vecs)
             except Exception:
-                entropy = 0.0
-            # uncertainty: relative gap to the next-best hit, not self-normalized against
-            # the top hit (that construction made the top hit's uncertainty always 0.0).
+                pass
+            # uncertainty: closeness of the competing hit (next, else previous); a lone
+            # hit gets neutral 0.5 -- no competitor measured is not the same as "certain".
             nxt = scores[i + 1] if i + 1 < len(scores) else None
-            if nxt is None or score <= 1e-9:
-                uncertainty = 0.0 if score > 1e-9 else 1.0
-            else:
+            prv = scores[i - 1] if i > 0 else None
+            if score <= 1e-9:
+                uncertainty = 1.0
+            elif nxt is not None:
                 uncertainty = float(max(0.0, min(1.0, nxt / score)))
+            elif prv is not None and prv > 1e-9:
+                uncertainty = float(max(0.0, min(1.0, score / prv)))
+            else:
+                uncertainty = 0.5
             hits.append(SearchHit(
-                text=members[0] if members else self._primary_text(node),
+                text=text,
                 score=float(score), node_id=str(node.id), octave=int(node.prefix),
                 members=tuple(members),
                 aperture=ap,
@@ -169,7 +184,7 @@ class RetrievalMixin:
             raise ValueError("k must be positive")
         if self._pipeline is None or not query:
             return []
-        ranked = self._ranked(query, k)
+        ranked, _q = self._ranked(query, k)
         if not ranked:
             return []
         engine = self._pipeline.engine
@@ -306,15 +321,16 @@ class RetrievalMixin:
             if hit_ids == prev_hit_ids:
                 break
             prev_hit_ids = hit_ids
-            obs_words = str(observation).split()
             if reflect_strategy == "decompose":
-                parts = str(observation).split(",")
-                current_query = parts[0].strip() if parts else current_query
+                parts = self.decompose_query(current_query).sub_queries
+                current_query = parts[r % len(parts)] if parts else current_query
             elif reflect_strategy == "expand":
                 top_text = hits[0].text if hits else ""
                 current_query = f"{current_query} {top_text}"[:200]
-            else:  # rephrase: tail of observation
-                current_query = " ".join(obs_words[-3:]) if len(obs_words) >= 3 else (obs_words[-1] if obs_words else current_query)
+            else:  # rephrase: pivot toward the runner-up hit's evidence, anchored on the original query
+                alt = hits[1].text if len(hits) > 1 else (hits[0].text if hits else "")
+                head = " ".join(alt.split()[:4])
+                current_query = f"{query} {head}"[:200] if head else current_query
         return steps
 
     def categorical_parent_score(self, query: str, k: int = 5) -> list:

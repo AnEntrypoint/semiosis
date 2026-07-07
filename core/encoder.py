@@ -101,31 +101,46 @@ class SentenceTransformerEncoder:
 
 
 class AgglomerativeClusterer:
-    """HierarchicalClusterer via scipy Ward agglomeration; builds a root-over-k-clusters star tree."""
+    """HierarchicalClusterer via recursive scipy Ward splits; depth and node count grow with the corpus."""
 
-    def __init__(self, n_clusters: int = 16, linkage: str = "ward") -> None:
-        self._n_clusters = n_clusters
+    def __init__(self, branching_factor: int = 8, max_leaf_size: int = 16,
+                 max_depth: int = 32, linkage: str = "ward") -> None:
+        self._branching = max(2, branching_factor)
+        self._max_leaf = max(2, max_leaf_size)
+        self._max_depth = max(1, max_depth)
         self._linkage = linkage
 
     def fit(self, vecs: EuclideanVec, prefix: Prefix) -> ClusterTree:
         X = np.asarray(vecs, dtype=np.float64)[..., :prefix]
         n = len(X)
-        if n < 2:
-            # scipy linkage cannot handle a <2-observation condensed distance matrix;
-            # short-circuit to a single trivial cluster holding whatever is present.
-            labels = np.ones(n, dtype=int)
-        else:
-            try:
-                from scipy.cluster.hierarchy import fcluster, linkage as _linkage
-            except ImportError:
-                raise RuntimeError("scipy is required for AgglomerativeClusterer; pip install scipy")
-            k = min(self._n_clusters, max(1, n - 1))
-            Z = _linkage(X, method=self._linkage)
-            labels = fcluster(Z, k, criterion="maxclust")
-        cluster_ids = {int(c): NodeId(f"cluster_{c}@{int(prefix)}") for c in np.unique(labels)}
         root = NodeId(f"root@{int(prefix)}")
-        edges = tuple((root, cid) for cid in cluster_ids.values())
-        assignments = {
-            PhraseId(f"doc_{i}"): cluster_ids[int(labels[i])] for i in range(n)
-        }
-        return ClusterTree(edges=edges, assignments=assignments, prefix=prefix)
+        edges: list[tuple[NodeId, NodeId]] = []
+        assignments: dict[PhraseId, NodeId] = {}
+        if n == 0:
+            return ClusterTree(edges=(), assignments={}, prefix=prefix)
+        self._split(X, np.arange(n), root, 0, int(prefix), edges, assignments)
+        return ClusterTree(edges=tuple(edges), assignments=assignments, prefix=prefix)
+
+    def _split(self, X: np.ndarray, idxs: np.ndarray, node_id: NodeId, depth: int,
+               prefix: int, edges: list, assignments: dict) -> None:
+        if len(idxs) <= self._max_leaf or depth >= self._max_depth or len(idxs) < 2:
+            for i in idxs:
+                assignments[PhraseId(f"doc_{int(i)}")] = node_id
+            return
+        try:
+            from scipy.cluster.hierarchy import fcluster, linkage as _linkage
+        except ImportError:
+            raise RuntimeError("scipy is required for AgglomerativeClusterer; pip install scipy")
+        k = min(self._branching, len(idxs) - 1)
+        Z = _linkage(X[idxs], method=self._linkage)
+        labels = fcluster(Z, k, criterion="maxclust")
+        uniq = np.unique(labels)
+        if len(uniq) < 2:  # degenerate split; stop here as a leaf
+            for i in idxs:
+                assignments[PhraseId(f"doc_{int(i)}")] = node_id
+            return
+        base = str(node_id).split("@")[0]
+        for c in uniq:
+            child = NodeId(f"{base}.{int(c)}@{prefix}")
+            edges.append((node_id, child))
+            self._split(X, idxs[labels == c], child, depth + 1, prefix, edges, assignments)

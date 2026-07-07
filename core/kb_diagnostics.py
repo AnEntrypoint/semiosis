@@ -1,14 +1,10 @@
 """KnowledgeBase mixin: outcome learning, consolidation, health diagnostics, and dispel."""
 from __future__ import annotations
 
+import dataclasses
 import math
 
-from .kb_types import ConsolidateReport, DiagnoseReport, FailureMode, DispelReport
-
-try:
-    import numpy as _np
-except ImportError:
-    _np = None  # type: ignore[assignment]
+from .kb_types import ConsolidateReport, DiagnoseReport, DispelReport, FailureMode
 
 
 class DiagnosticsMixin:
@@ -31,9 +27,10 @@ class DiagnosticsMixin:
             return {"applied": applied, "ignored": len(useful_texts) - applied}
 
     def consolidate(self) -> ConsolidateReport:
-        """Self-improve the KB: scan tension, merge redundant pairs; idempotent."""
+        """Execute the dispel plan: merge redundancy, reparent contradiction, widen degenerate pairs."""
         if self._pipeline is None:
-            return ConsolidateReport(changed=False, nodes_before=0, nodes_after=0, merges=0, aperture_updates=0, dispel_count=0)
+            return ConsolidateReport(changed=False, nodes_before=0, nodes_after=0,
+                                     merges=0, aperture_updates=0, dispel_count=0)
         with self._lock:
             self._metrics["consolidations"] += 1
             engine = self._pipeline.engine
@@ -42,27 +39,40 @@ class DiagnosticsMixin:
             nodes_before = len(nodes)
             scan = engine.tension_scan(nodes, top_n=len(nodes))
             thr = self._settings.agent.consolidate_tension
-            plan = [row for row in engine.dispel_plan(scan)
-                    if any(s[0] == row[1] and s[1] == row[2] and s[2] >= thr for s in scan)]
-            merges = 0
-            aperture_updates = 0
+            eligible = {(a, b) for a, b, t, _kind in scan if t >= thr}
+            plan = [row for row in engine.dispel_plan(scan) if (row[1], row[2]) in eligible]
+            merges = reparents = aperture_updates = 0
             for op, a_id, b_id in plan:
+                try:
+                    a, b = store.get(a_id), store.get(b_id)
+                except KeyError:
+                    continue  # consumed by an earlier op this pass
+                if a.parent == b.id or b.parent == a.id:
+                    continue  # never collapse a tree edge; that is structure, not tension
                 if op == "merge":
-                    try:
-                        merged = engine.merge_nodes(store.get(a_id), store.get(b_id))
-                        store.upsert(merged)
-                        merges += 1
-                    except KeyError:
-                        continue
+                    merged = engine.merge_nodes(a, b)
+                    store.upsert(merged)
+                    if str(b.id) != str(merged.id):
+                        store.delete(b.id)
+                    merges += 1
+                elif op == "reparent":
+                    candidates = [n for n in store.nodes_at(b.prefix) if n.id not in (a.id, b.id)]
+                    new_parent = engine.reparent(b, candidates)
+                    if new_parent is not None and new_parent != b.parent:
+                        store.upsert(dataclasses.replace(b, parent=new_parent))
+                        reparents += 1
+                elif op == "summarize":
+                    umbrella = engine.summarize_cluster([a, b])
+                    if umbrella is not None:
+                        store.upsert(umbrella)
+                        if str(b.id) != str(umbrella.id):
+                            store.delete(b.id)
+                        aperture_updates += 1
             nodes_after = len(store.all_nodes())
+        executed = merges + reparents + aperture_updates
         return ConsolidateReport(
-            changed=merges > 0,
-            nodes_before=nodes_before,
-            nodes_after=nodes_after,
-            merges=merges,
-            aperture_updates=aperture_updates,
-            dispel_count=len(plan),
-        )
+            changed=executed > 0, nodes_before=nodes_before, nodes_after=nodes_after,
+            merges=merges, aperture_updates=aperture_updates, dispel_count=executed)
 
     def diagnose(self) -> DiagnoseReport:
         """Health snapshot an agent reads to decide when to consolidate or diversify ingest."""
@@ -84,7 +94,6 @@ class DiagnosticsMixin:
         oct_means = [sum(v) / len(v) for v in octave_aps.values()]
         global_mean = sum(oct_means) / len(oct_means) if oct_means else 0.0
         entropy_div = math.sqrt(sum((m - global_mean) ** 2 for m in oct_means) / max(len(oct_means), 1))
-        # detect failure mode
         failure = FailureMode.NONE
         suggestions: list[str] = []
         if mean_ap > 1.2:
@@ -99,23 +108,18 @@ class DiagnosticsMixin:
         elif entropy_div > 0.4:
             failure = FailureMode.OCTAVE_MISMATCH
             suggestions.append("check for missing octave levels; use deep_search() for cross-octave queries")
-        # activation_sparsity: fraction of near-zero weights in the fitted NLA projection;
-        # None (not 0.0) when no predictor has been fit, so callers can't mistake "unmeasured" for "dense".
-        act_sparsity: float | None = None
-        if self._act_predictor is not None and getattr(self._act_predictor, '_fitted', False):
-            W = getattr(self._act_predictor, '_W', None)
-            if W is not None and _np is not None:
-                w = _np.asarray(W)
-                act_sparsity = float(_np.mean(_np.abs(w) < 1e-6)) if w.size else 0.0
+        reason = self._pipeline.encoder_fallback_reason
+        if reason is not None:
+            suggestions.append("real encoder unavailable; rankings are RandomEncoder noise -- fix the encoder install")
         return DiagnoseReport(
             nodes=len(nodes), octaves=octaves, texts=len(self._texts),
             facts=len(self._memory.facts()), mean_aperture=float(mean_ap),
             mean_tension=float(mean_t), total_energy=float(energy), redundant_pairs=redundant,
-            retrieval_entropy=float(mean_ap),
             entropy_divergence=float(entropy_div),
             failure_mode=failure,
             recovery_suggestions=tuple(suggestions),
-            activation_sparsity=act_sparsity,
+            degraded=reason is not None,
+            fallback_reason=reason,
         )
 
     def metrics(self) -> dict[str, int]:

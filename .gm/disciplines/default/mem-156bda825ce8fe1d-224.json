@@ -1,0 +1,3 @@
+## Resolved mutable: mut-descent-recall-parity
+
+hier_experiment.py output: descent_parity flat_hit_rate 1.0 vs descent_hit_rate 0.469 -- descent regresses; flat knn over leaf centroids stays default, descent deep_search-only

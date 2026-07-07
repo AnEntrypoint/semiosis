@@ -51,8 +51,8 @@ class ContextPack:
 @dataclass
 class ContextPackConfig:
     max_tokens: int = 2048
-    overlap_threshold: float = 0.5
-    distance_summary_threshold: float = 0.0
+    overlap_threshold: float = 0.95           # centroid cosine above this = redundant duplicate
+    distance_summary_threshold: float = 0.3   # centroid cosine below this = distant, collapse to summary
     max_members_per_node: int = 4
     reserve_tokens: int = 64
     max_dedup_candidates: int = 256
@@ -124,7 +124,9 @@ class ContextPackBuilder:
         kept: list = []
         dropped: list[NodeId] = []
         for node, rel in ranked:
-            redundant = any(engine.overlap_score(k, node) > cfg.overlap_threshold for k, _ in kept)
+            # centroid_overlap, not cone overlap_score: cone margins are seed noise for
+            # sibling pairs (see cone_engine.centroid_overlap) -- same signal MMR uses.
+            redundant = any(engine.centroid_overlap(k, node) > cfg.overlap_threshold for k, _ in kept)
             if redundant and kept:
                 dropped.append(node.id)
                 continue
@@ -136,7 +138,7 @@ class ContextPackBuilder:
             distant = (
                 top_node is not None
                 and node.id != top_node.id
-                and engine.overlap_score(top_node, node) < cfg.distance_summary_threshold
+                and engine.centroid_overlap(top_node, node) < cfg.distance_summary_threshold
             )
             if distant:
                 text = self._summary_text(node)

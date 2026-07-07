@@ -81,11 +81,11 @@ class DiagnoseReport:
     mean_tension: float
     total_energy: float
     redundant_pairs: int
-    retrieval_entropy: float = 0.0
     entropy_divergence: float = 0.0
     failure_mode: FailureMode = FailureMode.NONE
     recovery_suggestions: tuple[str, ...] = ()
-    activation_sparsity: float | None = None  # None = no fitted activation predictor to measure
+    degraded: bool = False                 # True when retrieval runs on the RandomEncoder fallback
+    fallback_reason: str | None = None     # why the real encoder failed to load
 
 
 @dataclass(frozen=True, slots=True)

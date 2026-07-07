@@ -80,12 +80,15 @@ def create_app(settings: Settings | None = None, kb: KnowledgeBase | None = None
 
     @app.get("/ready")
     async def ready(request: Request) -> JSONResponse:
-        """200 when the KB is warm (has ingested nodes); 503 otherwise."""
+        """200 when the KB is warm with a real encoder; 503 when empty or degraded to RandomEncoder."""
         k = _get_kb(request)
-        warm = k._pipeline is not None and bool(k._pipeline.store.all_nodes())
-        if warm:
-            return JSONResponse({"status": "ready"})
-        return JSONResponse({"status": "not_ready", "reason": "kb empty"}, status_code=503)
+        p = k._pipeline
+        if p is None or not p.store.all_nodes():
+            return JSONResponse({"status": "not_ready", "reason": "kb empty"}, status_code=503)
+        if p.encoder_fallback_reason is not None:
+            return JSONResponse({"status": "degraded",
+                                 "reason": p.encoder_fallback_reason}, status_code=503)
+        return JSONResponse({"status": "ready"})
 
     @app.get("/tools")
     async def tools() -> JSONResponse:

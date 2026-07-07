@@ -1,0 +1,3 @@
+## Resolved mutable: mut-incremental-drift-guard
+
+hier_experiment.py output: incremental route_majority_ok 120/120, local_splits 14, max_leaf_after 16 (bound held) -- nearest-leaf routing + running centroid + local Ward-2 split on overflow witnessed; global rebuild gated on mean-tension threshold

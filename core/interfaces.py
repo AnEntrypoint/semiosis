@@ -10,7 +10,7 @@ import numpy.typing as npt
 PhraseId = NewType("PhraseId", str)
 NodeId = NewType("NodeId", str)
 Prefix = NewType("Prefix", int)          # Matryoshka octave = embedding prefix length
-CommitId = NewType("CommitId", str)      # lakeFS/Deep Lake reproducibility handle
+CommitId = NewType("CommitId", str)      # uuid rebuild handle; no versioned backend yet
 
 EuclideanVec = npt.NDArray[np.float32]
 LorentzVec = npt.NDArray[np.float64]
@@ -45,6 +45,7 @@ class ConeNode:
     digest: str | None = None      # lightweight summary standing in for members at distance
     pinned: bool = False           # explicit long-term fact, exempt from summary-collapse/eviction
     centroid: tuple[float, ...] | None = None  # embedding-space member mean; retrieval ranks on this
+    parent: NodeId | None = None   # tree edge to the containing cone; None only at octave roots
 
     def __repr__(self) -> str:
         return f"ConeNode(id={self.id!r}, aperture={self.aperture:.4f}, members={len(self.members)})"
@@ -83,7 +84,7 @@ class ConeEmbedder(Protocol):
 
 @runtime_checkable
 class Store(Protocol):
-    """Versioned persistence: HNSW over tangent-space projections, exact cone math on retrieval."""
+    """Node persistence + centroid knn; commit ids are uuid handles (no versioned backend yet)."""
     def write(self, nodes: Sequence[ConeNode], at: CommitId) -> CommitId: ...
     def knn(self, q: EuclideanVec, k: int, prefix: Prefix) -> Sequence[NodeId]: ...
     def upsert(self, node: ConeNode) -> None: ...

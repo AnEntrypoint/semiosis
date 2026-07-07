@@ -141,7 +141,10 @@ class ResearchLoop:
         for cycle in range(self._cfg.max_cycles):
             step = self.step(cycle, observe_fn)
             if step is None:
-                converged = True
+                # frontier exhausted: converged only if something was actually settled --
+                # a silent agent that never observed anything has not converged on truth.
+                converged = (not self.hypotheses
+                             or any(h.status != "open" for h in self.hypotheses))
                 break
             self._steps.append(step)
             if step.observation is None:

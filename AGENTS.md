@@ -10,8 +10,12 @@
 
 ## Package structure
 - Source lives under `core/`; no root-level module copies exist.
-- Sub-settings (`EncoderSettings`, `ConeSettings`, `StoreSettings`) are `BaseModel`,
-  not `BaseSettings`; only root `Settings` loads from env.
+- Sub-settings (`EncoderSettings`, `ClusterSettings`, `ConeSettings`, `StoreSettings`)
+  are `BaseModel`, not `BaseSettings`; only root `Settings` loads from env.
+
+## Persistence
+- Primary KB persistence is the markdown folder tree (`kb.save(dir)`): human-readable,
+  grep-searchable, `_meta/` JSON companion; load restores cones verbatim, never refits.
 
 ## Memory
 - Memory routes through `memorize-fire` (stored in `.gm/rs-learn.db`), never in

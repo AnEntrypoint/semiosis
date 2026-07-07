@@ -1,0 +1,3 @@
+## Resolved mutable: mut-branching-defaults
+
+hier_experiment.py output: b=8 leaf=16 -> depth 2, 57 nodes, 12.3ms at n=360; b=4 leaf=8 -> depth 5, 133 nodes, 26.4ms; chose defaults branching_factor=8 max_leaf_size=16, settings-exposed

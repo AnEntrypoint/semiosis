@@ -34,11 +34,20 @@ def _hilbert_d2xy_free(order: int, x: int, y: int) -> int:
     return d
 
 
+_PROJ_CACHE: dict[tuple[int, int, int], np.ndarray] = {}
+
+
+def _projection(rows: int, dim: int, seed: int) -> np.ndarray:
+    """Deterministic random hyperplanes, cached per (rows, dim, seed) -- regenerating per call dominated runtime."""
+    key = (rows, dim, seed)
+    if key not in _PROJ_CACHE:
+        _PROJ_CACHE[key] = np.random.default_rng(seed).standard_normal((rows, dim)).astype(np.float64)
+    return _PROJ_CACHE[key]
+
+
 def hilbert_key(vec: np.ndarray, seed: int = 0) -> int:
     """Project a vector to 2D via two fixed random hyperplanes, then encode as a Hilbert index."""
-    rng = np.random.default_rng(seed)
-    dim = len(vec)
-    proj = rng.standard_normal((2, dim)).astype(np.float64)
+    proj = _projection(2, len(vec), seed)
     xy = proj @ np.asarray(vec, dtype=np.float64)
     # map to [0, side) via a stable sigmoid-style squash -- keeps locality without unbounded range
     x = int((1.0 / (1.0 + np.exp(-xy[0]))) * (_HILBERT_SIDE - 1))
@@ -48,9 +57,7 @@ def hilbert_key(vec: np.ndarray, seed: int = 0) -> int:
 
 def simhash(vec: np.ndarray, bits: int = _SIMHASH_BITS, seed: int = 1) -> int:
     """Signed random-projection fingerprint (ELID Mini128-style); Hamming-comparable."""
-    rng = np.random.default_rng(seed)
-    dim = len(vec)
-    planes = rng.standard_normal((bits, dim)).astype(np.float64)
+    planes = _projection(bits, len(vec), seed)
     signs = planes @ np.asarray(vec, dtype=np.float64) >= 0
     h = 0
     for b in signs:
@@ -71,7 +78,7 @@ class HilbertBucketIndex:
     def __init__(self, n_partitions: int = 16) -> None:
         self._n_partitions = max(1, n_partitions)
         self._by_prefix: dict[Prefix, dict[NodeId, int]] = {}   # nid -> hilbert key
-        self._templates: dict[Prefix, list[int]] = {}           # sorted key boundaries (dynamic partitioning template)
+        self._templates: dict[Prefix, tuple[list[int], list[tuple[NodeId, int]]]] = {}  # boundaries + key-sorted items
         self._simhash: dict[Prefix, dict[NodeId, int]] = {}
 
     def upsert(self, nid: NodeId, prefix: Prefix, vec: np.ndarray) -> None:
@@ -87,35 +94,33 @@ class HilbertBucketIndex:
         self._simhash.get(prefix, {}).pop(nid, None)
         self._templates.pop(prefix, None)
 
-    def _template(self, prefix: Prefix) -> list[int]:
-        """Rebuild partition boundaries from current key distribution (VStream Sec 3.2)."""
+    def _template(self, prefix: Prefix) -> tuple[list[int], list[tuple[NodeId, int]]]:
+        """Partition boundaries + key-sorted items, cached together (VStream Sec 3.2)."""
         if prefix in self._templates:
             return self._templates[prefix]
-        keys = sorted(self._by_prefix.get(prefix, {}).values())
+        sorted_items = sorted(self._by_prefix.get(prefix, {}).items(), key=lambda kv: kv[1])
+        keys = [k for _, k in sorted_items]
         if not keys:
-            self._templates[prefix] = []
-            return []
+            self._templates[prefix] = ([], [])
+            return [], []
         p = min(self._n_partitions, max(1, len(keys)))
         step = max(1, len(keys) // p)
         boundaries = [keys[i] for i in range(0, len(keys), step)][1:]
-        self._templates[prefix] = boundaries
-        return boundaries
+        self._templates[prefix] = (boundaries, sorted_items)
+        return boundaries, sorted_items
 
     def candidates(self, prefix: Prefix, q_vec: np.ndarray, simhash_prefilter: bool = True) -> set[NodeId] | None:
         """Return a pruned candidate set for this octave, or None if bucketing isn't warranted yet."""
         keys = self._by_prefix.get(prefix)
         if not keys or len(keys) < self._n_partitions * 2:
             return None  # too few nodes to prune; caller should fall back to full scan
-        boundaries = self._template(prefix)
+        boundaries, sorted_items = self._template(prefix)
         qk = hilbert_key(q_vec)
         import bisect
         bucket = bisect.bisect_left(boundaries, qk)
         # include the query's bucket plus its two neighbors -- boundary vectors can land either side
         target_buckets = {bucket - 1, bucket, bucket + 1}
-        sorted_items = sorted(keys.items(), key=lambda kv: kv[1])
-        n_buckets = len(boundaries) + 1
         out: set[NodeId] = set()
-        idx = 0
         cur_bucket = 0
         for nid, k in sorted_items:
             while cur_bucket < len(boundaries) and k >= boundaries[cur_bucket]:

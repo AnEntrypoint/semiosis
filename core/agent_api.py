@@ -5,7 +5,6 @@ import threading
 from typing import Any
 
 from .interfaces import Prefix, phrase_to_text_index
-from .kb_activation import ActivationMixin
 from .kb_diagnostics import DiagnosticsMixin
 from .kb_geometry import GeometryMixin
 from .kb_hierarchy import HierarchyMixin
@@ -26,11 +25,6 @@ from .pipeline import KnowledgePipeline
 from .semiotic_memory import SemioticMemory
 from .settings import Settings
 
-try:
-    from .activation_predictor import ActivationPredictor as _ActivationPredictor
-except ImportError:
-    _ActivationPredictor = None  # type: ignore[assignment,misc]
-
 
 class StubSummarizer:
     """Summarizer that combines first two member texts; no LLM required; used by default."""
@@ -43,8 +37,7 @@ class StubSummarizer:
 
 
 class KnowledgeBase(
-    RetrievalMixin, GeometryMixin, HierarchyMixin, DiagnosticsMixin,
-    PersistenceMixin, ActivationMixin,
+    RetrievalMixin, GeometryMixin, HierarchyMixin, DiagnosticsMixin, PersistenceMixin,
 ):
     """Ingest texts, search, navigate meaning flow, learn from outcomes, persist across sessions."""
 
@@ -60,15 +53,9 @@ class KnowledgeBase(
         self._summarizer = summarizer or StubSummarizer()
         self._bm25 = BM25Index(k1=self._settings.store.bm25_k1, b=self._settings.store.bm25_b)
         self._lock = threading.RLock()
-        if _ActivationPredictor is not None:
-            enc_dim = getattr(getattr(self._settings, 'encoder', None), 'dim', 64) or 64
-            self._act_predictor = _ActivationPredictor(input_dim=64, output_dim=enc_dim)
-            self._act_predictor._fitted = False
-        else:
-            self._act_predictor = None
 
     def ingest(self, texts: list[str]) -> None:
-        """Add texts; reuses cached embeddings incrementally when an agent grows the KB in a loop."""
+        """Add texts; new texts route to nearest leaves, full rebuild only past the tension threshold."""
         if not texts:
             return
         with self._lock:
@@ -84,28 +71,20 @@ class KnowledgeBase(
             self._memory._pipeline = self._pipeline
             self._memory._texts = list(self._texts)
 
-    def ingest_stream(self, texts, threshold: float = 0.7, rebalance_threshold: int = 20) -> "IngestStreamResult":
-        """Batch ingest; rebalances (full re-cluster) once if the batch crosses rebalance_threshold."""
+    def ingest_stream(self, texts) -> "IngestStreamResult":
+        """Batch ingest via leaf routing; reports node growth and whether a structural rebuild fired."""
         import time as _time
         texts = list(texts)
         t0 = _time.monotonic()
-        before = len(self._pipeline.store.all_nodes()) if self._pipeline is not None else 0
-        count = len(texts)
-        rebalanced = count > rebalance_threshold
-        if rebalanced and self._pipeline is not None:
-            # force a full rebuild instead of the default incremental-ingest path
-            self._texts.extend(texts)
-            for i, t in enumerate(texts):
-                self._bm25.add(str(before + i), t)
-            self._pipeline = KnowledgePipeline(self._texts, self._settings)
-            self._memory._pipeline = self._pipeline
-            self._memory._texts = list(self._texts)
-        else:
+        with self._lock:
+            before = len(self._pipeline.store.all_nodes()) if self._pipeline is not None else 0
+            rebuilds_before = self._pipeline.rebuild_count if self._pipeline is not None else 0
             self.ingest(texts)
-        after = len(self._pipeline.store.all_nodes()) if self._pipeline is not None else 0
-        new_nodes = max(0, after - before)
+            after = len(self._pipeline.store.all_nodes()) if self._pipeline is not None else 0
+            rebuilds_after = self._pipeline.rebuild_count if self._pipeline is not None else 0
         elapsed = (_time.monotonic() - t0) * 1000.0
-        return IngestStreamResult(count, new_nodes, rebalanced, elapsed)
+        return IngestStreamResult(
+            len(texts), max(0, after - before), rebuilds_after > rebuilds_before, elapsed)
 
     # --- helpers shared across every mixin ------------------------------------
     def _member_texts(self, node) -> list[str]:

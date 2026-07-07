@@ -85,11 +85,13 @@ class HierarchyMixin:
     def fold_budget(self, query: str, max_tokens: int, candidates: list) -> "FoldBudgetResult":
         """Greedy token-budget fold: select highest-relevance candidates under token limit."""
         import numpy as _np
+        if self._pipeline is None or not candidates:
+            return FoldBudgetResult((), tuple(candidates or ()), 0, 0.0)
         q_vec = _np.array(self._pipeline._encoder.encode([query])[0], dtype=float)
         q_vec = q_vec / (_np.linalg.norm(q_vec) + 1e-9)
+        cand_vecs = _np.array(self._pipeline._encoder.encode(list(candidates)), dtype=float)
         scored = []
-        for text in candidates:
-            v = _np.array(self._pipeline._encoder.encode([text])[0], dtype=float)
+        for text, v in zip(candidates, cand_vecs):
             vn = _np.linalg.norm(v)
             v = v / (vn + 1e-9)
             scored.append((float(_np.dot(q_vec, v)), text))
@@ -153,7 +155,6 @@ class HierarchyMixin:
             for node in by_octave[oi]:
                 targets = {member_map[m] for m in node.members if m in member_map}
                 if targets:
-                    counts[(oi, oi)] += 0.0  # no self-transition credit; real edge found below
                     for _ in targets:
                         counts[(oi, oj)] += 1.0 / len(targets)
                 else:
@@ -225,3 +226,51 @@ class HierarchyMixin:
         terminal_energy = steps[-1].energy if steps else (start_energy or 0.0)
         drop = float((start_energy or 0.0) - terminal_energy)
         return {"steps": steps, "terminal_node_id": current_id, "total_energy_drop": drop}
+
+    # --- caller-delegated intelligence tasks -----------------------------------
+    def structure_directives(self, max_directives: int = 8) -> list:
+        """Emit Directives for intelligence tasks the caller should perform: label unlabeled
+        multi-member clusters, adjudicate contradiction pairs; apply replies via apply_label()."""
+        from .kb_types import Directive
+        if self._pipeline is None:
+            return []
+        store = self._pipeline.store
+        engine = self._pipeline.engine
+        out: list = []
+        for n in store.all_nodes():
+            if len(out) >= max_directives:
+                break
+            if n.label is None and len(n.members) >= 3:
+                previews = self._member_texts(n)[:5]
+                out.append(Directive(
+                    stage="label", target_query=str(n.id),
+                    instruction_text=("Name the most specific single concept covering all of these "
+                                      "texts; reply with a short label only."),
+                    context=tuple(previews),
+                    expected="a 2-6 word category label for apply_label()",
+                ))
+        for a_id, b_id, tension, kind in engine.tension_scan(store.all_nodes(), top_n=max_directives):
+            if len(out) >= max_directives:
+                break
+            if kind == "contradiction":
+                out.append(Directive(
+                    stage="adjudicate", target_query=f"{a_id}|{b_id}",
+                    instruction_text=("These two knowledge clusters appear contradictory. Decide: "
+                                      "merge (same concept), keep (genuinely distinct), or flag one as wrong."),
+                    context=(self._primary_text(store.get(a_id)), self._primary_text(store.get(b_id))),
+                    expected="one of: merge | keep | flag:<node_id>",
+                ))
+        return out
+
+    def apply_label(self, node_id: str, label: str) -> bool:
+        """Apply a caller-produced label to a node (the Observation half of a label Directive)."""
+        import dataclasses as _dc
+        if self._pipeline is None or not label:
+            return False
+        with self._lock:
+            try:
+                node = self._pipeline.store.get(node_id)
+            except KeyError:
+                return False
+            self._pipeline.store.upsert(_dc.replace(node, label=label.strip()[:120]))
+            return True

@@ -141,6 +141,27 @@ def test_save_load_roundtrip() -> None:
     with pytest.raises(FileNotFoundError):
         KnowledgeBase.load(os.path.join(tempfile.gettempdir(), "no-such-file-xyz.json"))
 
+def test_markdown_tree_roundtrip() -> None:
+    import shutil
+    kb = _kb(WEBGL)
+    d = os.path.join(tempfile.gettempdir(), "semiosis-mdkb-test")
+    shutil.rmtree(d, ignore_errors=True)
+    kb.save(d)
+    assert os.path.exists(os.path.join(d, "README.md"))
+    kb2 = KnowledgeBase.load(d, _s())
+    assert kb.search_texts("draw calls", 2) == kb2.search_texts("draw calls", 2)
+    assert kb2._pipeline.rebuild_count == 0        # cones restored verbatim, no refit
+    shutil.rmtree(d, ignore_errors=True)
+
+def test_recursive_tree_structure() -> None:
+    s = _s(); s.cluster.max_leaf_size = 2; s.cluster.branching_factor = 2
+    kb = KnowledgeBase(s); kb.ingest(FACTS)
+    p = kb._pipeline
+    finest = Prefix(int(sorted(int(d) for d in p._encoder.dims)[-1]))
+    leaves = p.store.leaves_at(finest)
+    assert leaves and any(n.parent is not None for n in p.store.nodes_at(finest))
+    assert p.store.children_of(finest)             # real parent-child edges exist
+
 def test_semantic_distance_properties() -> None:
     kb = _kb()
     d1 = kb.semantic_distance("alpha unique term", "beta distinct phrase", octave=64)
