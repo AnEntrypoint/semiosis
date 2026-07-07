@@ -1216,8 +1216,8 @@
   status: completed
 - id: session-close-git
   title: Residual triage + commit + push at session close
-  witness: clean porcelain, remote ahead 0
-  status: pending
+  witness: git_finalize sha d9fd6b1 committed+pushed master
+  status: completed
 - id: markdown-tree-store
   title: 'Primary persistence = plain-text markdown folder tree mirroring the cone DAG: folders = internal nodes, leaf .md files with frontmatter (name, one-line description) + member texts; companion metadata tree (JSON per node: apex/aperture/centroid/prefix/parent) keeps markdown clean; grep-searchable, portable, human-readable'
   witness: 'core/markdown_store.py: save_markdown_tree/load_markdown_tree; browsable folder tree witnessed (os.walk listing), _meta JSON per node, roundtrip exact'
