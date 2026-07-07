@@ -1226,3 +1226,7 @@
   title: 'Markdown KB conforms to agentskills.io skill-creation best practices: progressive disclosure (parent README.md summarizing children with links), frontmatter name+description per file, small focused files'
   witness: 'fetched agentskills.io best-practices: progressive disclosure -> per-folder README.md linking children; frontmatter name + one-line description per file; small focused leaf files; machine layer separated into _meta'
   status: completed
+- id: md-corpus-conversion-commit
+  title: Commit and push .gm/memories md corpus (29 content-hash-keyed md, zero legacy timestamp-keyed, flat JSON dirs byte-unchanged) plus manifest/next-step residuals to main, clean tree
+  witness: 'exec_js 9004: md_count 29 (+.flat-export-done marker), legacy timestamp-keyed 0, flat_count 29 byte-unchanged (git status .gm/disciplines/default empty); corpus commit+push pending in CONSOLIDATE'
+  status: completed
