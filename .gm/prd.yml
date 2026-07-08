@@ -1230,3 +1230,45 @@
   title: Commit and push .gm/memories md corpus (29 content-hash-keyed md, zero legacy timestamp-keyed, flat JSON dirs byte-unchanged) plus manifest/next-step residuals to main, clean tree
   witness: 'exec_js 9004: md_count 29 (+.flat-export-done marker), legacy timestamp-keyed 0, flat_count 29 byte-unchanged (git status .gm/disciplines/default empty); corpus commit+push pending in CONSOLIDATE'
   status: completed
+- id: rename-local-branch-main
+  text: Rename local branch master to main via git_branch/git verb
+  status: pending
+- id: push-main-set-upstream
+  text: Push new main branch to origin with upstream tracking set
+  status: pending
+- id: gh-set-default-branch-main
+  text: gh api/repo edit to set GitHub default branch to main
+  status: pending
+- id: delete-origin-master
+  text: Delete old master branch on origin only after default-branch switch confirmed
+  status: pending
+- id: scan-ci-workflow-refs
+  text: 'Enumerate .github/workflows/*.yml for branches:[master] triggers -- witnessed: no .github directory exists in semiosis, so zero workflow files to update'
+  status: completed
+  witness: 'git ls-tree -r HEAD/origin-master: no .github directory in current tree; git log -- .github/workflows/ci.yml: empty (no history entries reachable from current tip); confirmed via gh pr view 4/3 diffs that ci.yml + dependabot.yml existed only on ancestor commit 684ed9c (still an ancestor of origin/master) and were removed by a later master commit -- zero workflow files exist now, nothing to update'
+- id: scan-other-ci-configs
+  text: Check for non-GitHub-Actions CI configs (.circleci, azure-pipelines.yml, .travis.yml, Jenkinsfile, .gitlab-ci.yml) referencing master
+  status: completed
+  witness: exec_js/bash test -f .circleci/config.yml, azure-pipelines.yml, .travis.yml, Jenkinsfile, .gitlab-ci.yml -- all absent, printed NO_OTHER_CI
+- id: scan-docs-master-refs
+  text: Scan README.md/CLAUDE.md/AGENTS.md/docs for literal 'master' branch mentions (badges, clone instructions, links) needing main update
+  status: completed
+  witness: grep -rn master README.md CLAUDE.md AGENTS.md filtered for false positives (semiosis-mdkb-test, masterpiece) returned zero real hits
+- id: scan-external-master-pins
+  text: Confirm no external consumer/org-internal code pins semiosis@master (package.json git deps, requirements.txt VCS refs, submodules) -- per task framing already checked, re-verify locally
+  status: completed
+  witness: 'grep -l semiosis across package.json/requirements*.txt/pyproject.toml: no matches; .gitmodules absent (cat returned NONE) -- no local/org dependency pins semiosis@master'
+- id: verify-ci-green-on-main
+  text: 'After push, verify CI green on new main branch via gh run list/view -- witnessed: no workflows exist, so no CI run is expected/triggered; document this as the verification outcome'
+  status: completed
+  witness: 'gh run list --repo AnEntrypoint/semiosis --limit 5: no workflow file exists in current tree so no run triggers on future main pushes; CI-green criterion is vacuously satisfied (no pipeline configured is the current, deliberate repo state per commit d31bb02 ''record no-CI-pipeline-configured state'')'
+- id: handle-open-prs-branches
+  text: Check for open PRs or other local/remote branches based on master that would need rebasing after the rename
+  status: completed
+  witness: 'gh pr list --repo AnEntrypoint/semiosis --state open: 2 dependabot PRs (#3 actions/checkout-7, #4 actions/setup-python-6) both targeting deleted .github/workflows/ci.yml against ancestor base 684ed9c; last CI runs already failure/stale from 2026-06-21; GitHub auto-retargets open PR base refs on default-branch rename, no local branch based on master besides these two remote-only dependabot branches -- no rebase action required, orthogonal to this task''s scope'
+- id: residual-scan-final
+  text: Final residual scan and clean-worktree witness before COMPLETE
+  status: pending
+- id: triage-dirty-next-step-md
+  text: 'Triage dirty .gm/next-step.md (modified, untracked-change) before push -- witnessed via git_status: modified=[''.gm/next-step.md'']'
+  status: pending
