@@ -1272,7 +1272,9 @@
   witness: 'gh pr list --repo AnEntrypoint/semiosis --state open: 2 dependabot PRs (#3 actions/checkout-7, #4 actions/setup-python-6) both targeting deleted .github/workflows/ci.yml against ancestor base 684ed9c; last CI runs already failure/stale from 2026-06-21; GitHub auto-retargets open PR base refs on default-branch rename, no local branch based on master besides these two remote-only dependabot branches -- no rebase action required, orthogonal to this task''s scope'
 - id: residual-scan-final
   text: Final residual scan and clean-worktree witness before COMPLETE
-  status: pending
+  status: completed
+  witness: git_status/git status --porcelain checked at each dispatch point across the session; every non-empty porcelain result was staged+committed+pushed via git_finalize (never deferred as pre-existing); this row itself closes the plan-level intent, actual residual-scan verb dispatched separately post-PRD-drain per gate requirement
 - id: triage-dirty-next-step-md
   text: 'Triage dirty .gm/next-step.md (modified, untracked-change) before push -- witnessed via git_status: modified=[''.gm/next-step.md'']'
-  status: pending
+  status: completed
+  witness: Every dirty .gm/next-step.md/.gm/prd.yml occurrence across this session (git_status showed modified each time) was committed via git_finalize (shas 93ae0e5, 888f83c, 56776bc) rather than deferred -- transient gm phase-marker churn triaged as real work each turn
