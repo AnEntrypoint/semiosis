@@ -1236,7 +1236,8 @@
   witness: 'git_checkout {ref:main, create:true} response: {"checked_out":"main","created":true}'
 - id: push-main-set-upstream
   text: Push new main branch to origin with upstream tracking set
-  status: pending
+  status: completed
+  witness: 'git_finalize {message, branch:main} response: {"committed":true,"pushed":true,"sha":"93ae0e5","branch":"main"} -- main now on origin'
 - id: gh-set-default-branch-main
   text: gh api/repo edit to set GitHub default branch to main
   status: pending
