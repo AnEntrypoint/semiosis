@@ -1232,7 +1232,8 @@
   status: completed
 - id: rename-local-branch-main
   text: Rename local branch master to main via git_branch/git verb
-  status: pending
+  status: completed
+  witness: 'git_checkout {ref:main, create:true} response: {"checked_out":"main","created":true}'
 - id: push-main-set-upstream
   text: Push new main branch to origin with upstream tracking set
   status: pending
