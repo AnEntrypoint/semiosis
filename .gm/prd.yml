@@ -1240,10 +1240,12 @@
   witness: 'git_finalize {message, branch:main} response: {"committed":true,"pushed":true,"sha":"93ae0e5","branch":"main"} -- main now on origin'
 - id: gh-set-default-branch-main
   text: gh api/repo edit to set GitHub default branch to main
-  status: pending
+  status: completed
+  witness: 'gh api repos/AnEntrypoint/semiosis -X PATCH -f default_branch=main response: default_branch:"main"'
 - id: delete-origin-master
   text: Delete old master branch on origin only after default-branch switch confirmed
-  status: pending
+  status: completed
+  witness: gh api repos/AnEntrypoint/semiosis/git/refs/heads/master -X DELETE exit 0; git ls-remote --heads shows only refs/heads/main afterward; GitHub auto-closed the 2 dependabot PRs whose base was master (expected side effect, not a blocker)
 - id: scan-ci-workflow-refs
   text: 'Enumerate .github/workflows/*.yml for branches:[master] triggers -- witnessed: no .github directory exists in semiosis, so zero workflow files to update'
   status: completed
